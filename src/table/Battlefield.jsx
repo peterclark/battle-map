@@ -4,6 +4,7 @@ import { damageStatus } from "../rules/data/index.js";
 import { inContact } from "../engagement.js";
 import { CARD_H, CARD_W, damageBoxRects } from "../art/cardFace.js";
 import { cardImage, isDrawable } from "../art/cardImage.js";
+import { ambientFor, antOffset, marchDust, prefersStillness } from "./ambient.js";
 import {
   BOARD_HEIGHT_INCHES,
   BOARD_WIDTH_INCHES,
@@ -39,12 +40,13 @@ const fitTransform = (width, height) => {
 // Put the canvas into a token's own frame: origin at its centre, +x running
 // across its front edge and +y back through its depth, so the card image and
 // everything drawn over it share one coordinate system.
-const enterTokenFrame = (ctx, t, token) => {
+const enterTokenFrame = (ctx, t, token, ambient) => {
   ctx.save();
   ctx.translate(t.offsetX + token.x * t.scale, t.offsetY + token.y * t.scale);
   // The card art is drawn facing up its own -y; turning a further quarter
   // circle points that edge along the unit's facing on the board.
-  ctx.rotate(token.facing + Math.PI / 2);
+  ctx.rotate(token.facing + Math.PI / 2 + (ambient?.sway ?? 0));
+  if (ambient) ctx.scale(ambient.breath, ambient.breath);
 };
 
 const drawBoard = (ctx, t, width, height) => {
@@ -92,7 +94,7 @@ const drawBoard = (ctx, t, width, height) => {
   ctx.strokeRect(x0, y0, w, h);
 };
 
-const drawMovementAllowance = (ctx, t, token) => {
+const drawMovementAllowance = (ctx, t, token, time) => {
   const cx = t.offsetX + token.orderX * t.scale;
   const cy = t.offsetY + token.orderY * t.scale;
   const allowance = (token.unit.move ?? 0) * t.scale;
@@ -102,13 +104,33 @@ const drawMovementAllowance = (ctx, t, token) => {
   ctx.arc(cx, cy, allowance, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(250,199,117,0.05)";
   ctx.fill();
+  // The dashes crawl, so the tape measure reads as live rather than printed
   ctx.setLineDash([6, 6]);
+  ctx.lineDashOffset = antOffset(time);
   ctx.strokeStyle = "rgba(250,199,117,0.45)";
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
 
   const marched = marchedInches(token);
+
+  // Dust hanging in the ground the unit has already crossed
+  ctx.fillStyle = "#c9bb92";
+  marchDust(token, time, marched).forEach((mote) => {
+    ctx.globalAlpha = mote.alpha;
+    ctx.beginPath();
+    ctx.arc(
+      t.offsetX + mote.x * t.scale,
+      t.offsetY + mote.y * t.scale,
+      mote.radius * t.scale,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
   if (marched > 0.1) {
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -134,20 +156,23 @@ const roundedRect = (ctx, x, y, w, h, r) => {
   ctx.roundRect(x, y, w, h, r);
 };
 
-const drawToken = (ctx, t, token, { held, selected, engaged, repaint }) => {
+const drawToken = (ctx, t, token, { held, selected, engaged, repaint, time }) => {
   const cardW = token.halfWidth * 2 * t.scale;
   const cardH = token.halfDepth * 2 * t.scale;
   const image = cardImage(token.unit, token.color, repaint);
   const status = damageStatus(token.unit, token.marked);
+  const ambient = ambientFor(token, time, { engaged, held });
 
-  enterTokenFrame(ctx, t, token);
+  enterTokenFrame(ctx, t, token, ambient);
 
   // Cast shadow, so a card reads as lying on the table rather than printed
-  // into it
+  // into it. It drifts a little behind the breath, which is what stops the
+  // card and its shadow reading as one flat sticker.
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.75)";
   ctx.shadowBlur = Math.max(cardH * 0.12, 4);
-  ctx.shadowOffsetY = Math.max(cardH * 0.05, 2);
+  ctx.shadowOffsetX = ambient.shadowX * t.scale;
+  ctx.shadowOffsetY = Math.max(cardH * 0.05, 2) + ambient.shadowY * t.scale;
   ctx.fillStyle = "#0e0c0a";
   roundedRect(ctx, -cardW / 2, -cardH / 2, cardW, cardH, cardH * 0.07);
   ctx.fill();
@@ -192,17 +217,22 @@ const drawToken = (ctx, t, token, { held, selected, engaged, repaint }) => {
   ctx.stroke();
 
   if (held || selected || engaged) {
+    // An engaged card's ring pulses — the one place on the board where
+    // something is actively happening
+    const swell = engaged ? ambient.alarm : 0;
     ctx.strokeStyle = engaged ? "#e24b4a" : "#fac775";
-    ctx.lineWidth = Math.max(cardH * 0.035, 2);
+    ctx.globalAlpha = engaged ? 0.65 + swell * 0.35 : 1;
+    ctx.lineWidth = Math.max(cardH * 0.035, 2) + swell * 1.6;
     roundedRect(
       ctx,
-      -cardW / 2 - 3,
-      -cardH / 2 - 3,
-      cardW + 6,
-      cardH + 6,
+      -cardW / 2 - 3 - swell,
+      -cardH / 2 - 3 - swell,
+      cardW + 6 + swell * 2,
+      cardH + 6 + swell * 2,
       cardH * 0.09
     );
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   if (status === "destroyed") {
@@ -330,6 +360,9 @@ export default function Battlefield({
   const tokensRef = useRef(tokens);
   tokensRef.current = tokens;
   const renderRef = useRef(() => {});
+  // Seconds since the board opened, and the only input the ambient motion
+  // takes. Held in a ref so a frame never costs a React render.
+  const clockRef = useRef(0);
 
   const toBoard = useCallback((clientX, clientY) => {
     const canvas = canvasRef.current;
@@ -367,9 +400,11 @@ export default function Battlefield({
       [...pointersRef.current.values()].map((grip) => grip.tokenId)
     );
 
+    const time = clockRef.current;
+
     forEach(tokensRef.current, (token) => {
       if (held.has(token.id) || token.id === selectedId) {
-        drawMovementAllowance(ctx, t, token);
+        drawMovementAllowance(ctx, t, token, time);
       }
     });
 
@@ -392,6 +427,7 @@ export default function Battlefield({
           (engagement.attackerId === token.id ||
             engagement.defenderId === token.id),
         repaint,
+        time,
       })
     );
 
@@ -423,6 +459,23 @@ export default function Battlefield({
   useEffect(() => {
     render();
   }, [tokens, render]);
+
+  // The board idles. Every unit breathes, shadows drift, an engaged card's
+  // ring pulses — none of it state, all of it a function of the clock, so
+  // this loop only ever has to repaint. A viewer who has asked the platform
+  // for less movement gets a still table that still works.
+  useEffect(() => {
+    if (prefersStillness()) return undefined;
+    let frame = 0;
+    const start = performance.now();
+    const step = (now) => {
+      clockRef.current = (now - start) / 1000;
+      renderRef.current();
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const updateToken = useCallback(
     (id, changes) =>
