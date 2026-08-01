@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full w-full overflow-hidden bg-table-950 text-parchment-100;
+    /* The table is a shared surface with two players leaning on it — no
+       text selection, no callouts, no double-tap zoom stealing a tap */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  /* Beaten-iron plate, the shared surface for every pressable control */
+  .plate {
+    @apply rounded-md border border-table-600 bg-gradient-to-b from-table-700
+      to-table-800 text-parchment-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]
+      transition-colors;
+  }
+
+  .plate-on-ember {
+    @apply border-ember/70 bg-gradient-to-b from-ember/40 to-ember/10 text-parchment-100;
+  }
+
+  .plate-on-blood {
+    @apply border-blood/70 bg-gradient-to-b from-blood/50 to-blood/20 text-parchment-100;
+  }
+
+  .plate-on-gold {
+    @apply border-gold/70 bg-gradient-to-b from-gold/40 to-gold/10 text-parchment-100;
+  }
+
+  /* An auto-derived modifier the board asserted from geometry rather than
+     the player toggling it — hairline gold rule along the bottom edge */
+  .plate-auto {
+    @apply border-b-2 border-b-gold/80;
+  }
+}
