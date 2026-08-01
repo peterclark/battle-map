@@ -1,32 +1,77 @@
 /** @type {import('tailwindcss').Config} */
+// The palette is BattleDeck's, carried over unchanged so the two apps look
+// like one product — a player moving from the phone to the table should not
+// feel the seam.
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        // Dark parchment-and-iron war table: the board is lit from a
-        // projector or an LCD lying flat, so surfaces stay dark and the
-        // ink stays high-contrast
-        table: {
-          950: "#0b0906",
-          900: "#141009",
-          800: "#1e1811",
-          700: "#2c231a",
-          600: "#3d3125",
+        iron: {
+          900: "#0e0c0a",
+          800: "#171411",
+          700: "#1c1916",
+          600: "#26221d",
+          500: "#332d26",
+          400: "#4a4238",
+          300: "#6b6152",
         },
-        parchment: {
-          100: "#f2e7d0",
-          200: "#e3d3b0",
-          300: "#c9b48c",
-          400: "#a08a63",
+        ember: {
+          600: "#ba7517",
+          500: "#ef9f27",
+          400: "#fac775",
+          300: "#fbe3b5",
         },
-        ember: "#e07a3c",
-        blood: "#a8302c",
-        gold: "#d9a441",
+        blood: {
+          700: "#521b1b",
+          600: "#791f1f",
+          500: "#a32d2d",
+          400: "#e24b4a",
+          300: "#f09595",
+        },
+        steel: {
+          500: "#378add",
+          300: "#85b7eb",
+        },
+        moss: {
+          700: "#27500a",
+          500: "#639922",
+          300: "#c0dd97",
+        },
+        bone: {
+          100: "#f2ecdd",
+          300: "#d8ceb8",
+          500: "#a99f8a",
+        },
       },
       fontFamily: {
-        display: ["Cinzel", "Trajan Pro", "Georgia", "serif"],
-        body: ["Inter", "system-ui", "sans-serif"],
+        display: ["Cinzel", "Georgia", "serif"],
+      },
+      keyframes: {
+        numberIn: {
+          "0%": { opacity: "0", transform: "translateY(-0.3em) scale(1.2)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        emberPulse: {
+          "0%, 100%": { boxShadow: "0 0 8px rgba(239, 159, 39, 0.25)" },
+          "50%": { boxShadow: "0 0 18px rgba(239, 159, 39, 0.55)" },
+        },
+        bloodPulse: {
+          "0%, 100%": { boxShadow: "0 0 8px rgba(163, 45, 45, 0.3)" },
+          "50%": { boxShadow: "0 0 18px rgba(163, 45, 45, 0.6)" },
+        },
+        flicker: {
+          "0%, 100%": { opacity: "0.85" },
+          "25%": { opacity: "0.65" },
+          "50%": { opacity: "1" },
+          "75%": { opacity: "0.8" },
+        },
+      },
+      animation: {
+        "number-in": "numberIn 250ms ease-out",
+        "ember-pulse": "emberPulse 2.2s ease-in-out infinite",
+        "blood-pulse": "bloodPulse 2.2s ease-in-out infinite",
+        flicker: "flicker 3.2s ease-in-out infinite",
       },
     },
   },

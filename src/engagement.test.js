@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UNITS_BY_UID } from "./rules/data/index.js";
+import { unitStand } from "./table/board.js";
 import {
   arcFrom,
   distanceInches,
@@ -15,16 +16,26 @@ const EAST = 0;
 const SOUTH = Math.PI / 2;
 const WEST = Math.PI;
 
-const token = (uid, props) => ({
-  unit: UNITS_BY_UID[uid],
-  x: 0,
-  y: 0,
-  facing: EAST,
-  marked: 0,
-  radius: 1,
-  side: "attacker",
-  ...props,
-});
+// A regular stand is 2.5" along its front edge by 1.75" deep, so two cards
+// meeting front to front touch at 1.75" between centres and are still inside
+// the contact tolerance at 2".
+const CONTACT_X = 2;
+// Meeting edge-on across the front edge instead, the reach is 1.25" a side
+const CONTACT_Y = 2.5;
+
+const token = (uid, props) => {
+  const unit = UNITS_BY_UID[uid];
+  return {
+    unit,
+    x: 0,
+    y: 0,
+    facing: EAST,
+    marked: 0,
+    ...unitStand(unit),
+    side: "attacker",
+    ...props,
+  };
+};
 
 describe("geometry", () => {
   it("measures distance in board inches", () => {
@@ -32,7 +43,6 @@ describe("geometry", () => {
   });
 
   it("puts an attacker dead ahead of the defender in its front arc", () => {
-    // Defender at the origin facing east; attacker further east
     expect(arcFrom({ x: 0, y: 0, facing: EAST }, { x: 5, y: 0 })).toBe("front");
   });
 
@@ -46,7 +56,6 @@ describe("geometry", () => {
   });
 
   it("reads arcs relative to the defender's own facing", () => {
-    // Same attacker position, defender turned to face it
     expect(arcFrom({ x: 0, y: 0, facing: SOUTH }, { x: 0, y: 5 })).toBe("front");
   });
 
@@ -56,11 +65,36 @@ describe("geometry", () => {
     expect(rangeBand(14)).toBe("long");
     expect(rangeBand(15)).toBe("extreme");
   });
+});
 
-  it("treats units within their combined footprints as engaged", () => {
-    const a = { x: 0, y: 0, radius: 1 };
-    expect(inContact(a, { x: 2.5, y: 0, radius: 1 })).toBe(true);
-    expect(inContact(a, { x: 4, y: 0, radius: 1 })).toBe(false);
+describe("contact between rectangular stands", () => {
+  it("engages two cards meeting front to front", () => {
+    const a = token("orcArmy/orcSwordsmen", { facing: EAST });
+    expect(inContact(a, { ...a, x: CONTACT_X, facing: WEST })).toBe(true);
+    expect(inContact(a, { ...a, x: 3.5, facing: WEST })).toBe(false);
+  });
+
+  it("reaches further across the front edge than through the depth", () => {
+    const a = token("orcArmy/orcSwordsmen", { facing: EAST });
+    // Both cards face east, so they meet along their long edges
+    expect(inContact(a, { ...a, y: CONTACT_Y })).toBe(true);
+    expect(inContact(a, { ...a, y: 3.2 })).toBe(false);
+  });
+
+  it("depends on how the cards are turned, not just how far apart they are", () => {
+    const a = token("orcArmy/orcSwordsmen", { facing: EAST });
+    const gap = 2.3;
+    // Presenting its narrow depth, the second card is out of reach...
+    expect(inContact(a, { ...a, x: gap, facing: WEST })).toBe(false);
+    // ...but turned side-on, its long edge closes the same gap
+    expect(inContact(a, { ...a, x: gap, facing: SOUTH })).toBe(true);
+  });
+
+  it("gives a Large stand a longer reach than a regular one", () => {
+    const trolls = token("orcArmy/trolls", { facing: EAST }); // Large
+    const goblins = token("orcArmy/goblinBowmen", { facing: WEST });
+    expect(trolls.halfWidth).toBeGreaterThan(goblins.halfWidth);
+    expect(inContact(trolls, { ...goblins, x: 2.3 })).toBe(true);
   });
 });
 
@@ -70,7 +104,7 @@ describe("resolveEngagement — the printed numbers", () => {
     // Spearmen (DS 2, DP 3), so nothing modifies the roll.
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST, // facing back at the attacker: front arc
       side: "defender",
@@ -90,7 +124,7 @@ describe("resolveEngagement — the printed numbers", () => {
     // Trolls (OP 7) against Goblin Bowmen (DP 1) is 6 — one point of Overkill
     const attacker = token("orcArmy/trolls", { x: 0, y: 0 });
     const defender = token("orcArmy/goblinBowmen", {
-      x: 2.5,
+      x: 2.3,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -108,7 +142,7 @@ describe("resolveEngagement — what the board asserts", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     // Defender facing east with the attacker behind it to the west
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: EAST,
       side: "defender",
@@ -128,7 +162,7 @@ describe("resolveEngagement — what the board asserts", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     const defender = token("orcArmy/orcSpearmen", {
       x: 0,
-      y: 2.5,
+      y: CONTACT_Y,
       facing: EAST,
       side: "defender",
     });
@@ -177,7 +211,7 @@ describe("resolveEngagement — what the board asserts", () => {
     // Orc Swordsmen have 4 green boxes: a fifth mark puts them In the Yellow
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, marked: 4 });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -192,7 +226,7 @@ describe("resolveEngagement — what the board asserts", () => {
   it("asserts Charging and picks the band from the attacker's dice", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, charged: true });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -208,7 +242,7 @@ describe("resolveEngagement — what the board asserts", () => {
   it("sees an enemy on the attacker's flank that isn't the one being fought", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, facing: EAST });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -216,7 +250,7 @@ describe("resolveEngagement — what the board asserts", () => {
     // A second enemy in contact with the attacker's southern flank
     const harasser = token("orcArmy/goblinRaiders", {
       x: 0,
-      y: 2.5,
+      y: CONTACT_Y,
       side: "defender",
     });
 
@@ -231,9 +265,13 @@ describe("resolveEngagement — what the board asserts", () => {
 
   it("fires a unit's own card ability off an asserted modifier", () => {
     // Goblin Spearmen carry the Spears keyword: -1 die when Charging
-    const attacker = token("orcArmy/goblinSpearmen", { x: 0, y: 0, charged: true });
+    const attacker = token("orcArmy/goblinSpearmen", {
+      x: 0,
+      y: 0,
+      charged: true,
+    });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -250,7 +288,7 @@ describe("resolveEngagement — what the board asserts", () => {
     const attacker = token("orcArmy/goblinSpearmen", { x: 0, y: 0 });
     // Goblin Wolf Riders are Cavalry — Spears get +1 OS against them
     const defender = token("orcArmy/goblinWolfRiders", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -266,7 +304,7 @@ describe("resolveEngagement — players overrule the board", () => {
   it("lets a player switch off a modifier the board asserted", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: EAST, // rear arc
       side: "defender",
@@ -302,7 +340,7 @@ describe("resolveEngagement — players overrule the board", () => {
   it("honours a stacking modifier's count", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     const defender = token("orcArmy/orcSpearmen", {
-      x: 2.5,
+      x: CONTACT_X,
       y: 0,
       facing: WEST,
       side: "defender",
@@ -343,7 +381,11 @@ describe("resolveEngagement — players overrule the board", () => {
 describe("resolveEngagement — attack legality", () => {
   it("refuses a stance the unit has no profile for", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 }); // no ranged
-    const defender = token("orcArmy/orcSpearmen", { x: 10, y: 0, side: "defender" });
+    const defender = token("orcArmy/orcSpearmen", {
+      x: 10,
+      y: 0,
+      side: "defender",
+    });
 
     const result = resolveEngagement(attacker, defender, { mode: "ranged" });
 
@@ -354,17 +396,13 @@ describe("resolveEngagement — attack legality", () => {
   it("picks melee in contact and shooting at a distance", () => {
     const attacker = token("orcArmy/goblinBowmen", { x: 0, y: 0 });
     expect(
-      preferredMode(attacker, { ...attacker, x: 2.5, side: "defender" })
+      preferredMode(attacker, { ...attacker, x: CONTACT_X, facing: WEST })
     ).toBe("melee");
-    expect(
-      preferredMode(attacker, { ...attacker, x: 10, side: "defender" })
-    ).toBe("ranged");
+    expect(preferredMode(attacker, { ...attacker, x: 10 })).toBe("ranged");
   });
 
   it("falls back to melee for a unit that cannot shoot", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
-    expect(
-      preferredMode(attacker, { ...attacker, x: 10, side: "defender" })
-    ).toBe("melee");
+    expect(preferredMode(attacker, { ...attacker, x: 10 })).toBe("melee");
   });
 });
