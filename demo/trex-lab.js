@@ -66,9 +66,14 @@ document.getElementById("lab").innerHTML = `
       <h1>The same job, done three ways</h1>
       <p class="lede">One clock, one set of controls, all three running now.
       Hand-drawn shapes, hand-built geometry, and an artist's rigged model with
-      its own animation clips. The third is a fox rather than a tyrannosaur —
-      a stand-in, because what it settles is whether a bought model is worth
-      buying.</p>
+      its own animation clips.</p>
+      <p class="lede"><strong>Read panel 3 with care.</strong> The model works —
+      its bones move and its clips cross-fade — but a fox seen from directly
+      overhead is 4.3 units long and 0.7 wide, a 6:1 sliver, so it reads as an
+      orange arrow. Tilt the cameras and it becomes a fox immediately. That is a
+      fact about foxes, not about bought models: a bipedal theropod has its legs
+      out to the sides and a broad back, which is a far better top-down subject.
+      <strong>This does not settle the question for a tyrannosaur.</strong></p>
     </header>
 
     <div class="controls">
@@ -98,8 +103,10 @@ document.getElementById("lab").innerHTML = `
         <h2>3 · Three.js — an artist's model</h2>
         <canvas id="gltf" width="420" height="400"></canvas>
         <p>A rigged, skinned .glb with the animator's own Survey / Walk / Run
-        clips, cross-fading between gaits. Same renderer as panel 2 — the only
-        thing that changed is that someone sculpted and animated it.</p>
+        clips, cross-fading between gaits. Sculpting and animation beat
+        primitives — but only where the silhouette survives the camera. Straight
+        down, this quadruped does not. Press <em>Tilt</em> to see the same model
+        read properly.</p>
       </div>
     </div>
 
@@ -112,6 +119,7 @@ document.getElementById("lab").innerHTML = `
         <dt>Lighting</dt><dd>Painted · Real, cast shadow · Real, cast shadow</dd>
         <dt>Facing</dt><dd>Rotate the canvas · Rotate the model · Rotate the model</dd>
         <dt>Runs on</dt><dd>CPU only · Needs a GPU · Needs a GPU</dd>
+        <dt>Top-down</dt><dd>Drawn for it · Blob · Depends entirely on the animal</dd>
       </dl>
       <p class="note">Model: “Fox” — © 2014 PixelMannen (CC0 1.0); rigging and
       animation © 2014 tomkranis (CC BY 4.0); glTF conversion © 2017
