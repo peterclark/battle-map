@@ -14,6 +14,8 @@ export default defineConfig({
         // A spike page comparing the two ways of animating a unit. It is a
         // separate entry so Three.js never lands in the app's own bundle.
         trexLab: resolve(import.meta.dirname, "demo/trex-lab.html"),
+        // Draw-call benchmark for the animated formations
+        bench: resolve(import.meta.dirname, "demo/bench.html"),
       },
     },
   },
