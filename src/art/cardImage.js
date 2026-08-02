@@ -7,7 +7,8 @@ import { cardFaceSvg } from "./cardFace.js";
 
 const cache = new Map();
 
-const key = (unit, armyColor) => `${unit.uid ?? unit.id}|${armyColor}`;
+const key = (unit, armyColor, liveOccupant) =>
+  `${unit.uid ?? unit.id}|${armyColor}|${liveOccupant ? "live" : "art"}`;
 
 /**
  * The card face for a unit, as an Image.
@@ -16,14 +17,20 @@ const key = (unit, armyColor) => `${unit.uid ?? unit.id}|${armyColor}`;
  * kilobytes of inline SVG with no network fetch behind it, so it lands within
  * a frame or two. `onReady` fires once it can be drawn, which is the board's
  * cue to repaint.
+ *
+ * `liveOccupant` asks for the face a unit wears when a modelled creature is
+ * standing on it: the banner, the stat bar and the damage track stay, and the
+ * drawn ranks come off, because two armies on one stand reads as a mistake.
+ * It is a separate cache entry rather than a redraw, so flipping the board
+ * between cards and figures costs nothing after the first flip.
  */
-export const cardImage = (unit, armyColor, onReady) => {
-  const id = key(unit, armyColor);
+export const cardImage = (unit, armyColor, onReady, { liveOccupant } = {}) => {
+  const id = key(unit, armyColor, liveOccupant);
   const cached = cache.get(id);
   if (cached) return cached;
 
   const image = new Image();
-  const svg = cardFaceSvg(unit, armyColor);
+  const svg = cardFaceSvg(unit, armyColor, { liveOccupant });
   image.decoding = "sync";
   // A data URL rather than a blob URL: nothing to revoke, and the cache holds
   // the only reference for the life of the page

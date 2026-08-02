@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { find, forEach, map, omit } from "lodash";
 import Battlefield from "./table/Battlefield.jsx";
+import CreatureLayer from "./table/CreatureLayer.jsx";
 import CombatPanel from "./CombatPanel.jsx";
 import TitleScreen from "./setup/TitleScreen.jsx";
 import ArmySelect from "./setup/ArmySelect.jsx";
@@ -32,6 +33,9 @@ export default function App() {
   // the table. Only one at a time: two players resolve one engagement
   // together, then move on.
   const [engagement, setEngagement] = useState(null);
+  // Cards or figures. Cards are the default because they are the game's own
+  // idiom and every unit has one; figures are modelled army by army.
+  const [figures, setFigures] = useState(false);
 
   const attacker = engagement && find(tokens, { id: engagement.attackerId });
   const defender = engagement && find(tokens, { id: engagement.defenderId });
@@ -179,6 +183,16 @@ export default function App() {
           </span>
           <button
             type="button"
+            onClick={() => setFigures((on) => !on)}
+            aria-pressed={figures}
+            className={`plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em] ${
+              figures ? "text-ember-400" : ""
+            }`}
+          >
+            {figures ? "Figures" : "Cards"}
+          </button>
+          <button
+            type="button"
             onClick={handleNewTurn}
             className="plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em]"
           >
@@ -202,6 +216,12 @@ export default function App() {
           onSelect={setSelectedId}
           onEngage={handleEngage}
           engagement={engagement}
+          figures={figures}
+        />
+        <CreatureLayer
+          tokens={tokens}
+          engagement={engagement}
+          enabled={figures}
         />
         {!engagement && (
           <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-wider text-bone-500">

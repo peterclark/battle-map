@@ -245,7 +245,7 @@ const escapeText = (text) =>
  * player's distance — the printed cards rely on faction art for that, which
  * a board seen from six feet up cannot lean on.
  */
-export const cardFaceSvg = (unit, armyColor) => {
+export const cardFaceSvg = (unit, armyColor, { liveOccupant = false } = {}) => {
   const seed = unit.uid ?? unit.id ?? unit.name;
   const melee = unit.melee;
   const ranged = unit.ranged;
@@ -289,7 +289,11 @@ export const cardFaceSvg = (unit, armyColor) => {
     <ellipse cx="42" cy="98" rx="26" ry="9" fill="#2b451a" opacity="0.5" />
     <ellipse cx="196" cy="46" rx="22" ry="8" fill="#2b451a" opacity="0.45" />
 
-    ${ranks(unit, seed)}
+    <!-- The drawn ranks come off when modelled figures are standing on this
+         stand: one army to a card. Everything else about the face stays,
+         because the banner, the stat bar and the damage track are what the
+         players actually read off it. -->
+    ${liveOccupant ? "" : ranks(unit, seed)}
 
     <!-- the ground plate the stat bar sits on -->
     <rect x="0" y="${ART_BOTTOM - 4}" width="${CARD_W}" height="${CARD_H - ART_BOTTOM + 4}"
