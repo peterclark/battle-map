@@ -24,6 +24,11 @@ export const CARD_INCHES_H = 1.75;
 // with the standing-order disc set into the corner beside them. The name
 // banner straddles the edge of the field the way the printed cards do.
 const ART_BOTTOM = 104;
+
+// The share of a card's depth given over to the field the ranks are drawn on.
+// Modelled figures stand in exactly this band, so they land where the drawn
+// ranks would have and leave the banner, stat bar and damage track clear.
+export const ART_FIELD_DEPTH = (ART_BOTTOM - 4) / CARD_H;
 const BANNER_Y = 94;
 const BANNER_H = 18;
 const BANNER_LEFT = 24;

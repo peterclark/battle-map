@@ -11,6 +11,7 @@
 const lower = (unit) => `${unit?.name ?? ""}`.toLowerCase();
 const has = (unit, word) => lower(unit).includes(word);
 const keyworded = (unit, word) => (unit?.keywords ?? []).includes(word);
+const faction = (unit, id) => unit?.factionId === id;
 
 /**
  * A kind, and how much of its stand it should fill.
@@ -24,6 +25,38 @@ const KINDS = [
   // Units that have earned their own sculpt, matched by name. These come
   // first: a Tyrannosaurus Rex is not a re-tinted infantryman.
   { kind: "tyrannosaur", fill: 1.15, match: (u) => has(u, "tyrannosaurus") },
+
+  // Lizardmen field three peoples rather than one, and the list says which
+  // by name. They come before the generic archetypes so a Trog Spearman
+  // musters as a Trog rather than as a man with a spear.
+  {
+    kind: "lizardfolk.tyrant",
+    fill: 0.94,
+    match: (u) => faction(u, "lizardmen") && has(u, "tyrant"),
+  },
+  {
+    kind: "lizardfolk.trog",
+    fill: 0.94,
+    match: (u) => faction(u, "lizardmen") && has(u, "trog"),
+  },
+  {
+    kind: "lizardfolk.swarmling",
+    fill: 0.94,
+    match: (u) => faction(u, "lizardmen") && has(u, "swarmling"),
+  },
+
+  // The beast units of the same list. Named rather than keyworded, because
+  // nothing on the card says "this one is an animal".
+  {
+    kind: "lizardfolk.raptor",
+    fill: 0.96,
+    match: (u) => faction(u, "lizardmen") && has(u, "raptor"),
+  },
+  {
+    kind: "lizardfolk.hatchling",
+    fill: 0.96,
+    match: (u) => faction(u, "lizardmen") && has(u, "hatchling"),
+  },
 
   // Then the archetypes, read off the card the same way `cardFace.js` reads
   // it, so a faction nobody has modelled yet still musters something.

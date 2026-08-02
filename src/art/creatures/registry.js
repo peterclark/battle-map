@@ -10,6 +10,7 @@
 import { buildInfantry, poseInfantry } from "./infantry3d.js";
 import { buildWolfRiders, poseWolfRiders } from "./wolfRiders3d.js";
 import { buildTyrannosaur, poseTyrannosaur } from "./trex3d.js";
+import { buildLizardfolk, poseLizardfolk } from "./lizardfolk3d.js";
 
 const wrap = (build, pose) => ({
   build: (unit) => {
@@ -23,6 +24,23 @@ export const BUILDERS = {
   infantry: wrap(() => buildInfantry(), poseInfantry),
   wolfRiders: wrap(() => buildWolfRiders(), poseWolfRiders),
   tyrannosaur: wrap(() => buildTyrannosaur(), poseTyrannosaur),
+  "lizardfolk.swarmling": wrap(
+    () => buildLizardfolk({ breed: "swarmling" }),
+    poseLizardfolk
+  ),
+  "lizardfolk.trog": wrap(() => buildLizardfolk({ breed: "trog" }), poseLizardfolk),
+  "lizardfolk.tyrant": wrap(
+    () => buildLizardfolk({ breed: "tyrant" }),
+    poseLizardfolk
+  ),
+  "lizardfolk.raptor": wrap(
+    () => buildLizardfolk({ breed: "raptor" }),
+    poseLizardfolk
+  ),
+  "lizardfolk.hatchling": wrap(
+    () => buildLizardfolk({ breed: "hatchling" }),
+    poseLizardfolk
+  ),
 };
 
 /** The builder for a kind resolved by `roster.js`, or null. */

@@ -67,6 +67,25 @@ between two oriented rectangles rather than two circles overlapping: a card
 turned side-on reaches further than one presenting its narrow depth, exactly
 as the printed stands do.
 
+## Cards or figures
+
+The header switches the board between the two. Cards are the default, because
+every unit has one; figures are modelled army by army and a unit without a
+sculpt keeps its card art rather than borrowing someone else's.
+
+With figures on, a stand gives up its drawn ranks and keeps its banner, stat
+bar and damage track — one army to a card, and the players still read what
+they need off it. The figures stand in the band the ranks were drawn in.
+
+Everything is built for a camera looking straight down, which is a harsher
+constraint than it sounds: a spear held upright is a dot, a dark figure on
+dark turf disappears, and a lone sculpt reads far worse than twenty of the
+same parts in ranks. `.claude/skills/army-animation/` is the working guide,
+and `docs/creature-brief.md` holds the agreed direction per faction.
+
+Three.js loads on the first switch and not before, so a player who never turns
+figures on never pays for them.
+
 ## Handling the table
 
 | Gesture | What it does |
@@ -108,6 +127,14 @@ src/
     cardFace.js       original SVG card art, and the damage-box geometry the
                       board draws its marks over
     cardImage.js      rasterises a card face once and caches it
+    creatures/
+      roster.js       which figures a unit fields -- no Three.js, so the board
+                      can ask on every frame in card mode
+      registry.js     which builder each kind maps to -- dynamically imported
+      lizardfolk3d.js the Lizardmen: three peoples and their beasts
+      infantry3d.js   the generic block of foot
+      wolfRiders3d.js the generic cavalry
+      trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
   setup/
     TitleScreen.jsx   BattleMap, and the way in
     ArmySelect.jsx    both players choose a faction
@@ -116,6 +143,7 @@ src/
   table/
     board.js          the inch board, rosters, deployment, movement, turns
     Battlefield.jsx   canvas rendering and multi-touch pointer handling
+    CreatureLayer.jsx the figures, on a second canvas sharing the board's frame
   rules/              VENDORED FROM BATTLEDECK — see src/rules/README.md
 ```
 
@@ -155,6 +183,11 @@ Events, so either build works:
 - Every stand is the same 2.5" × 1.75" card, scaled up for Large and Colossal.
   The physical game varies stand width by unit, so frontages are close rather
   than exact.
+- Figures exist for the Lizardmen, plus generic infantry and cavalry and the
+  Tyrannosaurus Rex. Every other faction falls back to those archetypes, and
+  Large units other than the T-Rex keep their card art.
+- The Orc Axemen block is too dark to read at stand scale against the turf and
+  wants a palette pass.
 
 ## Credit
 

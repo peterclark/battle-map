@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { damageStatus } from "../rules/data/index.js";
+import { ART_FIELD_DEPTH } from "../art/cardFace.js";
 import {
   BOARD_HEIGHT_INCHES,
   BOARD_WIDTH_INCHES,
@@ -166,17 +167,26 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
           // Scale the figures to the stand they occupy. Builders model at
           // whatever size reads best on their own, so the fit is measured
           // rather than assumed.
+          //
+          // The band they get is the card's art field, not the whole card:
+          // the bottom of a stand carries the banner, the stat bar and the
+          // damage track, and figures standing on those make the one thing
+          // players actually have to read unreadable.
           const stand = unitStand(token.unit);
+          const bandDepth = stand.halfDepth * 2 * ART_FIELD_DEPTH;
           const box = new THREE.Box3().setFromObject(made.root);
           const size = box.getSize(new THREE.Vector3());
+          const centre = box.getCenter(new THREE.Vector3());
           const fit = Math.min(
             (stand.halfWidth * 2 * kind.fill) / (size.x || 1),
-            (stand.halfDepth * 2 * kind.fill) / (size.z || 1)
+            (bandDepth * kind.fill) / (size.z || 1)
           );
           made.root.scale.setScalar(fit);
-          // Re-centre on the stand after scaling
-          made.root.position.x = -box.getCenter(new THREE.Vector3()).x * fit;
-          made.root.position.z = -box.getCenter(new THREE.Vector3()).z * fit;
+          // Centre on the band rather than on the stand. A card faces its own
+          // -Z, so the field runs from the front edge back.
+          made.root.position.x = -centre.x * fit;
+          made.root.position.z =
+            -centre.z * fit + stand.halfDepth * (ART_FIELD_DEPTH - 1);
           made.root.position.y = -box.min.y * fit;
 
           built = { ...made, holder, builder };
