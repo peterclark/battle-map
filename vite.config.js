@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
+  // .glb is a model, not a module
+  assetsInclude: ["**/*.glb"],
   build: {
     rollupOptions: {
       input: {
