@@ -15,23 +15,37 @@ import { buildInfantry, poseInfantry } from "../src/art/creatures/infantry3d.js"
 //          a software rasteriser, and the number means nothing about a real
 //          panel. Reported, but do not read anything into it.
 //
-// Usage: bench.html?units=10&frames=240
+// Shadows are measured separately from everything else, because they are the
+// one cost you can choose not to pay. The shadow pass re-draws every
+// casting mesh from the light's point of view, so it roughly doubles the
+// submit load — and on a board lit from almost directly overhead, it buys
+// less than it does in a three-quarter view. Run it both ways before
+// deciding.
+//
+// Usage: bench.html?units=10&frames=240&shadows=on&width=1920&height=1080
 
 const params = new URLSearchParams(location.search);
 const UNITS = Number(params.get("units") ?? 10);
 const FRAMES = Number(params.get("frames") ?? 240);
 const GAIT = params.get("gait") ?? "march";
+const SHADOWS = (params.get("shadows") ?? "on") !== "off";
+const SHADOW_MAP = Number(params.get("shadowmap") ?? 2048);
+const WIDTH = Number(params.get("width") ?? 1280);
+const HEIGHT = Number(params.get("height") ?? 720);
 
 const canvas = document.getElementById("stage");
+canvas.width = WIDTH;
+canvas.height = HEIGHT;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = SHADOWS;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(1);
-renderer.setSize(1280, 720, false);
+renderer.setSize(WIDTH, HEIGHT, false);
 
 // A board's worth of units, laid out the way they would deploy
-const { scene, camera } = buildScene(1280, 720, { span: 46 });
+const { scene, camera, key } = buildScene(WIDTH, HEIGHT, { span: 46 });
 setTilt(camera, 0);
+key.castShadow = SHADOWS;
 
 const blocks = [];
 const perRow = Math.ceil(Math.sqrt(UNITS));
@@ -46,9 +60,42 @@ for (let i = 0; i < UNITS; i += 1) {
   blocks.push(block);
 }
 
+// Size the shadow camera to the army it is lighting.
+//
+// buildScene's default frustum is ±10 units, which suits one monster on a
+// plinth and silently culls most of a board: at twenty blocks only two of
+// them fell inside it, so nine tenths of the infantry cast nothing and the
+// shadow pass came back almost free. It was not free — it was absent. A
+// frustum that covers the content is the only way this number means
+// anything.
+// The blocks, not the scene: the ground is a 60-unit plane and bounding it
+// would hand back the plane rather than the army standing on it.
+const bounds = new THREE.Box3();
+blocks.forEach((block) => bounds.expandByObject(block.root));
+const shadowHalfExtent =
+  Math.ceil(
+    Math.max(
+      Math.abs(bounds.min.x),
+      Math.abs(bounds.max.x),
+      Math.abs(bounds.min.z),
+      Math.abs(bounds.max.z)
+    )
+  ) + 1;
+if (SHADOWS) {
+  key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  key.shadow.camera.left = -shadowHalfExtent;
+  key.shadow.camera.right = shadowHalfExtent;
+  key.shadow.camera.top = shadowHalfExtent;
+  key.shadow.camera.bottom = -shadowHalfExtent;
+  key.shadow.camera.updateProjectionMatrix();
+}
+
 let meshes = 0;
+let casters = 0;
 scene.traverse((o) => {
-  if (o.isMesh) meshes += 1;
+  if (!o.isMesh) return;
+  meshes += 1;
+  if (o.castShadow) casters += 1;
 });
 
 const samples = { pose: [], submit: [], frame: [] };
@@ -92,9 +139,18 @@ const step = (now) => {
   const result = {
     units: UNITS,
     figures: UNITS * 20,
+    resolution: `${WIDTH}x${HEIGHT}`,
     meshesInScene: meshes,
-    drawCalls: info.calls,
+    // renderer.info counts the main pass only. With shadows on, the light
+    // re-draws every caster into the shadow map on top of this — so the
+    // submitted total is nearer meshes + casters than the figure below.
+    drawCallsMainPass: info.calls,
+    shadowCasters: SHADOWS ? casters : 0,
+    approxTotalDrawCalls: info.calls + (SHADOWS ? casters : 0),
     triangles: info.triangles,
+    shadows: SHADOWS
+      ? { mapSize: SHADOW_MAP, halfExtent: shadowHalfExtent }
+      : false,
     // CPU, and the part that transfers to other machines
     poseMsMedian: round(median(samples.pose)),
     submitMsMedian: round(median(samples.submit)),
