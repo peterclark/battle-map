@@ -11,6 +11,10 @@ import {
   buildWolfRiders,
   poseWolfRiders,
 } from "../src/art/creatures/wolfRiders3d.js";
+import {
+  buildInfantry,
+  poseInfantry,
+} from "../src/art/creatures/infantry3d.js";
 import foxUrl from "./assets/Fox.glb";
 
 // Three approaches, one clock, one set of controls. The only way to judge
@@ -67,11 +71,12 @@ document.getElementById("lab").innerHTML = `
   <div class="wrap">
     <header>
       <p class="eyebrow">Battle Map · animation approaches</p>
-      <h1>The same job, four ways</h1>
-      <p class="lede">One clock, one set of controls, all four running now.
-      Hand-drawn shapes, hand-built geometry, an artist's rigged model, and the
-      same hand-built geometry again — but as a formation of six rather than one
-      big animal, which turns out to matter more than the technique does.</p>
+      <h1>The same job, five ways</h1>
+      <p class="lede">One clock, one set of controls, all five running now.
+      The interesting comparison turned out not to be hand-drawn against
+      sculpted. It is <strong>one body against many</strong>: panels 2, 4 and 5
+      are the same technique and the same capsules, and the only thing that
+      changes across them is how many figures the unit is made of.</p>
       <p class="lede"><strong>Read panel 3 with care.</strong> The model works —
       its bones move and its clips cross-fade — but a fox seen from directly
       overhead is 4.3 units long and 0.7 wide, a 6:1 sliver, so it reads as an
@@ -122,6 +127,15 @@ document.getElementById("lab").innerHTML = `
         overhead camera. Wolves trot on diagonal pairs, and the six levelled
         spears do more for the read than any single figure.</p>
       </div>
+      <div class="cell">
+        <h2>5 · A block of twenty</h2>
+        <canvas id="infantry" width="420" height="400"></canvas>
+        <p><strong>Orc Axemen</strong> — the case that decides the other
+        eighty-odd units, since most of the army list is ranks of footmen. Tight
+        files, staggered ranks, and twenty shields presenting their broadest
+        face straight at the camera. One clock, twenty phases: in perfect unison
+        a rank reads as a machine.</p>
+      </div>
     </div>
 
     <div class="cell">
@@ -134,7 +148,15 @@ document.getElementById("lab").innerHTML = `
         <dt>Facing</dt><dd>Rotate the canvas · Rotate the model · Rotate the model</dd>
         <dt>Runs on</dt><dd>CPU only · Needs a GPU · Needs a GPU</dd>
         <dt>Top-down</dt><dd>Drawn for it · Blob · Depends on the animal · Carried by the formation</dd>
+        <dt>Block of 20</dt><dd>360 meshes · 34,400 triangles — see the note below</dd>
       </dl>
+      <p class="note">The triangle count is trivial; the mesh count is not.
+      Three hundred and sixty meshes is three hundred and sixty draw calls, and
+      ten infantry units on a board would be 3,600 a frame — enough to matter on
+      whatever small machine drives the table. The fix is standard and not yet
+      applied here: twenty identical orcs are what InstancedMesh exists for, and
+      it would collapse the whole block to roughly eighteen calls. Worth knowing
+      before this goes anywhere near the board.</p>
       <p class="note">Model: “Fox” — © 2014 PixelMannen (CC0 1.0); rigging and
       animation © 2014 tomkranis (CC BY 4.0); glTF conversion © 2017
       @AsoboStudio and @scurest (CC BY 4.0). Used here as a stand-in under
@@ -213,6 +235,11 @@ const built = makePanel("three", 13);
 const rig = buildTyrannosaur();
 built.scene.add(rig.root);
 
+// --- 5: a block of twenty -------------------------------------------------
+const block = makePanel("infantry", 8.2);
+const infantry = buildInfantry();
+block.scene.add(infantry.root);
+
 // --- 4: primitives as a formation ----------------------------------------
 const formation = makePanel("riders", 8.6);
 const riders = buildWolfRiders();
@@ -228,7 +255,7 @@ loadCreature(foxUrl, { clips: FOX_CLIPS, height: 2.2 })
     creature.play(gait, 0);
     // A handle for driving this page from a test — the lab is a spike, and
     // proving the clips actually run beats eyeballing a screenshot
-    window.__lab = { creature, built: rig };
+    window.__lab = { creature, built: rig, riders, infantry };
     // Report what the file actually contained, so a swapped-in model that
     // names its clips differently says so rather than standing still
     console.info("clips in model:", creature.clipNames.join(", "));
@@ -256,6 +283,10 @@ const frame = (ms) => {
   poseWolfRiders(riders, clock, gait);
   formation.renderer.render(formation.scene, formation.camera);
 
+  block.resize();
+  poseInfantry(infantry, clock, gait);
+  block.renderer.render(block.scene, block.camera);
+
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
@@ -277,6 +308,7 @@ tiltBtn.addEventListener("click", () => {
   setTilt(built.camera, tilt);
   setTilt(bought.camera, tilt);
   setTilt(formation.camera, tilt);
+  setTilt(block.camera, tilt);
   tiltBtn.setAttribute("aria-pressed", String(tilt !== 0));
   tiltBtn.textContent = tilt === 0 ? "Tilt the 3D cameras" : "Back to straight down";
 });
