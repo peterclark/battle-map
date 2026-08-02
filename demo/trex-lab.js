@@ -7,6 +7,10 @@ import {
   setTilt,
 } from "../src/art/creatures/trex3d.js";
 import { loadCreature } from "../src/art/creatures/gltfCreature.js";
+import {
+  buildWolfRiders,
+  poseWolfRiders,
+} from "../src/art/creatures/wolfRiders3d.js";
 import foxUrl from "./assets/Fox.glb";
 
 // Three approaches, one clock, one set of controls. The only way to judge
@@ -34,7 +38,7 @@ const PALETTE = `
              text-transform:uppercase; color:var(--accent); margin:0 }
   h1 { font-size:clamp(26px,4vw,40px); letter-spacing:.04em; margin:6px 0 0 }
   .lede { color:var(--dim); max-width:66ch; margin:10px 0 0; line-height:1.65 }
-  .trio { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)) }
+  .trio { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)) }
   .cell { background:var(--panel); border:1px solid var(--rule); border-radius:12px;
           padding:12px; display:flex; flex-direction:column; gap:10px }
   .cell h2 { font-family:var(--mono); font-size:11px; letter-spacing:.2em;
@@ -63,10 +67,11 @@ document.getElementById("lab").innerHTML = `
   <div class="wrap">
     <header>
       <p class="eyebrow">Battle Map · animation approaches</p>
-      <h1>The same job, done three ways</h1>
-      <p class="lede">One clock, one set of controls, all three running now.
-      Hand-drawn shapes, hand-built geometry, and an artist's rigged model with
-      its own animation clips.</p>
+      <h1>The same job, four ways</h1>
+      <p class="lede">One clock, one set of controls, all four running now.
+      Hand-drawn shapes, hand-built geometry, an artist's rigged model, and the
+      same hand-built geometry again — but as a formation of six rather than one
+      big animal, which turns out to matter more than the technique does.</p>
       <p class="lede"><strong>Read panel 3 with care.</strong> The model works —
       its bones move and its clips cross-fade — but a fox seen from directly
       overhead is 4.3 units long and 0.7 wide, a 6:1 sliver, so it reads as an
@@ -108,6 +113,15 @@ document.getElementById("lab").innerHTML = `
         down, this quadruped does not. Press <em>Tilt</em> to see the same model
         read properly.</p>
       </div>
+      <div class="cell">
+        <h2>4 · Primitives, but a formation</h2>
+        <canvas id="riders" width="420" height="400"></canvas>
+        <p><strong>Goblin Wolf Riders</strong> — the same technique as panel 2,
+        asked a different question. One large body of capsules is a blob from
+        above; six small ones are a <em>pattern</em>, and a pattern survives the
+        overhead camera. Wolves trot on diagonal pairs, and the six levelled
+        spears do more for the read than any single figure.</p>
+      </div>
     </div>
 
     <div class="cell">
@@ -119,7 +133,7 @@ document.getElementById("lab").innerHTML = `
         <dt>Lighting</dt><dd>Painted · Real, cast shadow · Real, cast shadow</dd>
         <dt>Facing</dt><dd>Rotate the canvas · Rotate the model · Rotate the model</dd>
         <dt>Runs on</dt><dd>CPU only · Needs a GPU · Needs a GPU</dd>
-        <dt>Top-down</dt><dd>Drawn for it · Blob · Depends entirely on the animal</dd>
+        <dt>Top-down</dt><dd>Drawn for it · Blob · Depends on the animal · Carried by the formation</dd>
       </dl>
       <p class="note">Model: “Fox” — © 2014 PixelMannen (CC0 1.0); rigging and
       animation © 2014 tomkranis (CC BY 4.0); glTF conversion © 2017
@@ -199,6 +213,11 @@ const built = makePanel("three", 13);
 const rig = buildTyrannosaur();
 built.scene.add(rig.root);
 
+// --- 4: primitives as a formation ----------------------------------------
+const formation = makePanel("riders", 8.6);
+const riders = buildWolfRiders();
+formation.scene.add(riders.root);
+
 // --- 3: the artist's model ------------------------------------------------
 const bought = makePanel("gltf", 5.2);
 let creature = null;
@@ -233,6 +252,10 @@ const frame = (ms) => {
   if (creature && running) creature.update(delta);
   bought.renderer.render(bought.scene, bought.camera);
 
+  formation.resize();
+  poseWolfRiders(riders, clock, gait);
+  formation.renderer.render(formation.scene, formation.camera);
+
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
@@ -253,6 +276,7 @@ tiltBtn.addEventListener("click", () => {
   tilt = tilt === 0 ? 26 : 0;
   setTilt(built.camera, tilt);
   setTilt(bought.camera, tilt);
+  setTilt(formation.camera, tilt);
   tiltBtn.setAttribute("aria-pressed", String(tilt !== 0));
   tiltBtn.textContent = tilt === 0 ? "Tilt the 3D cameras" : "Back to straight down";
 });
