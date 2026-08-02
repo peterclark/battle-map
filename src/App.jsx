@@ -1,19 +1,31 @@
 import { useCallback, useMemo, useState } from "react";
 import { find, forEach, map, omit } from "lodash";
-import classNames from "classnames";
 import Battlefield from "./table/Battlefield.jsx";
 import CombatPanel from "./CombatPanel.jsx";
+import TitleScreen from "./setup/TitleScreen.jsx";
+import ArmySelect from "./setup/ArmySelect.jsx";
+import UnitSelect from "./setup/UnitSelect.jsx";
 import { MODIFIERS } from "./rules/modifiers.js";
+import { FACTIONS_BY_ID } from "./rules/data/index.js";
 import { preferredMode, resolveEngagement } from "./engagement.js";
 import {
-  ARMIES,
-  initialTokens,
+  SIDES,
+  deployTokens,
+  rosterPoints,
   withDamage,
   withNewTurn,
 } from "./table/board.js";
 
+const EMPTY_PLAYERS = {
+  one: { factionId: null, roster: {} },
+  two: { factionId: null, roster: {} },
+};
+
 export default function App() {
-  const [tokens, setTokens] = useState(initialTokens);
+  // title -> armies -> units -> battle
+  const [phase, setPhase] = useState("title");
+  const [players, setPlayers] = useState(EMPTY_PLAYERS);
+  const [tokens, setTokens] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [turn, setTurn] = useState(1);
   // { attackerId, defenderId, mode, overrides } — the attack currently on
@@ -32,6 +44,27 @@ export default function App() {
       others: tokens,
     });
   }, [attacker, defender, engagement, tokens]);
+
+  const pickFaction = (side, factionId) =>
+    setPlayers((current) => ({
+      ...current,
+      // Changing faction abandons a list built from the old one
+      [side]: { factionId, roster: {} },
+    }));
+
+  const setRoster = (side, roster) =>
+    setPlayers((current) => ({
+      ...current,
+      [side]: { ...current[side], roster },
+    }));
+
+  const takeTheField = () => {
+    setTokens(deployTokens(players));
+    setSelectedId(null);
+    setEngagement(null);
+    setTurn(1);
+    setPhase("battle");
+  };
 
   const handleEngage = useCallback(
     (attackerId, defenderId) => {
@@ -88,53 +121,75 @@ export default function App() {
     setTurn((current) => current + 1);
   };
 
-  const handleReset = () => {
-    setTokens(initialTokens());
-    setEngagement(null);
-    setSelectedId(null);
-    setTurn(1);
-  };
+  if (phase === "title") {
+    return <TitleScreen onStart={() => setPhase("armies")} />;
+  }
+
+  if (phase === "armies") {
+    return (
+      <ArmySelect
+        players={players}
+        onPick={pickFaction}
+        onBack={() => setPhase("title")}
+        onConfirm={() => setPhase("units")}
+      />
+    );
+  }
+
+  if (phase === "units") {
+    return (
+      <UnitSelect
+        players={players}
+        onRosterChange={setRoster}
+        onBack={() => setPhase("armies")}
+        onConfirm={takeTheField}
+      />
+    );
+  }
 
   return (
-    <div className="flex h-full w-full flex-col bg-table-950">
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-table-700 px-4 py-2">
+    <div className="flex h-full w-full flex-col bg-iron-900">
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-iron-500 px-4 py-2">
         <div className="flex items-center gap-4">
-          <h1 className="font-display text-lg tracking-wide text-parchment-100">
-            Battle Map
+          <h1 className="font-display text-base font-bold uppercase tracking-[0.2em] text-ember-400">
+            BattleMap
           </h1>
           <div className="flex items-center gap-3">
-            {map(ARMIES, (army) => (
+            {map(SIDES, (seat) => (
               <span
-                key={army.side}
-                className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-parchment-300"
+                key={seat.side}
+                className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-bone-300"
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: army.color }}
+                  style={{ backgroundColor: seat.color }}
                 />
-                {army.name}
+                {FACTIONS_BY_ID[players[seat.side].factionId]?.name}
+                <span className="text-bone-500">
+                  {rosterPoints(players[seat.side].roster)} pts
+                </span>
               </span>
             ))}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-parchment-400">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-bone-500">
             Turn {turn}
           </span>
           <button
             type="button"
             onClick={handleNewTurn}
-            className="plate px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
+            className="plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em]"
           >
             New Turn
           </button>
           <button
             type="button"
-            onClick={handleReset}
-            className="plate px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
+            onClick={() => setPhase("units")}
+            className="plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em]"
           >
-            Redeploy
+            Rebuild
           </button>
         </div>
       </header>
@@ -149,19 +204,14 @@ export default function App() {
           engagement={engagement}
         />
         {!engagement && (
-          <p
-            className={classNames(
-              "pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px]",
-              "uppercase tracking-wider text-parchment-400/70"
-            )}
-          >
-            Drag a unit to march it · hold it and touch the board to turn it ·
+          <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-wider text-bone-500">
+            Drag a card to march it · hold it and touch the board to turn it ·
             march into an enemy or tap one then the other to attack · double-tap
             to rescind the order
           </p>
         )}
 
-        {/* The panel floats over the board rather than squeezing it: units
+        {/* The panel floats over the board rather than squeezing it: cards
             must not shift underneath the players' hands when an engagement
             opens. */}
         {result && (

@@ -10,13 +10,13 @@ const signed = (value) => (value > 0 ? `+${value}` : `${value}`);
 // One of the three numbers the players actually roll against, with its
 // working shown underneath the way BattleDeck prints it.
 const StatCard = ({ title, value, hint, overkill, terms, tone }) => (
-  <div className="flex min-w-0 flex-1 flex-col rounded-lg border border-table-600 bg-table-900/80 p-3">
+  <div className="flex min-w-0 flex-1 flex-col rounded-lg border border-iron-500 bg-iron-800/80 p-3">
     <div className="flex items-baseline justify-between">
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-parchment-400">
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-bone-500">
         {title}
       </span>
       {overkill > 0 && (
-        <span className="rounded bg-ember/20 px-1.5 py-0.5 text-[10px] font-semibold text-ember">
+        <span className="rounded bg-ember-600/20 px-1.5 py-0.5 text-[10px] font-semibold text-ember-400">
           OK: {overkill}×6→5
         </span>
       )}
@@ -24,14 +24,22 @@ const StatCard = ({ title, value, hint, overkill, terms, tone }) => (
     <span className={classNames("font-display text-6xl leading-none", tone)}>
       {value}
     </span>
-    <span className="mt-1 text-[11px] text-parchment-400">{hint}</span>
-    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 border-t border-table-700 pt-2 text-[11px] text-parchment-300">
+    <span className="mt-1 text-[11px] text-bone-500">{hint}</span>
+    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 border-t border-iron-600 pt-2 text-[11px] text-bone-300">
       {map(terms, (term, index) => (
         <span key={index} className="whitespace-nowrap">
-          <span className={term.amount < 0 ? "text-blood" : term.base ? "" : "text-emerald-400"}>
+          <span
+            className={
+              term.amount < 0
+                ? "text-blood-400"
+                : term.base
+                  ? ""
+                  : "text-moss-300"
+            }
+          >
             {term.base ? term.amount : signed(term.amount)}
           </span>
-          <span className="ml-0.5 text-parchment-400">{term.code ?? term.label}</span>
+          <span className="ml-0.5 text-bone-500">{term.code ?? term.label}</span>
         </span>
       ))}
     </div>
@@ -76,10 +84,10 @@ const ModifierGrid = ({ result, mode, overrides, onOverride }) => {
           >
             <span className="whitespace-pre-line">{mod.name}</span>
             {mod.maxCount && count > 0 && (
-              <span className="mt-0.5 text-[10px] text-gold">×{count}</span>
+              <span className="mt-0.5 text-[10px] text-ember-400">×{count}</span>
             )}
             {Boolean(overrides[mod.id] !== undefined) && (
-              <span className="mt-0.5 text-[9px] uppercase tracking-wide text-parchment-400">
+              <span className="mt-0.5 text-[9px] uppercase tracking-wide text-bone-500">
                 manual
               </span>
             )}
@@ -117,17 +125,17 @@ export default function CombatPanel({
 
   return (
     <section
-      className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto border-t-2 border-gold/40 bg-table-950/95 p-4 shadow-[0_-8px_32px_rgba(0,0,0,0.7)]"
+      className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto border-t-2 border-ember-500/40 bg-iron-900/95 p-4 shadow-[0_-8px_32px_rgba(0,0,0,0.7)]"
       aria-label="Engagement"
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <h2 className="font-display text-xl text-parchment-100">
+          <h2 className="font-display text-xl text-bone-100">
             {attacker.unit.name}{" "}
-            <span className="text-parchment-400">attacks</span>{" "}
+            <span className="text-bone-500">attacks</span>{" "}
             {defender.unit.name}
           </h2>
-          <span className="text-[11px] uppercase tracking-wider text-parchment-400">
+          <span className="text-[11px] uppercase tracking-wider text-bone-500">
             {result.distance.toFixed(1)}&quot; · {result.arc} arc
           </span>
         </div>
@@ -180,7 +188,7 @@ export default function CombatPanel({
       </header>
 
       {!result.legal && (
-        <p className="rounded border border-blood/60 bg-blood/15 px-3 py-2 text-sm text-red-200">
+        <p className="rounded border border-blood-500/60 bg-blood-600/15 px-3 py-2 text-sm text-blood-300">
           {result.outOfRange
             ? `Out of range — ${result.distance.toFixed(1)}" to a target at ${result.profile?.range}".`
             : mode === "ranged"
@@ -205,7 +213,7 @@ export default function CombatPanel({
             value={result.diceToRoll}
             hint={result.diceLocked ? "locked by the card" : "dice to roll"}
             terms={result.breakdown.dice}
-            tone="text-parchment-100"
+            tone="text-bone-100"
           />
           <StatCard
             title="Hit"
@@ -213,7 +221,7 @@ export default function CombatPanel({
             hint="hit on this or less"
             overkill={result.hitOverkill}
             terms={result.breakdown.hit}
-            tone="text-ember"
+            tone="text-ember-400"
           />
           <StatCard
             title="Wound"
@@ -221,7 +229,7 @@ export default function CombatPanel({
             hint="wound on this or less"
             overkill={result.woundOverkill}
             terms={result.breakdown.wound}
-            tone="text-blood"
+            tone="text-blood-400"
           />
         </div>
 
@@ -234,8 +242,8 @@ export default function CombatPanel({
       </div>
 
       {Boolean(result.auto.length) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded border border-gold/25 bg-gold/5 px-3 py-2 text-[11px] text-parchment-300">
-          <span className="font-semibold uppercase tracking-wider text-gold">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded border border-ember-500/25 bg-ember-600/5 px-3 py-2 text-[11px] text-bone-300">
+          <span className="font-semibold uppercase tracking-wider text-ember-400">
             The board sees
           </span>
           {map(result.auto, (id) => (
@@ -245,8 +253,8 @@ export default function CombatPanel({
       )}
 
       {Boolean(result.abilities.length) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded border border-ember/25 bg-ember/5 px-3 py-2 text-[11px] text-parchment-300">
-          <span className="font-semibold uppercase tracking-wider text-ember">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded border border-ember-500/25 bg-ember-600/5 px-3 py-2 text-[11px] text-bone-300">
+          <span className="font-semibold uppercase tracking-wider text-ember-400">
             Card rules in play
           </span>
           {map(result.abilities, (ability, index) => (

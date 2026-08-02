@@ -31,13 +31,41 @@ export const BOARD_SCALE = 22;
 // arc split and it's what "Flanking" and "Rear Attack" key off.
 const ARC_HALF_WIDTH = Math.PI / 4;
 
-// How close two units must be to count as Engaged for a melee attack. Base
-// contact in the physical game is edge-to-edge; on the board we treat the
-// unit footprint as a disc, so contact is centre-to-centre within the sum of
-// the two radii plus a small tolerance for fat fingers on a touch frame.
-export const CONTACT_TOLERANCE_INCHES = 0.75;
+// Base contact in the physical game is edge-to-edge between two rectangular
+// stands. The tolerance is the slack around that edge — enough that a finger
+// on an IR frame does not have to land a card to the thousandth of an inch.
+export const CONTACT_TOLERANCE_INCHES = 0.4;
 
 export const distanceInches = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+// A token's own axes: `forward` runs along its facing, out through the front
+// edge; `side` runs along the front edge itself.
+const axes = (token) => ({
+  forward: { x: Math.cos(token.facing), y: Math.sin(token.facing) },
+  side: { x: -Math.sin(token.facing), y: Math.cos(token.facing) },
+});
+
+// How far a stand reaches from its centre along an arbitrary direction
+const extentAlong = (token, axis) => {
+  const { forward, side } = axes(token);
+  return (
+    Math.abs((token.halfDepth ?? 0.875) * (forward.x * axis.x + forward.y * axis.y)) +
+    Math.abs((token.halfWidth ?? 1.25) * (side.x * axis.x + side.y * axis.y))
+  );
+};
+
+// Separating-axis test between two rectangular stands, each grown by half the
+// contact tolerance. Two rectangles are apart only if some axis separates
+// them; if none does, their edges are touching and the units are Engaged.
+export const inContact = (a, b) => {
+  const slack = CONTACT_TOLERANCE_INCHES / 2;
+  const between = { x: b.x - a.x, y: b.y - a.y };
+  const candidates = [axes(a).forward, axes(a).side, axes(b).forward, axes(b).side];
+  return !candidates.some((axis) => {
+    const gap = Math.abs(between.x * axis.x + between.y * axis.y);
+    return gap > extentAlong(a, axis) + extentAlong(b, axis) + slack * 2;
+  });
+};
 
 // Which of `target`'s arcs `origin` sits in — the angle from the target to
 // the origin, measured against the way the target is facing.
@@ -51,10 +79,6 @@ export const arcFrom = (target, origin) => {
   if (magnitude >= Math.PI - ARC_HALF_WIDTH) return "rear";
   return "flank";
 };
-
-export const inContact = (a, b) =>
-  distanceInches(a, b) <=
-  (a.radius ?? 1) + (b.radius ?? 1) + CONTACT_TOLERANCE_INCHES;
 
 // Range bands as the modifier cards name them: 7–14" is Long Range, 15" and
 // out is Extreme Range. Anything closer is unmodified short range.
