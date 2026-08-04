@@ -22,6 +22,7 @@ import {
   poseBrutes,
 } from "./brutes3d.js";
 import { buildDragon, poseDragon } from "./dragon3d.js";
+import { buildSwarm, poseSwarm } from "./swarm3d.js";
 
 const wrap = (build, pose) => ({
   build: () => {
@@ -78,6 +79,10 @@ const FOOT = {
   "wild.sword": { weapon: "sword", palette: "wildmen", build: "man" },
   "wild.spear": { weapon: "spear", palette: "wildmen", build: "man" },
   "wild.bow": { weapon: "bow", palette: "wildmen", build: "man" },
+
+  // Spellcasters. Robed, staved, and standing well apart.
+  "elf.mage": { weapon: "staff", palette: "highElf", build: "mage" },
+  "wild.mage": { weapon: "staff", palette: "wildmen", build: "mage" },
 
   // Orc foot gains the weapons everyone else just got
   "infantry.crossbow": { weapon: "crossbow", palette: "orc" },
@@ -192,6 +197,10 @@ Object.entries(DRAGONS).forEach(([kind, options]) => {
 
 // Not a brute and not a beast: a heap of the dead with no skeleton under it
 BUILDERS["undead.abomination"] = wrap(buildAbomination, poseAbomination);
+
+// A carpet rather than a unit: no ranks, no weapons, and no single rat
+// meant to be picked out
+BUILDERS["undead.swarm"] = wrap(() => buildSwarm(), poseSwarm);
 
 /** The builder for a kind resolved by `roster.js`, or null. */
 export const builderFor = (kind) => BUILDERS[kind] ?? null;

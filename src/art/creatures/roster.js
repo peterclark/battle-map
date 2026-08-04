@@ -198,6 +198,11 @@ const KINDS = [
     match: (u) => faction(u, "highElves") && mounted(u),
   },
   {
+    kind: "elf.mage",
+    fill: 0.9,
+    match: (u) => faction(u, "highElves") && has(u, "mage"),
+  },
+  {
     kind: "elf.bow",
     fill: 0.92,
     match: (u) => faction(u, "highElves") && armedWith(u) === "bow",
@@ -236,12 +241,17 @@ const KINDS = [
     match: (u) => faction(u, "undeadArmy") && armedWith(u) === "spear",
   },
   {
-    // Zombies, ghouls and rats shamble in a crowd rather than a rank
+    // Not a unit but a carpet: no ranks, no weapons, nothing to pick out
+    kind: "undead.swarm",
+    fill: 0.98,
+    match: (u) => has(u, "swarm") || has(u, "rats"),
+  },
+  {
+    // Zombies and ghouls shamble in a crowd rather than a rank
     kind: "undead.shamble",
     fill: 0.94,
     match: (u) =>
-      faction(u, "undeadArmy") &&
-      (has(u, "zombie") || has(u, "ghoul") || has(u, "swarm")),
+      faction(u, "undeadArmy") && (has(u, "zombie") || has(u, "ghoul")),
   },
   {
     kind: "undead.sword",
@@ -254,6 +264,13 @@ const KINDS = [
     kind: "cavalry.horseArchers",
     fill: 0.95,
     match: (u) => faction(u, "monstersAndMercenaries") && mounted(u),
+  },
+  {
+    kind: "wild.mage",
+    fill: 0.9,
+    match: (u) =>
+      faction(u, "monstersAndMercenaries") &&
+      (has(u, "mage") || has(u, "elementalist")),
   },
   {
     kind: "wild.bow",

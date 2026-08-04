@@ -138,6 +138,10 @@ const BUILDS = {
   dwarf: { height: 0.76, breadth: 1.24, cloak: false, beard: true },
   elf: { height: 1.08, breadth: 0.9, cloak: true, beard: false },
   skeleton: { height: 1.02, breadth: 0.78, cloak: false, beard: false },
+  // A robe is a cone, and a cone seen from directly above is a disc — one of
+  // the broadest flat shapes a single figure can offer. Mages get their read
+  // from the thing that makes them look least like soldiers.
+  mage: { height: 1.04, breadth: 1, cloak: false, beard: false, robe: true },
 };
 
 // One set of geometry, shared by every figure in every block on the board.
@@ -182,6 +186,11 @@ const GEOMETRY = {
   // man-sized figure has to offer a camera above it
   cloak: new THREE.BoxGeometry(0.46, 0.03, 0.5),
   beard: new THREE.ConeGeometry(0.11, 0.24, 6),
+  robe: new THREE.ConeGeometry(0.3, 0.72, 10),
+  hood: new THREE.ConeGeometry(0.19, 0.3, 8),
+
+  staffHaft: new THREE.CylinderGeometry(0.03, 0.026, 1.5, 6),
+  staffHead: new THREE.SphereGeometry(0.1, 9, 7),
 };
 
 const add = (geometry, material, parent, position, rotation) => {
@@ -257,6 +266,23 @@ const WEAPONS = {
     rest: 1.35,
     swing: 0.25,
   },
+  staff: {
+    // Spellcasters are not troops and should not form up like them: a handful
+    // of figures, widely spaced, so the stand reads as a retinue rather than
+    // a rank.
+    files: 3,
+    ranks: 2,
+    shield: false,
+    spacing: 1.75,
+    build: (parent, m) => {
+      add(GEOMETRY.staffHaft, m.haft, parent, [0, 0.5, 0]);
+      add(GEOMETRY.staffHead, m.metal, parent, [0, 1.26, 0]);
+    },
+    // Held across the body rather than planted upright — a staff standing on
+    // end is the single least useful shape on this board
+    rest: 1.25,
+    swing: 0.45,
+  },
   bow: {
     // Archers stand looser and shallower than heavy foot
     files: 5,
@@ -284,6 +310,10 @@ const makeFigure = (weapon, m, spec, build) => {
   hips.position.y = 0.52;
   group.add(hips);
 
+  // The robe goes on first so the torso sits inside it
+  if (build.robe) {
+    add(GEOMETRY.robe, m.cloth, hips, [0, -0.1, 0]);
+  }
   add(GEOMETRY.torso, m.armour, hips, [0, 0.12, 0]);
   add(GEOMETRY.pauldron, m.armourLit, hips, [0.2, 0.26, 0]);
   add(GEOMETRY.pauldron, m.armourLit, hips, [-0.2, 0.26, 0]);
@@ -298,7 +328,7 @@ const makeFigure = (weapon, m, spec, build) => {
   head.position.set(0, 0.46, -0.02);
   hips.add(head);
   add(GEOMETRY.head, m.skin, head, [0, 0, 0]);
-  add(GEOMETRY.helm, m.metalDark, head, [0, 0.11, 0]);
+  add(build.robe ? GEOMETRY.hood : GEOMETRY.helm, build.robe ? m.cloth : m.metalDark, head, [0, 0.1, 0]);
   // A beard hangs down the chest, which is one of the few parts of a figure
   // an overhead camera sees square on
   if (build.beard) {

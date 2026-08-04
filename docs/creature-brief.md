@@ -171,6 +171,26 @@ aimless grasping, deliberately out of phase with itself, because anything
 synchronised would imply a single animal underneath and the whole point is
 that there is not one.
 
+**The Swarm of Rats is a carpet, not a unit.** *(Confirmed direction.)* Dozens
+of small bodies covering the whole stand, no ranks, no weapons, and no single
+rat meant to be picked out — if you can see one clearly there are not enough
+of them. The read is texture, which is a thing nothing else in the game looks
+like. Pale tails pointing every which way are what stop it becoming one grey
+blanket.
+
+---
+
+## Spellcasters, wherever they serve
+
+*(Confirmed direction.)* High Elf Battlemages, Healer Mages and the
+Elementalist are **robed, carrying staves, and standing well apart** — a
+handful of figures in loose order rather than a rank. They should not read as
+troops.
+
+A robe is a cone, and a cone from directly above is a disc, which is one of
+the broadest flat shapes a single figure can offer. Mages get their read from
+the very thing that makes them look least like soldiers.
+
 ---
 
 ## Monsters & Mercenaries
