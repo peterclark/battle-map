@@ -48,7 +48,7 @@ tail extending behind a body says *reptile* before any other detail
 registers. The same trick works for a wolf's brush, a cloak, a banner.
 
 **A formation manufactures a silhouette out of parts that have none.** This
-was the surprise finding of the whole spike: a single figure built from
+was the finding that decided the whole approach: a single figure built from
 capsules reads as nothing from overhead, and twenty of the same capsules in
 ranks read unmistakably as infantry. The decisive axis is *one body versus
 many*, not hand-drawn versus sculpted. If a single figure is not reading,
@@ -68,11 +68,11 @@ that size:
   weapon head.
 - Silhouette and value do the work. Texture and small geometry do not.
 
-**Verify at stand scale, not at lab scale.** The lab page shows one unit
-filling a panel, where everything looks good. That is not the test. The test
-is a screenshot of the actual board with the figures on their stands. This
-project has already made the mistake of judging a creature at lab scale and
-being wrong about it.
+**Verify at stand scale, not at lab scale.** The lab shows a creature many
+times the size it will be played at, where everything looks good. That is not
+the test. The test is a screenshot of the actual board with the figures on
+their stands. This project has already made the mistake of judging a creature
+at lab scale and being wrong about it — twice, counting the Ancients.
 
 ## How the pieces fit together
 

@@ -11,8 +11,7 @@ printed cards — see the originality rule in the skill.
 
 ## Lizardmen
 
-*Direction inferred from the unit list; not yet confirmed. Replace this note
-once the shape has been agreed.*
+Built and approved on the board. The shape below is what is modelled.
 
 The army list divides cleanly into three peoples and a menagerie, and the
 names do most of the work:

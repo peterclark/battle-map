@@ -144,10 +144,6 @@ src/
       infantry3d.js   the generic block of foot
       wolfRiders3d.js the generic cavalry
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
-
-demo/
-  creature-lab.html one creature at a time, large enough to work on
-  bench.html        what a board of animated figures costs to draw
   setup/
     TitleScreen.jsx   BattleMap, and the way in
     ArmySelect.jsx    both players choose a faction
@@ -158,6 +154,10 @@ demo/
     Battlefield.jsx   canvas rendering and multi-touch pointer handling
     CreatureLayer.jsx the figures, on a second canvas sharing the board's frame
   rules/              VENDORED FROM BATTLEDECK — see src/rules/README.md
+
+demo/
+  creature-lab.html   one creature at a time, large enough to work on
+  bench.html          what a board of animated figures costs to draw
 ```
 
 The board is modelled in inches, the unit the printed cards use, so a unit's
