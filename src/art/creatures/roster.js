@@ -141,7 +141,7 @@ const KINDS = [
 
   { kind: "brute.giant", fill: 1.12, match: (u) => has(u, "giant") && !has(u, "catapult") },
   { kind: "brute.elemental", fill: 1.08, match: (u) => has(u, "elemental") && keyworded(u, "large") },
-  { kind: "brute.abomination", fill: 1.08, match: (u) => has(u, "abomination") },
+  { kind: "undead.abomination", fill: 1.1, match: (u) => has(u, "abomination") },
   {
     // Skeleton and Zombie Trolls -- the same brute with the meat off
     kind: "brute.bone",

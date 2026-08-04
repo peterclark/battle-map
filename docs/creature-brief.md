@@ -157,6 +157,20 @@ tells the two apart from across the table.
 Death Knights and Skeleton Cavalry ride dead horses: bone hide, rotted
 caparison.
 
+**The Abomination is not a body.** *(Confirmed direction.)* It is a mass of
+the dead rolled together — heads, arms and legs in one giant blob — hauling
+itself about the battlefield on whichever limbs happen to reach the ground.
+It has no skeleton and should not be built outward from a spine like
+everything else here.
+
+That suits the overhead camera better than a body does: limbs radiating from
+a central heap break the outline in every direction at once, which is a
+silhouette nothing else in the game makes. Pale dead flesh against a dark
+rotten core carries the contrast, and the limbs are what moves — a slow,
+aimless grasping, deliberately out of phase with itself, because anything
+synchronised would imply a single animal underneath and the whole point is
+that there is not one.
+
 ---
 
 ## Monsters & Mercenaries

@@ -15,7 +15,12 @@ import { buildTyrannosaur, poseTyrannosaur } from "./trex3d.js";
 import { buildLizardfolk, poseLizardfolk } from "./lizardfolk3d.js";
 import { buildSaurians, poseSaurians } from "./saurians3d.js";
 import { buildWarMachines, poseWarMachines } from "./warMachine3d.js";
-import { buildBrutes, poseBrutes } from "./brutes3d.js";
+import {
+  buildAbomination,
+  buildBrutes,
+  poseAbomination,
+  poseBrutes,
+} from "./brutes3d.js";
 import { buildDragon, poseDragon } from "./dragon3d.js";
 
 const wrap = (build, pose) => ({
@@ -122,7 +127,6 @@ const BRUTES = {
   "brute.troll": { kind: "troll" },
   "brute.ogre": { kind: "ogre" },
   "brute.giant": { kind: "giant" },
-  "brute.abomination": { kind: "abomination" },
   "brute.bone": { kind: "boneBrute" },
   "brute.elemental": { kind: "elemental" },
 };
@@ -185,6 +189,9 @@ Object.entries(BRUTES).forEach(([kind, options]) => {
 Object.entries(DRAGONS).forEach(([kind, options]) => {
   BUILDERS[kind] = wrap(() => buildDragon(options), poseDragon);
 });
+
+// Not a brute and not a beast: a heap of the dead with no skeleton under it
+BUILDERS["undead.abomination"] = wrap(buildAbomination, poseAbomination);
 
 /** The builder for a kind resolved by `roster.js`, or null. */
 export const builderFor = (kind) => BUILDERS[kind] ?? null;

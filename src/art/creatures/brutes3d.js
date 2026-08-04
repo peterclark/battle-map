@@ -60,18 +60,6 @@ const KINDS = {
     hunch: 0.45,
     club: true,
   },
-  abomination: {
-    // Stitched together out of other things, and it should look wrong: the
-    // arms are longer than they should be and it carries nothing.
-    hide: 0x6b6357,
-    hideDark: 0x453f37,
-    back: 0xa39a86,
-    detail: 0xcfc6ad,
-    scale: 1.05,
-    count: 2,
-    hunch: 0.8,
-    club: false,
-  },
   boneBrute: {
     // Skeleton and Zombie Trolls. Bone against dark turf carries itself.
     hide: 0xb8b09a,
@@ -112,6 +100,13 @@ const GEOMETRY = {
   shin: new THREE.CapsuleGeometry(0.15, 0.28, 4, 7),
   foot: new THREE.BoxGeometry(0.34, 0.14, 0.46),
   club: new THREE.CylinderGeometry(0.09, 0.14, 1.15, 6),
+
+  // The Abomination is built from these rather than from the brute skeleton
+  lump: new THREE.SphereGeometry(0.62, 11, 9),
+  limbUpper: new THREE.CapsuleGeometry(0.1, 0.34, 4, 6),
+  limbLower: new THREE.CapsuleGeometry(0.085, 0.32, 4, 6),
+  hand: new THREE.SphereGeometry(0.12, 7, 6),
+  spareHead: new THREE.SphereGeometry(0.17, 9, 7),
 };
 
 const add = (geometry, material, parent, position, rotation, scale) => {
@@ -196,6 +191,169 @@ const makeBrute = (spec, m) => {
   });
 
   return { group, hips, spine, head, arms, legs };
+};
+
+// The Abomination: not a body but a heap of them.
+//
+// Everything else on this board is built outward from a spine, and this is
+// the one unit where that would be wrong. It is a mass of the dead rolled
+// together — heads, arms and legs still attached to whatever they were torn
+// from — hauling itself along on whichever limbs happen to reach the ground.
+//
+// That turns out to suit the overhead camera better than a body does. Limbs
+// radiating from a central lump break the outline in every direction at once,
+// which is a silhouette nothing else in the game makes: not a formation, not
+// a beast, not a man. Pale dead flesh against a dark rotten core carries the
+// contrast, and the limbs are what moves — a slow, aimless grasping that
+// reads as wrong from right across the table.
+const ABOMINATION = {
+  core: 0x4a3f3a,
+  coreDark: 0x322a27,
+  flesh: 0xb9a894,
+  fleshDark: 0x8a7a68,
+};
+
+const makeAbomination = (m) => {
+  const group = new THREE.Group();
+
+  const mass = new THREE.Group();
+  mass.position.y = 0.72;
+  group.add(mass);
+
+  // The heap: overlapping lumps, deliberately lopsided. A symmetrical blob
+  // would read as a boulder.
+  //
+  // It is also spread far wider than it is deep, which is both what a mass
+  // dragging itself along would do and what the stand demands — a rig built
+  // square fits the shallow axis and then wastes two thirds of the width it
+  // was given. The first pass was 1.74 by 1.58 and came out a third too
+  // small.
+  const lumps = [
+    [0, 0, 0, 1],
+    [0.78, -0.1, 0.12, 0.82],
+    [-0.72, -0.06, -0.14, 0.76],
+    [0.24, 0.22, -0.24, 0.66],
+    [-0.3, -0.18, 0.28, 0.7],
+    [1.18, -0.16, -0.06, 0.6],
+    [-1.12, -0.14, 0.08, 0.62],
+  ].map(([x, y, z, r], i) =>
+    add(GEOMETRY.lump, i % 2 ? m.core : m.coreDark, mass, [x, y, z], null, [
+      r,
+      r * 0.82,
+      r,
+    ])
+  );
+
+  // Limbs, all round the mass and pointing every way. Some reach the ground
+  // and take weight; the rest paw at the air.
+  const limbs = [];
+  const COUNT = 14;
+  for (let i = 0; i < COUNT; i += 1) {
+    // Spread by golden angle so no two sit in a line, without random
+    const a = i * 2.399;
+    const out = 0.42 + (i % 3) * 0.12;
+    const socket = new THREE.Group();
+    // Flattened: limbs reach out along the front of the stand far more than
+    // they reach back through it
+    socket.position.set(
+      Math.cos(a) * out * 2.1,
+      -0.12 + ((i * 7) % 5) * 0.14,
+      Math.sin(a) * out * 0.72
+    );
+    socket.rotation.y = -a + Math.PI / 2;
+    // Lower limbs splay down and out to carry it; upper ones reach
+    const down = i % 3 === 0;
+    socket.rotation.x = down ? 1.1 : 0.15 + (i % 4) * 0.12;
+    mass.add(socket);
+
+    add(GEOMETRY.limbUpper, m.flesh, socket, [0, 0, -0.26], [Math.PI / 2, 0, 0]);
+    const joint = new THREE.Group();
+    joint.position.z = -0.52;
+    socket.add(joint);
+    joint.rotation.x = down ? 0.5 : -0.4;
+    add(GEOMETRY.limbLower, m.fleshDark, joint, [0, 0, -0.24], [Math.PI / 2, 0, 0]);
+    add(GEOMETRY.hand, m.flesh, joint, [0, 0, -0.46]);
+
+    limbs.push({ socket, joint, down, phase: i * 1.31 });
+  }
+
+  // Faces in the heap, looking outward
+  const heads = [];
+  for (let i = 0; i < 7; i += 1) {
+    const a = i * 1.257 + 0.4;
+    const head = new THREE.Group();
+    head.position.set(
+      Math.cos(a) * 0.95,
+      0.24 + ((i * 3) % 4) * 0.1,
+      Math.sin(a) * 0.34
+    );
+    mass.add(head);
+    add(GEOMETRY.spareHead, m.flesh, head, [0, 0, 0], null, [1, 0.94, 1]);
+    heads.push({ head, phase: i * 2.03 });
+  }
+
+  return { group, mass, lumps, limbs, heads };
+};
+
+/**
+ * The Abomination — one mass, alone on its stand.
+ */
+export const buildAbomination = () => {
+  const m = {
+    core: matte(ABOMINATION.core),
+    coreDark: matte(ABOMINATION.coreDark),
+    flesh: matte(ABOMINATION.flesh, 0.8),
+    fleshDark: matte(ABOMINATION.fleshDark, 0.85),
+  };
+  const root = new THREE.Group();
+  const mass = makeAbomination(m);
+  root.add(mass.group);
+  return { root, mass, count: 1 };
+};
+
+const ABOM_GAITS = {
+  // Never still. A heap of corpses that stopped moving would read as terrain.
+  idle: { rate: 0.9, reach: 0.5, heave: 0.25, roll: 0 },
+  march: { rate: 1.8, reach: 1, heave: 1, roll: 1 },
+  attack: { rate: 2.6, reach: 1.6, heave: 1.3, roll: 0.6 },
+};
+
+/**
+ * Pose the Abomination.
+ *
+ * There is no gait to get right because there is no skeleton — it hauls
+ * rather than walks. The limbs move out of phase with each other on purpose:
+ * anything synchronised would imply a single animal underneath, and the whole
+ * point is that there is not one.
+ */
+export const poseAbomination = (rig, time, state = "idle") => {
+  const gait = ABOM_GAITS[state] ?? ABOM_GAITS.idle;
+  const t = time * gait.rate;
+  const { mass, limbs, heads } = rig.mass;
+
+  // The heap heaves and slumps, and rolls slightly as it drags itself on
+  mass.position.y = 0.72 + Math.sin(t * 1.3) * 0.06 * gait.heave;
+  mass.rotation.z = Math.sin(t * 0.7) * 0.09 * gait.roll;
+  mass.rotation.x = Math.sin(t * 0.9 + 1) * 0.05 * gait.heave;
+
+  limbs.forEach(({ socket, joint, down, phase }) => {
+    const own = t + phase;
+    if (down) {
+      // Weight-bearing: pushes back, lifts, reaches forward again
+      socket.rotation.x = 1.1 + Math.sin(own * 1.4) * 0.3 * gait.heave;
+      joint.rotation.x = 0.5 + Math.max(Math.sin(own * 1.4 - 0.8), 0) * 0.5;
+    } else {
+      // Grasping at nothing
+      socket.rotation.x = 0.15 + Math.sin(own) * 0.45 * gait.reach;
+      socket.rotation.z = Math.sin(own * 0.6 + 1.2) * 0.4 * gait.reach;
+      joint.rotation.x = -0.4 + Math.sin(own * 1.7) * 0.55 * gait.reach;
+    }
+  });
+
+  heads.forEach(({ head, phase }) => {
+    head.rotation.y = Math.sin(time * 0.6 + phase) * 0.5;
+    head.rotation.x = Math.sin(time * 0.45 + phase * 1.3) * 0.25;
+  });
 };
 
 /**
