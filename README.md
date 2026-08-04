@@ -140,9 +140,14 @@ src/
                       can ask on every frame in card mode
       registry.js     which builder each kind maps to -- dynamically imported
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
+      saurians3d.js   the Lizardmen's Large saurians
       infantry3d.js   the generic block of foot
       wolfRiders3d.js the generic cavalry
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
+
+demo/
+  creature-lab.html one creature at a time, large enough to work on
+  bench.html        what a board of animated figures costs to draw
   setup/
     TitleScreen.jsx   BattleMap, and the way in
     ArmySelect.jsx    both players choose a faction

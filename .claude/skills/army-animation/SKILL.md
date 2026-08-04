@@ -153,8 +153,9 @@ times mean nothing.
 
 Always do both:
 
-1. **The lab** — `demo/trex-lab.html` for working on a creature in
-   isolation, where you can actually see what you are doing.
+1. **The lab** — `demo/creature-lab.html?kind=<kind>` for working on a
+   creature in isolation, where you can actually see what you are doing. It
+   is driven by the registry, so every kind appears there automatically.
 2. **The board at stand scale** — build, preview, drive the app to the
    battlefield, flip the toggle to Figures, and screenshot. This is the only
    test that counts. Use a large viewport (3200 × 1800 or more) so a stand

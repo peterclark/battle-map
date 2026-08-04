@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-// The same animal as trex.js, built the other way: real geometry under a real
+// The Tyrannosaurus, and the scene every creature is lit by: real geometry
+// under a real
 // light, with the camera pointed straight down at it.
 //
 // The comparison this exists to settle is not "which drawing is better" — it

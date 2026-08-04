@@ -4,16 +4,14 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
-  // .glb is a model, not a module
-  assetsInclude: ["**/*.glb"],
   build: {
     rollupOptions: {
       input: {
         // The table itself
         main: resolve(import.meta.dirname, "index.html"),
-        // A spike page comparing the two ways of animating a unit. It is a
-        // separate entry so Three.js never lands in the app's own bundle.
-        trexLab: resolve(import.meta.dirname, "demo/trex-lab.html"),
+        // A workbench for one creature at a time. A separate entry so
+        // Three.js never lands in the app's own bundle.
+        creatureLab: resolve(import.meta.dirname, "demo/creature-lab.html"),
         // Draw-call benchmark for the animated formations
         bench: resolve(import.meta.dirname, "demo/bench.html"),
       },
