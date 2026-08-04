@@ -176,9 +176,12 @@ const drawToken = (
       const y = (box.y / CARD_H) * cardH - cardH / 2;
       const w = (box.w / CARD_W) * cardW;
       const h = (box.h / CARD_H) * cardH;
-      ctx.fillStyle = "rgba(14,12,10,0.82)";
+      ctx.fillStyle = "rgba(14,12,10,0.72)";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = "#e24b4a";
+      // Bone rather than red, and dimmed. The printed track is already green,
+      // yellow and red, so a red cross over a red box is a red cross nobody
+      // can see; a pale one at half strength reads on all three.
+      ctx.strokeStyle = "rgba(242,236,221,0.5)";
       ctx.lineWidth = Math.max(cardH * 0.012, 1);
       ctx.beginPath();
       ctx.moveTo(x + w * 0.2, y + h * 0.25);
@@ -214,7 +217,7 @@ const drawToken = (
   }
 
   if (status === "destroyed") {
-    ctx.strokeStyle = "#a32d2d";
+    ctx.strokeStyle = "rgba(163,45,45,0.5)";
     ctx.lineWidth = Math.max(cardH * 0.06, 3);
     ctx.beginPath();
     ctx.moveTo(-cardW / 2, -cardH / 2);

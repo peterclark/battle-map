@@ -208,7 +208,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="relative min-h-0 flex-1">
+      <main className="relative min-h-0 flex-1 overflow-hidden">
         <Battlefield
           tokens={tokens}
           onTokensChange={setTokens}
@@ -233,20 +233,35 @@ export default function App() {
 
         {/* The panel floats over the board rather than squeezing it: cards
             must not shift underneath the players' hands when an engagement
-            opens. */}
+            opens.
+
+            It arrives at the edge belonging to whoever called the attack, and
+            faces that seat. Two players stand on opposite sides of a table, so
+            there is no orientation that suits both — the one who has a
+            decision to make gets the readable copy. Player One's panel is
+            therefore upside down on a monitor and the right way up to the
+            person it is for. */}
         {result && (
-          <div className="absolute inset-x-0 bottom-0">
-            <CombatPanel
-              result={result}
-              attacker={attacker}
-              defender={defender}
-              mode={engagement.mode}
-              onModeChange={handleModeChange}
-              overrides={engagement.overrides}
-              onOverride={handleOverride}
-              onMark={handleMark}
-              onClose={() => setEngagement(null)}
-            />
+          <div
+            className={
+              attacker.side === "one"
+                ? "absolute inset-x-0 top-0 rotate-180"
+                : "absolute inset-x-0 bottom-0"
+            }
+          >
+            <div className="panel-in">
+              <CombatPanel
+                result={result}
+                attacker={attacker}
+                defender={defender}
+                mode={engagement.mode}
+                onModeChange={handleModeChange}
+                overrides={engagement.overrides}
+                onOverride={handleOverride}
+                onMark={handleMark}
+                onClose={() => setEngagement(null)}
+              />
+            </div>
           </div>
         )}
       </main>

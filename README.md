@@ -86,6 +86,14 @@ and `docs/creature-brief.md` holds the agreed direction per faction.
 Three.js loads on the first switch and not before, so a player who never turns
 figures on never pays for them.
 
+## Which way the panel faces
+
+An engagement opens the panel at the edge of the board belonging to whoever
+called the attack, facing that seat. Two players stand on opposite sides of a
+table and there is no orientation that suits both, so the one with a decision
+to make gets the readable copy — which means Player One's panel is upside
+down on a monitor and the right way up to the person it is for.
+
 ## Handling the table
 
 | Gesture | What it does |
