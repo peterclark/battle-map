@@ -5,6 +5,7 @@ import {
   damageBoxes,
   damageStatus,
 } from "./rules/data/index.js";
+import UnitPortrait from "./table/UnitPortrait.jsx";
 
 const Stat = ({ label, value, tone }) => (
   <div className="flex flex-col items-center px-2">
@@ -77,7 +78,7 @@ const STATUS_LABEL = {
  * A unit's card as the table prints it — the stat bar for the stance being
  * fought, its damage track, and the keywords that matter.
  */
-export default function UnitCard({ token, mode, role, onMark }) {
+export default function UnitCard({ token, mode, role, onMark, portrait }) {
   const { unit } = token;
   const profile = attackProfile(unit, mode);
   const status = damageStatus(unit, token.marked);
@@ -89,6 +90,7 @@ export default function UnitCard({ token, mode, role, onMark }) {
       style={{ borderTopColor: token.color, borderTopWidth: 3 }}
     >
       <div className="flex items-baseline justify-between gap-2">
+        <UnitPortrait token={token} enabled={portrait} />
         <div className="min-w-0">
           <h3 className="truncate font-display text-lg leading-tight tracking-wider text-bone-100">
             {unit.name}

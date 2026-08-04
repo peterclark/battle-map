@@ -273,6 +273,7 @@ export default function App() {
                 overrides={engagement.overrides}
                 onOverride={handleOverride}
                 onMark={handleMark}
+                portrait={figures}
                 onClose={() => setEngagement(null)}
               />
             </div>

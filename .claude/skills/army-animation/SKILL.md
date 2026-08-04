@@ -29,6 +29,23 @@ most common way a figure fails. The camera is orthographic, directly
 overhead, because the table is a flat panel two players stand across and any
 tilt favours whoever is on the low side.
 
+**The board will not be tilted, and it is worth knowing why so nobody
+re-proposes it.** Any tilt that gives figures volume necessarily favours one
+long edge — there is no angle symmetric between the two seats, since the only
+rotation that treats them equally is about the vertical and that adds no depth
+at all. A tilt would also let tall figures hide short ones, differently for
+each player, on a surface whose job is to let you judge contact and frontage
+by eye. And straight down, screen position *is* board position; tilted, a
+stand's footprint is a trapezoid and a finger on a tall figure lands nowhere
+near the base it belongs to.
+
+**The combat panel is the exception**, and it is exempt by construction rather
+than by preference: it already opens on the edge belonging to whoever called
+the attack, so a tilted portrait inside it is seen by the one player it is
+for. `UnitPortrait.jsx` renders each engaged unit at 34° there. That is where
+all the compensation in these rigs finally pays off — tilted, none of it is
+needed and the models look like what they are.
+
 What follows from that:
 
 **A vertical object has no silhouette.** A spear held upright is a dot. An
