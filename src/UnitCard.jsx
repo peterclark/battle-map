@@ -32,21 +32,36 @@ const DamageTrack = ({ token, onMark }) => {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {map(Array.from({ length: total }), (_, index) => (
-        <button
-          key={index}
-          type="button"
-          aria-label={`Damage box ${index + 1} of ${total}`}
-          aria-pressed={index < token.marked}
-          onClick={() => onMark(index + 1 === token.marked ? index : index + 1)}
-          className={classNames(
-            "h-6 w-5 rounded-sm border transition-colors",
-            index < token.marked
-              ? "border-blood-400 bg-blood-500 shadow-[inset_0_0_6px_rgba(0,0,0,0.6)]"
-              : bandOf(index)
-          )}
-        />
-      ))}
+      {map(Array.from({ length: total }), (_, index) => {
+        const marked = index < token.marked;
+        return (
+          <button
+            key={index}
+            type="button"
+            aria-label={`Damage box ${index + 1} of ${total}`}
+            aria-pressed={marked}
+            onClick={() => onMark(index + 1 === token.marked ? index : index + 1)}
+            // A marked box keeps its own band colour and is struck through,
+            // rather than turning red. The track is already green, yellow and
+            // red, so marking in red made a red box indistinguishable from a
+            // spent one — the marks vanished exactly where the unit was in the
+            // most trouble. This matches how the board paints them.
+            className={classNames(
+              "relative h-6 w-5 overflow-hidden rounded-sm border transition-colors",
+              bandOf(index)
+            )}
+          >
+            {marked && (
+              <>
+                <span className="absolute inset-0 bg-iron-900/75" />
+                <span className="absolute inset-0 flex items-center justify-center text-[13px] font-bold leading-none text-bone-100/60">
+                  ×
+                </span>
+              </>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 };

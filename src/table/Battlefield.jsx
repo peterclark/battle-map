@@ -19,12 +19,6 @@ import {
 const TAP_SLOP_PX = 8;
 const DOUBLE_TAP_MS = 350;
 
-// Below this on-screen width the card's own printed name is too small to
-// read and a label plate is drawn beside it instead. At the size the table is
-// really built for — a 48" board on a 48"-wide panel — a card renders at its
-// true 2.5" and this never fires.
-const LEGIBLE_CARD_PX = 150;
-
 const fitTransform = (width, height) => {
   const scale = Math.min(
     width / BOARD_WIDTH_INCHES,
@@ -230,66 +224,6 @@ const drawToken = (
   ctx.restore();
 };
 
-const overlaps = (a, b) =>
-  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-
-// The card prints its own name, but on a screen far smaller than the table
-// the type is unreadable, so a plate is drawn beside it. Cards standing in
-// contact would print their plates on top of each other, so each takes the
-// first free slot below or above its unit.
-const drawLabel = (ctx, t, token, placed) => {
-  const cx = t.offsetX + token.x * t.scale;
-  const cy = t.offsetY + token.y * t.scale;
-  const reach = Math.hypot(token.halfWidth, token.halfDepth) * t.scale;
-  const size = Math.max(Math.round(t.scale * 0.42), 10);
-
-  ctx.save();
-  ctx.font = `700 ${size}px Georgia, serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const label = token.unit.name;
-  const width = ctx.measureText(label).width + size * 0.9;
-  const height = size * 1.6;
-  const gap = reach + height * 0.7;
-
-  const candidates = [
-    { x: cx, y: cy + gap },
-    { x: cx, y: cy - gap },
-    { x: cx, y: cy + gap + height * 1.15 },
-    { x: cx, y: cy - gap - height * 1.15 },
-  ];
-  const spot =
-    candidates.find((candidate) => {
-      const rect = {
-        left: candidate.x - width / 2,
-        right: candidate.x + width / 2,
-        top: candidate.y - height / 2,
-        bottom: candidate.y + height / 2,
-      };
-      return !placed.some((other) => overlaps(rect, other));
-    }) ?? candidates[0];
-
-  placed.push({
-    left: spot.x - width / 2,
-    right: spot.x + width / 2,
-    top: spot.y - height / 2,
-    bottom: spot.y + height / 2,
-  });
-
-  roundedRect(ctx, spot.x - width / 2, spot.y - height / 2, width, height, size * 0.35);
-  ctx.fillStyle = "rgba(14,12,10,0.88)";
-  ctx.fill();
-  ctx.strokeStyle = `${token.color}99`;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle =
-    damageStatus(token.unit, token.marked) === "destroyed" ? "#e24b4a" : "#f2ecdd";
-  ctx.fillText(label, spot.x, spot.y);
-  ctx.restore();
-};
-
 const drawEngagementLine = (ctx, t, attacker, defender) => {
   ctx.save();
   ctx.beginPath();
@@ -407,11 +341,6 @@ export default function Battlefield({
         liveOccupant: figures && hasCreature(token.unit),
       })
     );
-
-    if (t.scale * 2.5 < LEGIBLE_CARD_PX) {
-      const placed = [];
-      forEach(tokensRef.current, (token) => drawLabel(ctx, t, token, placed));
-    }
 
     ctx.restore();
   }, [selectedId, engagement, figures]);
