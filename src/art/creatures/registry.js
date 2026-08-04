@@ -11,6 +11,7 @@ import { buildInfantry, poseInfantry } from "./infantry3d.js";
 import { buildWolfRiders, poseWolfRiders } from "./wolfRiders3d.js";
 import { buildTyrannosaur, poseTyrannosaur } from "./trex3d.js";
 import { buildLizardfolk, poseLizardfolk } from "./lizardfolk3d.js";
+import { buildSaurians, poseSaurians } from "./saurians3d.js";
 
 const wrap = (build, pose) => ({
   build: (unit) => {
@@ -40,6 +41,14 @@ export const BUILDERS = {
   "lizardfolk.hatchling": wrap(
     () => buildLizardfolk({ breed: "hatchling" }),
     poseLizardfolk
+  ),
+  "saurians.triceratops": wrap(
+    () => buildSaurians({ kind: "triceratops" }),
+    poseSaurians
+  ),
+  "saurians.ancients": wrap(
+    () => buildSaurians({ kind: "ancients" }),
+    poseSaurians
   ),
 };
 

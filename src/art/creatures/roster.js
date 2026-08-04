@@ -58,6 +58,20 @@ const KINDS = [
     match: (u) => faction(u, "lizardmen") && has(u, "hatchling"),
   },
 
+  // The Large saurians. These must be matched before the Large/Colossal
+  // fall-through below, which is what keeps unmodelled monsters on their
+  // card art.
+  {
+    kind: "saurians.triceratops",
+    fill: 1.06,
+    match: (u) => faction(u, "lizardmen") && has(u, "triceratops"),
+  },
+  {
+    kind: "saurians.ancients",
+    fill: 1.06,
+    match: (u) => faction(u, "lizardmen") && has(u, "ancients"),
+  },
+
   // Then the archetypes, read off the card the same way `cardFace.js` reads
   // it, so a faction nobody has modelled yet still musters something.
   {

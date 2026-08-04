@@ -23,7 +23,7 @@ names do most of the work:
 | Trog Warriors, Trog Spearmen, Trog Bowmen | the middleweights, squat and broad |
 | Tyrant Warriors, Tyrant Spearmen | the elite, tall and upright |
 | Hatchlings, Raptor Pack | beasts, running loose rather than in ranks |
-| Triceratops Herd, Ancients | Large — heavy saurians |
+| Triceratops Herd, Ancients | Large — heavy saurians, two or three to a stand |
 | Tyrannosaurus Rex | Colossal — has its own sculpt already |
 
 **Body plan.** Reptilian rather than humanoid-in-scales. That means a spine
@@ -49,6 +49,19 @@ lizardfolk breed carries both; it is what makes them read as one army.
 slates and teals separate from it by hue *and* value; the pale bone ridge
 and crest carry the contrast. Swarmlings run warmer and more ochre, which
 also helps tell the three breeds apart at a glance.
+
+**The heavy saurians.** A Large stand carries two or three animals, not a
+rank, and each has to read on its own with no formation to help it. Each is
+therefore built around one broad horizontal feature, because breadth is the
+only currency a top-down camera accepts: the Triceratops is wide at the head,
+with a pale bone frill fanned flat behind the skull; an Ancient is wide across
+the shoulders, under a lichen-covered shell, with a crown of horns raked back
+off it. That difference — wide in front versus wide amidships — is what tells
+them apart at a glance.
+
+They are also deliberately stubbier than the real animals. The band a stand
+gives its figures is roughly two and a half times wider than it is deep, so
+length costs size on the table and there is no room for it.
 
 **Movement.** The tail is the animation, not the legs. A tail swinging
 counter to the stride is visible from above where a leg cycle mostly is not.

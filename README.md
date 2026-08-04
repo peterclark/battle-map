@@ -183,9 +183,9 @@ Events, so either build works:
 - Every stand is the same 2.5" × 1.75" card, scaled up for Large and Colossal.
   The physical game varies stand width by unit, so frontages are close rather
   than exact.
-- Figures exist for the Lizardmen, plus generic infantry and cavalry and the
-  Tyrannosaurus Rex. Every other faction falls back to those archetypes, and
-  Large units other than the T-Rex keep their card art.
+- The Lizardmen are modelled through: three peoples, two beast packs and the
+  two Large saurians. Every other faction falls back to generic infantry and
+  cavalry, and their Large units keep their card art.
 - The Orc Axemen block is too dark to read at stand scale against the turf and
   wants a palette pass.
 
