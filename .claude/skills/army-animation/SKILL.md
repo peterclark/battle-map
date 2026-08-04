@@ -54,6 +54,60 @@ ranks read unmistakably as infantry. The decisive axis is *one body versus
 many*, not hand-drawn versus sculpted. If a single figure is not reading,
 consider whether it should be a formation instead of a better sculpt.
 
+## The stand is wide and shallow, and that governs everything
+
+The band a stand gives its figures is about **3.2" wide by 1.3" deep** — near
+enough two and a half to one. `CreatureLayer` fits a rig against *both*, so
+whichever runs out first sets the scale. A rig that is as deep as it is broad
+fits its depth and then occupies a third of the width it was given, which
+reads as a small unit rather than a badly-proportioned one — and that is why
+it is easy to miss.
+
+This has now caught the same mistake twice: the Large saurians, and then every
+war machine. **Build wide and shallow.** Short tails, compact bodies, broad
+axles, teams harnessed close, formations spread across the front rather than
+stacked back through the band. Length is the one thing there is no room for.
+
+A quick check before sculpting: divide the intended width by the intended
+depth. Under about 2:1 and the unit will come out smaller than it should.
+
+## What actually reads from above
+
+Ranked by how much silhouette they buy, which is roughly the reverse of how
+much work they cost:
+
+1. **Wings.** A spread wing is a broad flat membrane held out horizontally.
+   Nothing else comes close, and a winged Colossal reads from across the
+   table. Keep them spread even at rest — a dragon with folded wings is a
+   lizard, and this project already has lizards.
+2. **A frill or a crown.** A plate of pale bone behind the skull, laid nearly
+   flat. The Triceratops is legible at any size because of it.
+3. **A formation.** Twenty small silhouettes make a pattern where one makes
+   nothing. Free, and available to any unit that fields more than a few.
+4. **A cloak, a caparison, a shield, a carapace.** Any broad pale sheet
+   turned upward. The High Elves are the most legible foot on the board and
+   it is almost entirely their cloaks.
+5. **A dorsal ridge or a mane.** One pale strip tracing the length of a body.
+   Cheap and surprisingly strong.
+6. **Everything else** — heads, weapons, faces, detail. Nearly worthless.
+
+## Brutes: the shape with none of the above
+
+Trolls, ogres, giants. One lump of roughly man-shaped meat: no formation, no
+frill, no wings. Three things rescue them, and all three are width:
+
+- **Hunch them hard.** Upright, a brute is a head and two shoulders. Bent
+  forward it is a whole back.
+- **Hang the arms wide and long.** Doubles the silhouette and reads as
+  unmistakably inhuman proportion.
+- **Put something pale across the shoulders** — hide, bone, moss, stone slab.
+  Whatever it is thematically, its job is to be the bright thing on the
+  widest part.
+
+Three or four to a stand, never one. Even at this size the count carries more
+than the modelling does; the Hill Giant is alone only because a giant that
+came three to a stand would not be a giant.
+
 ## Value contrast beats detail
 
 At true table scale a stand is 2.5" × 1.75" — about 165 × 115 px on a 4K
@@ -102,7 +156,8 @@ size reads best on their own.
    - Share geometry across figures. One `CapsuleGeometry` reused by twenty
      bodies costs one body's worth of buffers; only the transforms differ.
      See `infantry3d.js` for the pattern.
-   - **Prefer a parameter to a new file.** A spearman and an archer are the
+   - **Prefer a parameter to a new file.** Fifty-seven creature kinds come
+     out of nine rigs, and adding an army is mostly adding rows to tables. A spearman and an archer are the
      same skeleton carrying different things; `infantry3d.js` covers four
      weapons and three palettes in one rig. A second copy of a rig drifts
      from the first the day someone fixes a bug in only one of them.

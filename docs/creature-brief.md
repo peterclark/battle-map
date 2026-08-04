@@ -106,9 +106,80 @@ for.
 
 ---
 
-## Not yet briefed
+## Dwarves of Runegard
 
-Dwarves of Runegard, High Elves, Monsters and Mercenaries, Undead Army.
-These fall back to the generic archetypes — which now at least arm their
-figures from the card, so a spearman musters with a spear whoever fields
-him.
+*Direction inferred from the unit list; not yet confirmed.*
+
+Short and broad — three quarters the height of a man and a quarter again as
+wide, which at stand scale is the whole read. They pack tighter than anyone
+else on the board because they take up less front each.
+
+**The beard is the feature.** Pale, and it hangs down the chest, which is one
+of the few parts of a figure an overhead camera sees square on. Iron and
+oiled leather everywhere else, with brass on the shield rim.
+
+Crossbows rather than bows for the Crossbowmen: a crossbow held level reads
+as a **cross** from above — stock fore-and-aft, prod across it — which is a
+shape nothing else in the game makes. The Ballista is the same idea at engine
+scale.
+
+Antonian Horsemen are men, not dwarves, and ride accordingly.
+
+---
+
+## High Elves
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Tall and narrow, white and gold, and **every elf wears a cloak**. That is not
+decoration: a cloak is a broad pale sheet hanging off the shoulders, the
+largest flat area a man-sized figure can turn upward, and it makes High Elf
+foot the most legible infantry on the board by some distance.
+
+Blue shields against the white for a second read. Chariots and Scorpions are
+built in the same livery so the machines belong to the army.
+
+---
+
+## Undead
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Bone against dark turf is the one palette that gets its contrast for nothing,
+so the discipline here is restraint: keep the kit dim so the bone stays the
+read.
+
+Skeletons are a man with the meat off — the same build, narrower. **Zombies,
+ghouls and rats do not dress ranks**; they come in a wide shambling crowd,
+which is visibly different from a skeleton horde in line and is most of what
+tells the two apart from across the table.
+
+Death Knights and Skeleton Cavalry ride dead horses: bone hide, rotted
+caparison.
+
+---
+
+## Monsters & Mercenaries
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Two different things in one list. The mercenaries — half-orcs, wildmen — are
+furs and hide with no livery at all, which is the point: they are the army
+with no uniform.
+
+The monsters are where the board's best silhouettes live. **Dragons are the
+easiest units in the game to make read**, because wings are exactly the shape
+an overhead camera wants. The Hydra has to manage without them and earns its
+outline with five necks fanned wide and moving independently — the formation
+trick, run on one body.
+
+Ogres, the Hill Giant and the Earth Elemental are brutes: hunched, wide-armed,
+pale across the shoulders. See the brute section of the skill.
+
+---
+
+## Still to brief
+
+Nothing. Every faction has figures — but every brief above except the
+Lizardmen's was written from unit names and stat lines alone and is waiting
+on a look.

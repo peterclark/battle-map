@@ -60,6 +60,61 @@ const PALETTES = {
     haft: 0x6b4f30,
     cloth: 0xd9cfb8,
   },
+  dwarf: {
+    // Iron and oiled leather, with brass and a pale beard. The beard is the
+    // point: it is the one bright thing on a dwarf and it sits on his chest,
+    // which is most of what a camera above him can see.
+    armour: 0x4d5058,
+    armourLit: 0x6b6f78,
+    skin: 0xc09274,
+    metal: 0xb8a05e,
+    metalDark: 0x6e6046,
+    shield: 0x7b4a2a,
+    shieldTrim: 0xd8c07a,
+    haft: 0x4a3524,
+    cloth: 0xd9cdb4,
+  },
+  highElf: {
+    // White and gold, and every elf wears a cloak. A cloak is a broad pale
+    // sheet hanging off the shoulders — the largest flat area a man-sized
+    // figure can turn upward, and worth more here than any amount of detail.
+    armour: 0xc9cdd4,
+    armourLit: 0xe6e9ee,
+    skin: 0xd6b394,
+    metal: 0xe0c877,
+    metalDark: 0x9c8a4e,
+    shield: 0x2e5f8a,
+    shieldTrim: 0xe8dcc0,
+    haft: 0x8a7550,
+    cloth: 0xeef1f5,
+  },
+  undead: {
+    // Bone against dark turf needs no help at all — this is the one palette
+    // that gets its contrast for free. The trick is to keep everything else
+    // dim so the bone reads as bone rather than as armour.
+    armour: 0xcfc6ad,
+    armourLit: 0xe4dcc4,
+    skin: 0xbdb49a,
+    metal: 0x8a8f88,
+    metalDark: 0x4c4f4a,
+    shield: 0x3f4038,
+    shieldTrim: 0x9aa08c,
+    haft: 0x33302a,
+    cloth: 0x6d6a5c,
+  },
+  wildmen: {
+    // Furs and hide. Mercenaries and half-orcs: no livery, no uniform, and a
+    // paler pelt over the shoulders to lift them off the ground.
+    armour: 0x5c4a38,
+    armourLit: 0xa8917a,
+    skin: 0xa8815e,
+    metal: 0x9aa2aa,
+    metalDark: 0x62686e,
+    shield: 0x6b5335,
+    shieldTrim: 0xb9a377,
+    haft: 0x4a3a26,
+    cloth: 0xbba98c,
+  },
   levy: {
     // Militia and peasants: no mail, no livery, whatever was in the barn
     armour: 0x6f5c41,
@@ -72,6 +127,17 @@ const PALETTES = {
     haft: 0x6b4f30,
     cloth: 0xa8946f,
   },
+};
+
+// How a people is put together. Non-uniform scale on primitives is crude, but
+// at thirty pixels a figure the proportion is the whole read: a dwarf is
+// short and broad, an elf is tall and narrow, and a skeleton is a man with
+// the meat off. Anything subtler than that is invisible.
+const BUILDS = {
+  man: { height: 1, breadth: 1, cloak: false, beard: false },
+  dwarf: { height: 0.76, breadth: 1.24, cloak: false, beard: true },
+  elf: { height: 1.08, breadth: 0.9, cloak: true, beard: false },
+  skeleton: { height: 1.02, breadth: 0.78, cloak: false, beard: false },
 };
 
 // One set of geometry, shared by every figure in every block on the board.
@@ -105,6 +171,17 @@ const GEOMETRY = {
   bow: new THREE.TorusGeometry(0.32, 0.022, 5, 14, Math.PI * 1.15),
   arrow: new THREE.CylinderGeometry(0.012, 0.012, 0.62, 4),
   quiver: new THREE.CylinderGeometry(0.058, 0.05, 0.34, 6),
+
+  // A crossbow reads as a cross from above, which is the whole reason it is
+  // worth distinguishing from a bow: the stock runs fore and aft and the prod
+  // runs across it, and both lie flat
+  crossbowStock: new THREE.BoxGeometry(0.05, 0.05, 0.52),
+  crossbowProd: new THREE.BoxGeometry(0.56, 0.035, 0.05),
+
+  // Hangs off the shoulders and spreads behind — the broadest flat area a
+  // man-sized figure has to offer a camera above it
+  cloak: new THREE.BoxGeometry(0.46, 0.03, 0.5),
+  beard: new THREE.ConeGeometry(0.11, 0.24, 6),
 };
 
 const add = (geometry, material, parent, position, rotation) => {
@@ -165,6 +242,21 @@ const WEAPONS = {
     rest: 1.15,
     swing: 0.5,
   },
+  crossbow: {
+    // Crossbows drill in ranks where bowmen skirmish — they shoot flat and
+    // stand shoulder to shoulder to do it
+    files: 5,
+    ranks: 4,
+    shield: false,
+    build: (parent, m) => {
+      add(GEOMETRY.crossbowStock, m.haft, parent, [0, 0.3, -0.08]);
+      add(GEOMETRY.crossbowProd, m.metal, parent, [0, 0.31, -0.28]);
+    },
+    // Levelled, because that is both how a crossbow is carried ready and how
+    // it turns its cross toward the camera
+    rest: 1.35,
+    swing: 0.25,
+  },
   bow: {
     // Archers stand looser and shallower than heavy foot
     files: 5,
@@ -182,8 +274,11 @@ const WEAPONS = {
 };
 
 // One figure, facing -Z, standing on y = 0.
-const makeFigure = (weapon, m, spec) => {
+const makeFigure = (weapon, m, spec, build) => {
   const group = new THREE.Group();
+  // Short and broad, or tall and narrow. Applied to the whole figure so the
+  // kit scales with the body rather than floating beside it.
+  group.scale.set(build.breadth, build.height, build.breadth);
 
   const hips = new THREE.Group();
   hips.position.y = 0.52;
@@ -193,11 +288,22 @@ const makeFigure = (weapon, m, spec) => {
   add(GEOMETRY.pauldron, m.armourLit, hips, [0.2, 0.26, 0]);
   add(GEOMETRY.pauldron, m.armourLit, hips, [-0.2, 0.26, 0]);
 
+  // A cloak spread behind the shoulders. Nothing else on a figure this size
+  // presents so much flat area straight up.
+  if (build.cloak) {
+    add(GEOMETRY.cloak, m.cloth, hips, [0, 0.24, 0.2], [-0.35, 0, 0]);
+  }
+
   const head = new THREE.Group();
   head.position.set(0, 0.46, -0.02);
   hips.add(head);
   add(GEOMETRY.head, m.skin, head, [0, 0, 0]);
   add(GEOMETRY.helm, m.metalDark, head, [0, 0.11, 0]);
+  // A beard hangs down the chest, which is one of the few parts of a figure
+  // an overhead camera sees square on
+  if (build.beard) {
+    add(GEOMETRY.beard, m.cloth, head, [0, -0.16, -0.08], [Math.PI - 0.3, 0, 0]);
+  }
 
   // Two legs, alternating on the march
   const legs = [1, -1].map((side) => {
@@ -259,11 +365,14 @@ const makeFigure = (weapon, m, spec) => {
 export const buildInfantry = ({
   weapon = "axe",
   palette = "orc",
+  build = "man",
   files,
   ranks,
+  spacing,
 } = {}) => {
   const spec = WEAPONS[weapon] ?? WEAPONS.axe;
   const p = PALETTES[palette] ?? PALETTES.orc;
+  const body = BUILDS[build] ?? BUILDS.man;
   const m = {
     armour: matte(p.armour),
     armourLit: matte(p.armourLit),
@@ -281,12 +390,14 @@ export const buildInfantry = ({
 
   const across = files ?? spec.files;
   const deep = ranks ?? spec.ranks;
-  const stepX = 1.15 * (spec.spacing ?? 1);
-  const stepZ = 1.05 * (spec.spacing ?? 1);
+  // Broad people need more room across the front; narrow ones close up
+  const gap = (spacing ?? spec.spacing ?? 1) * (0.6 + body.breadth * 0.4);
+  const stepX = 1.15 * gap;
+  const stepZ = 1.05 * gap;
 
   for (let rank = 0; rank < deep; rank += 1) {
     for (let file = 0; file < across; file += 1) {
-      const figure = makeFigure(weapon, m, spec);
+      const figure = makeFigure(weapon, m, spec, body);
       // Alternate ranks step half a file across, closing the gaps in front —
       // the same dressing the card art shows
       const stagger = rank % 2 === 1 ? stepX / 2 : 0;
@@ -306,7 +417,7 @@ export const buildInfantry = ({
     }
   }
 
-  return { root, figures, spec, weapon, count: figures.length };
+  return { root, figures, spec, weapon, build: body, count: figures.length };
 };
 
 const GAITS = {

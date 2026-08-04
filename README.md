@@ -163,8 +163,12 @@ src/
       registry.js     which builder each kind maps to -- dynamically imported
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
-      infantry3d.js   foot, by weapon and palette -- axe, sword, spear, bow
+      infantry3d.js   foot, by weapon, palette and build -- five weapons,
+                      eight palettes, four body plans
       cavalry3d.js    horse and wolf, by mount, rider and what they carry
+      warMachine3d.js ballistae, catapults and chariots, with their crews
+      brutes3d.js     trolls, ogres, giants -- the shape with no silhouette
+      dragon3d.js     wings, and the hydra that manages without them
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
   setup/
     TitleScreen.jsx   BattleMap, and the way in
@@ -218,11 +222,10 @@ Events, so either build works:
 - Every stand is the same 2.5" × 1.75" card, scaled up for Large and Colossal.
   The physical game varies stand width by unit, so frontages are close rather
   than exact.
-- The Lizardmen are modelled through: three peoples, two beast packs and the
-  two Large saurians. Every other faction falls back to generic infantry and
-  cavalry, and their Large units keep their card art.
-- The Orc Axemen block is too dark to read at stand scale against the turf and
-  wants a palette pass.
+- Every unit in every faction has figures — 89 units across 57 creature kinds,
+  built from 9 rigs. Only the Lizardmen brief has been looked at on a table;
+  the rest were written from unit names and stat lines and are waiting on a
+  second opinion.
 
 ## Credit
 

@@ -124,6 +124,160 @@ const KINDS = [
     match: (u) => faction(u, "menOfHawkshold"),
   },
 
+  // --- Monsters, wherever they are fielded -------------------------------
+  // Matched on name before any faction rule, because a dragon is a dragon.
+  { kind: "dragon.hydra", fill: 1.2, match: (u) => has(u, "hydra") },
+  {
+    kind: "dragon.blue",
+    fill: 1.2,
+    match: (u) => has(u, "dragon") && has(u, "blue"),
+  },
+  {
+    kind: "dragon.red",
+    fill: 1.2,
+    match: (u) => has(u, "dragon") && has(u, "ancient"),
+  },
+  { kind: "dragon.redLesser", fill: 1.15, match: (u) => has(u, "dragon") },
+
+  { kind: "brute.giant", fill: 1.12, match: (u) => has(u, "giant") && !has(u, "catapult") },
+  { kind: "brute.elemental", fill: 1.08, match: (u) => has(u, "elemental") && keyworded(u, "large") },
+  { kind: "brute.abomination", fill: 1.08, match: (u) => has(u, "abomination") },
+  {
+    // Skeleton and Zombie Trolls -- the same brute with the meat off
+    kind: "brute.bone",
+    fill: 1.08,
+    match: (u) => has(u, "troll") && (has(u, "skeleton") || has(u, "zombie")),
+  },
+  { kind: "brute.troll", fill: 1.08, match: (u) => has(u, "troll") },
+  { kind: "brute.ogre", fill: 1.08, match: (u) => has(u, "ogre") },
+
+  // --- War machines ------------------------------------------------------
+  { kind: "engine.ballista", fill: 1.0, match: (u) => has(u, "ballista") },
+  { kind: "engine.scorpion", fill: 1.0, match: (u) => has(u, "scorpion") },
+  { kind: "engine.catapult", fill: 1.0, match: (u) => has(u, "catapult") },
+  { kind: "engine.bombChucker", fill: 1.0, match: (u) => has(u, "chucker") },
+  { kind: "engine.chariot", fill: 1.0, match: (u) => has(u, "chariot") },
+
+  // --- Dwarves of Runegard -----------------------------------------------
+  // Antonian Horsemen are the one mounted unit and are men, not dwarves.
+  {
+    kind: "cavalry.dwarf",
+    fill: 0.95,
+    match: (u) => faction(u, "dwarvesOfRunegard") && mounted(u),
+  },
+  {
+    kind: "dwarf.crossbow",
+    fill: 0.92,
+    match: (u) => faction(u, "dwarvesOfRunegard") && has(u, "crossbow"),
+  },
+  {
+    kind: "dwarf.bow",
+    fill: 0.92,
+    match: (u) => faction(u, "dwarvesOfRunegard") && armedWith(u) === "bow",
+  },
+  {
+    kind: "dwarf.spear",
+    fill: 0.92,
+    match: (u) => faction(u, "dwarvesOfRunegard") && armedWith(u) === "spear",
+  },
+  {
+    kind: "dwarf.axe",
+    fill: 0.92,
+    match: (u) => faction(u, "dwarvesOfRunegard"),
+  },
+
+  // --- High Elves --------------------------------------------------------
+  {
+    kind: "cavalry.elfBowriders",
+    fill: 0.95,
+    match: (u) => faction(u, "highElves") && has(u, "bowrider"),
+  },
+  {
+    kind: "cavalry.elfKnights",
+    fill: 0.95,
+    match: (u) => faction(u, "highElves") && mounted(u),
+  },
+  {
+    kind: "elf.bow",
+    fill: 0.92,
+    match: (u) => faction(u, "highElves") && armedWith(u) === "bow",
+  },
+  {
+    kind: "elf.spear",
+    fill: 0.92,
+    match: (u) => faction(u, "highElves") && armedWith(u) === "spear",
+  },
+  {
+    // Blades, guards, mages and rangers all fight on foot with a blade
+    kind: "elf.sword",
+    fill: 0.92,
+    match: (u) => faction(u, "highElves"),
+  },
+
+  // --- Undead ------------------------------------------------------------
+  {
+    kind: "cavalry.deathKnights",
+    fill: 0.95,
+    match: (u) => faction(u, "undeadArmy") && has(u, "death knight"),
+  },
+  {
+    kind: "cavalry.boneRiders",
+    fill: 0.95,
+    match: (u) => faction(u, "undeadArmy") && mounted(u),
+  },
+  {
+    kind: "undead.bow",
+    fill: 0.92,
+    match: (u) => faction(u, "undeadArmy") && armedWith(u) === "bow",
+  },
+  {
+    kind: "undead.spear",
+    fill: 0.92,
+    match: (u) => faction(u, "undeadArmy") && armedWith(u) === "spear",
+  },
+  {
+    // Zombies, ghouls and rats shamble in a crowd rather than a rank
+    kind: "undead.shamble",
+    fill: 0.94,
+    match: (u) =>
+      faction(u, "undeadArmy") &&
+      (has(u, "zombie") || has(u, "ghoul") || has(u, "swarm")),
+  },
+  {
+    kind: "undead.sword",
+    fill: 0.92,
+    match: (u) => faction(u, "undeadArmy"),
+  },
+
+  // --- Monsters and Mercenaries ------------------------------------------
+  {
+    kind: "cavalry.horseArchers",
+    fill: 0.95,
+    match: (u) => faction(u, "monstersAndMercenaries") && mounted(u),
+  },
+  {
+    kind: "wild.bow",
+    fill: 0.92,
+    match: (u) => faction(u, "monstersAndMercenaries") && armedWith(u) === "bow",
+  },
+  {
+    kind: "wild.spear",
+    fill: 0.92,
+    match: (u) => faction(u, "monstersAndMercenaries") && armedWith(u) === "spear",
+  },
+  {
+    kind: "wild.sword",
+    fill: 0.92,
+    match: (u) => faction(u, "monstersAndMercenaries"),
+  },
+
+  // --- Orc Army ----------------------------------------------------------
+  {
+    kind: "infantry.crossbow",
+    fill: 0.92,
+    match: (u) => faction(u, "orcArmy") && has(u, "crossbow"),
+  },
+
   // --- Generic archetypes ------------------------------------------------
   // What a faction nobody has dressed yet musters as.
   { kind: "cavalry.wolfRiders", fill: 0.95, match: mounted },

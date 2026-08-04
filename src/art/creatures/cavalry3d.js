@@ -32,6 +32,18 @@ const MOUNTS = {
     brush: true,
     caparison: null,
   },
+  bonehorse: {
+    // A dead horse. Bone reads against dark turf without any help, so the
+    // trick is keeping the tack dim enough that the animal stays the read.
+    hide: 0xbdb49a,
+    hideDark: 0x8d8674,
+    muzzle: 0x6a6456,
+    mane: 0x6d6a5c,
+    height: 0.82,
+    legReach: 0.46,
+    brush: false,
+    caparison: null,
+  },
   horse: {
     hide: 0x5a4436,
     hideDark: 0x3d2d23,
@@ -51,6 +63,12 @@ const RIDERS = {
   goblin: { skin: 0x6f8f3c, kit: 0x3d3128, metal: 0x9aa2aa, cloth: 0x6b5335 },
   knight: { skin: 0xbb8c63, kit: 0x8d959f, metal: 0xc3cad2, cloth: 0x9c3a34 },
   scout: { skin: 0xbb8c63, kit: 0x5d4a30, metal: 0x9aa2aa, cloth: 0x8a7452 },
+  elf: { skin: 0xd6b394, kit: 0xc9cdd4, metal: 0xe0c877, cloth: 0xeef1f5 },
+  dwarf: { skin: 0xc09274, kit: 0x4d5058, metal: 0xb8a05e, cloth: 0xd9cdb4 },
+  // A dead rider on a dead horse: bone over everything, and the caparison
+  // rotted to a rag
+  wight: { skin: 0xcfc6ad, kit: 0x4c4f4a, metal: 0x8a8f88, cloth: 0x6d6a5c },
+  wildman: { skin: 0xa8815e, kit: 0x5c4a38, metal: 0x9aa2aa, cloth: 0xbba98c },
 };
 
 const ARMS = {
@@ -63,6 +81,9 @@ const ARMS = {
   // Scouts carry a blade — short, raised, and no help at all from above,
   // which is why they also get the boldest mount colour
   sword: { length: 0.8, rest: -1.0, level: 0.7, head: false },
+  // Horse archers shoot rather than charge. The bow lies across the rider,
+  // so the shaft is short and flat and the arc does the work.
+  bow: { length: 0.62, rest: 1.3, level: -0.2, head: false, arc: true },
 };
 
 const GEOMETRY = {
@@ -83,6 +104,7 @@ const GEOMETRY = {
   cap: new THREE.ConeGeometry(0.17, 0.2, 7),
   arm: new THREE.CapsuleGeometry(0.055, 0.2, 3, 6),
   point: new THREE.ConeGeometry(0.085, 0.26, 5),
+  bow: new THREE.TorusGeometry(0.3, 0.022, 5, 14, Math.PI * 1.15),
 };
 
 // Shaft geometry varies by weapon, so it is built per length and cached
@@ -189,6 +211,11 @@ const makeRider = (mount, m, arm, caparison) => {
   weapon.position.set(0.22, 0.12, -0.1);
   rider.add(weapon);
   add(shaftFor(arm.length), m.kit, weapon, [0, 0, 0], [Math.PI / 2, 0, 0]);
+  // A horse archer's bow lies across him, arc turned upward — the same
+  // reasoning as the foot archers, and the only part of him that reads
+  if (arm.arc) {
+    add(GEOMETRY.bow, m.cloth, weapon, [0, 0.02, -0.1], [1.2, 0, 0.1]);
+  }
   if (arm.head) {
     add(GEOMETRY.point, m.metal, weapon, [0, 0, -arm.length / 2 - 0.08], [
       -Math.PI / 2,
