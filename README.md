@@ -48,6 +48,24 @@ negotiate over. The pickers use BattleDeck's own UI: same plates, same stat
 abbreviations, same damage track, same rules text under each unit, so a player
 moving from the phone to the table does not have to relearn the screen.
 
+## Setting out
+
+Before the first turn the armies form up. Each player may put their units
+anywhere inside their own band of table — the near nine inches, tinted in
+their colour — in any arrangement they like: a single line, a deep column,
+everything on one flank, nothing on the other. What they may not do is start
+closer to the enemy than the line allows, so a card dragged past it stops
+there.
+
+That leaves nine inches of open ground between the armies, about a turn's
+march for most units. **Begin Battle** anchors every unit where it stands, so
+the first turn's Movement is measured from the line the player chose rather
+than from wherever the table happened to deal them.
+
+Nine inches a side is a house line rather than a rule off any card —
+Battleground's own scenarios vary it — so it is one constant,
+`DEPLOY_DEPTH_INCHES`, to change.
+
 ## The cards
 
 A unit is a card, not a counter. Each is drawn as SVG — a field of figures
@@ -104,6 +122,10 @@ down on a monitor and the right way up to the person it is for.
 | Tap your unit, then tap an enemy | Declares an attack without marching — this is how you shoot |
 | Double-tap a unit | Rescind its order; it marches back to where the turn began |
 | **New Turn** | Every unit's Movement allowance resets to where it now stands; charges and turn-scoped buffs clear |
+
+While setting out, dragging is bounded by the deployment line instead of by
+Movement, and nothing can be attacked — no army is committed until both are
+formed up.
 
 Input is the Pointer Events API keyed by `pointerId`, so every contact the
 touch frame reports is tracked independently and both players can march at the

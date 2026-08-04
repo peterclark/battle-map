@@ -60,6 +60,38 @@ export const rosterCount = (roster) =>
 
 // --- Deployment ----------------------------------------------------------
 
+// How far forward of their own edge a player may set up. Nine inches a side
+// on a twenty-seven inch table leaves nine inches of open ground between the
+// armies, which is about a turn's march for most units — close enough that
+// the first turn matters, far enough that nobody starts in contact.
+//
+// This is a house line rather than a rule off any card. Battleground's own
+// scenarios vary it, so it lives here as one number to change.
+export const DEPLOY_DEPTH_INCHES = 9;
+
+/** The band of table a side may set up in, as board inches. */
+export const deploymentZone = (side) =>
+  side === "one"
+    ? { near: 0, far: DEPLOY_DEPTH_INCHES }
+    : { near: BOARD_HEIGHT_INCHES - DEPLOY_DEPTH_INCHES, far: BOARD_HEIGHT_INCHES };
+
+/**
+ * Hold a unit inside its owner's deployment zone.
+ *
+ * Only the depth is constrained — a player may spread across the whole width
+ * of the table, stack everything in one file, or refuse a flank entirely.
+ * What they may not do is start the game closer to the enemy than the line
+ * allows.
+ */
+export const clampToDeployment = (token, x, y) => {
+  const zone = deploymentZone(token.side);
+  const margin = Math.hypot(token.halfWidth, token.halfDepth);
+  return {
+    x,
+    y: Math.min(Math.max(y, zone.near + margin), zone.far - margin),
+  };
+};
+
 // Both armies form up facing each other across the table. A line that would
 // run off the board folds into a second rank behind the first, the way a
 // player short of table edge would really deploy.

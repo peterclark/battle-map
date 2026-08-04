@@ -23,7 +23,7 @@ const EMPTY_PLAYERS = {
 };
 
 export default function App() {
-  // title -> armies -> units -> battle
+  // title -> armies -> units -> deploy -> battle
   const [phase, setPhase] = useState("title");
   const [players, setPlayers] = useState(EMPTY_PLAYERS);
   const [tokens, setTokens] = useState([]);
@@ -67,6 +67,15 @@ export default function App() {
     setSelectedId(null);
     setEngagement(null);
     setTurn(1);
+    setPhase("deploy");
+  };
+
+  // Both armies are formed up. Anchoring every unit where it now stands is
+  // what makes the first turn's Movement measure from the line a player
+  // chose rather than from where the table happened to deal them.
+  const beginBattle = () => {
+    setTokens(withNewTurn);
+    setSelectedId(null);
     setPhase("battle");
   };
 
@@ -151,6 +160,8 @@ export default function App() {
     );
   }
 
+  const deploying = phase === "deploy";
+
   return (
     <div className="flex h-full w-full flex-col bg-iron-900">
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-iron-500 px-4 py-2">
@@ -179,7 +190,7 @@ export default function App() {
 
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-wider text-bone-500">
-            Turn {turn}
+            {deploying ? "Deployment" : `Turn ${turn}`}
           </span>
           <button
             type="button"
@@ -193,10 +204,12 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={handleNewTurn}
-            className="plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em]"
+            onClick={deploying ? beginBattle : handleNewTurn}
+            className={`plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em] ${
+              deploying ? "text-ember-400" : ""
+            }`}
           >
-            New Turn
+            {deploying ? "Begin Battle" : "New Turn"}
           </button>
           <button
             type="button"
@@ -217,6 +230,7 @@ export default function App() {
           onEngage={handleEngage}
           engagement={engagement}
           figures={figures}
+          deploying={deploying}
         />
         <CreatureLayer
           tokens={tokens}
@@ -225,9 +239,9 @@ export default function App() {
         />
         {!engagement && (
           <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-wider text-bone-500">
-            Drag a card to march it · hold it and touch the board to turn it ·
-            march into an enemy or tap one then the other to attack · double-tap
-            to rescind the order
+            {deploying
+              ? "Set your army out anywhere inside your own colour · hold a card and touch the board to turn it · Begin Battle when both sides are content"
+              : "Drag a card to march it · hold it and touch the board to turn it · march into an enemy or tap one then the other to attack · double-tap to rescind the order"}
           </p>
         )}
 

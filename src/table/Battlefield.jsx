@@ -8,8 +8,11 @@ import { hasCreature } from "../art/creatures/roster.js";
 import {
   BOARD_HEIGHT_INCHES,
   BOARD_WIDTH_INCHES,
+  SIDES,
   clampToBoard,
+  clampToDeployment,
   clampToMovement,
+  deploymentZone,
   marchedInches,
 } from "./board.js";
 
@@ -85,6 +88,33 @@ const drawBoard = (ctx, t, width, height) => {
   ctx.strokeStyle = "rgba(250,199,117,0.3)";
   ctx.lineWidth = 2;
   ctx.strokeRect(x0, y0, w, h);
+};
+
+// The two bands of table the armies may set up in, and the line neither may
+// cross before the first turn. Drawn only while deploying — once the game
+// starts the line has no further meaning and would just be furniture.
+const drawDeploymentZones = (ctx, t) => {
+  ctx.save();
+  SIDES.forEach((seat) => {
+    const zone = deploymentZone(seat.side);
+    const y0 = t.offsetY + zone.near * t.scale;
+    const depth = (zone.far - zone.near) * t.scale;
+    ctx.fillStyle = `${seat.color}12`;
+    ctx.fillRect(t.offsetX, y0, BOARD_WIDTH_INCHES * t.scale, depth);
+
+    // The limit line: the edge of the zone facing the enemy
+    const limit =
+      seat.side === "one" ? t.offsetY + zone.far * t.scale : y0;
+    ctx.strokeStyle = seat.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 7]);
+    ctx.beginPath();
+    ctx.moveTo(t.offsetX, limit);
+    ctx.lineTo(t.offsetX + BOARD_WIDTH_INCHES * t.scale, limit);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  ctx.restore();
 };
 
 const drawMovementAllowance = (ctx, t, token) => {
@@ -267,6 +297,7 @@ export default function Battlefield({
   onEngage,
   engagement,
   figures = false,
+  deploying = false,
 }) {
   const canvasRef = useRef(null);
   const transformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
@@ -308,16 +339,21 @@ export default function Battlefield({
     transformRef.current = t;
 
     drawBoard(ctx, t, width, height);
+    if (deploying) drawDeploymentZones(ctx, t);
 
     const held = new Set(
       [...pointersRef.current.values()].map((grip) => grip.tokenId)
     );
 
-    forEach(tokensRef.current, (token) => {
-      if (held.has(token.id) || token.id === selectedId) {
-        drawMovementAllowance(ctx, t, token);
-      }
-    });
+    // The Movement ring measures from where the turn found a unit, which
+    // means nothing before the first turn has started
+    if (!deploying) {
+      forEach(tokensRef.current, (token) => {
+        if (held.has(token.id) || token.id === selectedId) {
+          drawMovementAllowance(ctx, t, token);
+        }
+      });
+    }
 
     if (engagement) {
       const attacker = find(tokensRef.current, { id: engagement.attackerId });
@@ -343,7 +379,7 @@ export default function Battlefield({
     );
 
     ctx.restore();
-  }, [selectedId, engagement, figures]);
+  }, [selectedId, engagement, figures, deploying]);
 
   renderRef.current = render;
 
@@ -464,7 +500,12 @@ export default function Battlefield({
 
     // The board holds the tape measure: a march is clamped to the unit's
     // printed Movement, measured from where the turn found it.
-    const wanted = clampToMovement(token, point.x - grip.grabX, point.y - grip.grabY);
+    // Setting up, a unit may go anywhere in its owner's band; once the game
+    // has begun the tape measure applies instead.
+    const proposed = { x: point.x - grip.grabX, y: point.y - grip.grabY };
+    const wanted = deploying
+      ? clampToDeployment(token, proposed.x, proposed.y)
+      : clampToMovement(token, proposed.x, proposed.y);
     updateToken(token.id, clampToBoard(token, wanted.x, wanted.y));
   };
 
@@ -479,6 +520,11 @@ export default function Battlefield({
     }
 
     if (grip.moved) {
+      // Nothing is declared while the armies are still forming up
+      if (deploying) {
+        render();
+        return;
+      }
       // A march that ends in contact with an enemy is a charge, and opens
       // the engagement without anyone reaching for a phone.
       const enemy = find(
@@ -497,7 +543,7 @@ export default function Battlefield({
     // yours is selected it declares the attack — which is how a ranged
     // attack is made, with no need to march into contact.
     const selected = find(tokensRef.current, { id: selectedId });
-    if (selected && selected.side !== token.side) {
+    if (!deploying && selected && selected.side !== token.side) {
       onEngage(selected.id, token.id);
     } else {
       onSelect(token.id === selectedId ? null : token.id);
