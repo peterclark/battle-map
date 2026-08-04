@@ -81,6 +81,24 @@ own weapon, so the weapon is the distinction the figures are built on.
 caparison. Both separate cleanly from the dark yellow-green turf, and the red
 gives a block a second read at distance.
 
+**Sir Steaphen's Free Company is on foot**, despite the name suggesting a
+knightly company. The transcribed card says so three times over: it moves
+3.5" where every mounted unit in the list moves 5–7"; it has no `cavalry`
+keyword, which is mechanically load-bearing here (Cavalry Charge, and enemies
+claiming Cavalry Target); and its damage track is 5/2/3, identical to
+Swordsmen and Spearmen, where all three mounted units run thinner. The list
+also fields *Dismounted* Knights as a separate unit, so it distinguishes the
+two explicitly.
+
+It is built as an elite foot retinue instead: twelve men rather than twenty,
+in looser order, with the colours flying. A banner is the best thing a foot
+unit can carry for this camera — a broad sheet of cloth held clear above the
+ranks, which from directly above is pure area.
+
+*If the physical card contradicts this, the fix is one line in `roster.js` —
+but the rules data would need the `cavalry` keyword too, or the board will go
+on computing the wrong modifiers for it.*
+
 **Militia and the Peasant Mob get neither.** No mail, no livery, browns and
 homespun, and they form up wider and raggeder than the drilled foot. A mob
 should look like a mob from across the table.

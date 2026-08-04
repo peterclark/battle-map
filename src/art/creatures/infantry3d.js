@@ -191,6 +191,13 @@ const GEOMETRY = {
 
   staffHaft: new THREE.CylinderGeometry(0.03, 0.026, 1.5, 6),
   staffHead: new THREE.SphereGeometry(0.1, 9, 7),
+
+  // A banner is the best thing a foot unit can carry here — a broad sheet of
+  // cloth held above the ranks, which from directly above is pure area and
+  // sits clear of every other figure on the stand
+  bannerPole: new THREE.CylinderGeometry(0.028, 0.024, 1.45, 5),
+  bannerCloth: new THREE.BoxGeometry(0.5, 0.03, 0.62),
+  bannerFinial: new THREE.ConeGeometry(0.06, 0.16, 5),
 };
 
 const add = (geometry, material, parent, position, rotation) => {
@@ -300,7 +307,7 @@ const WEAPONS = {
 };
 
 // One figure, facing -Z, standing on y = 0.
-const makeFigure = (weapon, m, spec, build) => {
+const makeFigure = (weapon, m, spec, build, carriesBanner) => {
   const group = new THREE.Group();
   // Short and broad, or tall and narrow. Applied to the whole figure so the
   // kit scales with the body rather than floating beside it.
@@ -377,9 +384,16 @@ const makeFigure = (weapon, m, spec, build) => {
   const held = new THREE.Group();
   held.position.set(0.02, -0.06, 0);
   weaponArm.add(held);
-  spec.build(held, m);
+  if (carriesBanner) {
+    add(GEOMETRY.bannerPole, m.haft, held, [0, 0.5, 0]);
+    // Canted back so the cloth turns its face upward rather than edge-on
+    add(GEOMETRY.bannerCloth, m.shield, held, [0, 1.05, 0.24], [0.5, 0, 0]);
+    add(GEOMETRY.bannerFinial, m.shieldTrim, held, [0, 1.28, 0]);
+  } else {
+    spec.build(held, m);
+  }
 
-  return { group, hips, head, legs, shield, weapon: held };
+  return { group, hips, head, legs, shield, weapon: held, carriesBanner };
 };
 
 /**
@@ -399,6 +413,7 @@ export const buildInfantry = ({
   files,
   ranks,
   spacing,
+  banner = false,
 } = {}) => {
   const spec = WEAPONS[weapon] ?? WEAPONS.axe;
   const p = PALETTES[palette] ?? PALETTES.orc;
@@ -427,7 +442,11 @@ export const buildInfantry = ({
 
   for (let rank = 0; rank < deep; rank += 1) {
     for (let file = 0; file < across; file += 1) {
-      const figure = makeFigure(weapon, m, spec, body);
+      // One figure carries the colours instead of a weapon: front rank,
+      // centre, where a real standard-bearer would stand
+      const carriesBanner =
+        banner && rank === 0 && file === Math.floor(across / 2);
+      const figure = makeFigure(weapon, m, spec, body, carriesBanner);
       // Alternate ranks step half a file across, closing the gaps in front —
       // the same dressing the card art shows
       const stagger = rank % 2 === 1 ? stepX / 2 : 0;
@@ -501,11 +520,18 @@ export const poseInfantry = (rig, time, state = "idle") => {
         (shooting ? 3 : 1.6)
       : 0;
 
-    figure.weapon.rotation.x =
-      spec.rest -
-      gait.ready * 0.4 -
-      strike * spec.swing +
-      Math.sin(t) * 0.05 * gait.stride;
-    figure.weapon.rotation.z = shooting ? 0 : strike * 0.35;
+    if (figure.carriesBanner) {
+      // Colours are carried, not swung: held well back off the vertical so
+      // the cloth stays visible, with a slow sway and no strike at all
+      figure.weapon.rotation.x = 0.6 + Math.sin(t * 0.5) * 0.06;
+      figure.weapon.rotation.z = Math.sin(t * 0.4 + 1) * 0.07;
+    } else {
+      figure.weapon.rotation.x =
+        spec.rest -
+        gait.ready * 0.4 -
+        strike * spec.swing +
+        Math.sin(t) * 0.05 * gait.stride;
+      figure.weapon.rotation.z = shooting ? 0 : strike * 0.35;
+    }
   });
 };

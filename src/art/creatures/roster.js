@@ -107,6 +107,11 @@ const KINDS = [
       faction(u, "menOfHawkshold") && (has(u, "militia") || has(u, "peasant")),
   },
   {
+    kind: "hawkshold.company",
+    fill: 0.92,
+    match: (u) => faction(u, "menOfHawkshold") && keyworded(u, "unique"),
+  },
+  {
     kind: "hawkshold.spear",
     fill: 0.92,
     match: (u) => faction(u, "menOfHawkshold") && armedWith(u) === "spear",

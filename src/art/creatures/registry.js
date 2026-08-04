@@ -80,6 +80,16 @@ const FOOT = {
   "wild.spear": { weapon: "spear", palette: "wildmen", build: "man" },
   "wild.bow": { weapon: "bow", palette: "wildmen", build: "man" },
 
+  // A named company: fewer men, better kit, and the colours flying. Foot --
+  // see the note in the creature brief.
+  "hawkshold.company": {
+    weapon: "sword",
+    palette: "hawkshold",
+    files: 4,
+    ranks: 3,
+    banner: true,
+  },
+
   // Spellcasters. Robed, staved, and standing well apart.
   "elf.mage": { weapon: "staff", palette: "highElf", build: "mage" },
   "wild.mage": { weapon: "staff", palette: "wildmen", build: "mage" },
