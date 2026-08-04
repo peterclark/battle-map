@@ -67,20 +67,171 @@ counter to the stride is visible from above where a leg cycle mostly is not.
 
 ---
 
+## Men of Hawkshold
+
+*Direction inferred from the unit list; not yet confirmed. Replace this note
+once the shape has been agreed.*
+
+Men in mail, and the list is unusually explicit about what they carry —
+Bowmen, Longbowmen, Spearmen, Communal Pikemen, Swordsmen, Great Swordsmen,
+Militia, Peasant Mob, and three kinds of horse. Almost every unit names its
+own weapon, so the weapon is the distinction the figures are built on.
+
+**Palette.** Steel and a pale surcoat, with heraldic red on shield and
+caparison. Both separate cleanly from the dark yellow-green turf, and the red
+gives a block a second read at distance.
+
+**Sir Steaphen's Free Company is on foot**, despite the name suggesting a
+knightly company. The transcribed card says so three times over: it moves
+3.5" where every mounted unit in the list moves 5–7"; it has no `cavalry`
+keyword, which is mechanically load-bearing here (Cavalry Charge, and enemies
+claiming Cavalry Target); and its damage track is 5/2/3, identical to
+Swordsmen and Spearmen, where all three mounted units run thinner. The list
+also fields *Dismounted* Knights as a separate unit, so it distinguishes the
+two explicitly.
+
+It is built as an elite foot retinue instead: twelve men rather than twenty,
+in looser order, with the colours flying. A banner is the best thing a foot
+unit can carry for this camera — a broad sheet of cloth held clear above the
+ranks, which from directly above is pure area.
+
+*If the physical card contradicts this, the fix is one line in `roster.js` —
+but the rules data would need the `cavalry` keyword too, or the board will go
+on computing the wrong modifiers for it.*
+
+**Militia and the Peasant Mob get neither.** No mail, no livery, browns and
+homespun, and they form up wider and raggeder than the drilled foot. A mob
+should look like a mob from across the table.
+
+**The horse.** A pale mane runs the length of the neck — the same trick the
+lizardfolk dorsal ridge uses, and for the same reason. Knights add a
+caparison, a broad cloth over the horse's back: historically right, and the
+largest pale area anything on this board turns toward a camera above it.
+Lancers ride bare-backed by comparison, and Scout Cavalry are drabber again
+and carry a blade rather than a shaft.
+
+---
+
 ## Orc Army
 
 Modelled: Orc Axemen as the infantry archetype, Goblin Wolf Riders as the
 cavalry archetype.
 
-**Known problem.** The axemen's armour is `0x2f2a24`, which reads as a black
-lump at stand scale against the dark turf. They need a lighter element —
-shield face, helm, or weapon head — carrying real value contrast. See the
-"Value contrast beats detail" section of the skill.
+The axemen's armour was `0x2f2a24` and read as a black lump at stand scale
+against the dark turf. It has been lifted to `0x453d33` with a pale shield
+boss — the fix the "Value contrast beats detail" section of the skill asks
+for.
 
 ---
 
-## Not yet briefed
+## Dwarves of Runegard
 
-Dwarves of Runegard, High Elves, Men of Hawkshold, Monsters and
-Mercenaries, Undead Army. These fall back to the generic archetypes until
-someone writes them a paragraph here.
+*Direction inferred from the unit list; not yet confirmed.*
+
+Short and broad — three quarters the height of a man and a quarter again as
+wide, which at stand scale is the whole read. They pack tighter than anyone
+else on the board because they take up less front each.
+
+**The beard is the feature.** Pale, and it hangs down the chest, which is one
+of the few parts of a figure an overhead camera sees square on. Iron and
+oiled leather everywhere else, with brass on the shield rim.
+
+Crossbows rather than bows for the Crossbowmen: a crossbow held level reads
+as a **cross** from above — stock fore-and-aft, prod across it — which is a
+shape nothing else in the game makes. The Ballista is the same idea at engine
+scale.
+
+Antonian Horsemen are men, not dwarves, and ride accordingly.
+
+---
+
+## High Elves
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Tall and narrow, white and gold, and **every elf wears a cloak**. That is not
+decoration: a cloak is a broad pale sheet hanging off the shoulders, the
+largest flat area a man-sized figure can turn upward, and it makes High Elf
+foot the most legible infantry on the board by some distance.
+
+Blue shields against the white for a second read. Chariots and Scorpions are
+built in the same livery so the machines belong to the army.
+
+---
+
+## Undead
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Bone against dark turf is the one palette that gets its contrast for nothing,
+so the discipline here is restraint: keep the kit dim so the bone stays the
+read.
+
+Skeletons are a man with the meat off — the same build, narrower. **Zombies,
+ghouls and rats do not dress ranks**; they come in a wide shambling crowd,
+which is visibly different from a skeleton horde in line and is most of what
+tells the two apart from across the table.
+
+Death Knights and Skeleton Cavalry ride dead horses: bone hide, rotted
+caparison.
+
+**The Abomination is not a body.** *(Confirmed direction.)* It is a mass of
+the dead rolled together — heads, arms and legs in one giant blob — hauling
+itself about the battlefield on whichever limbs happen to reach the ground.
+It has no skeleton and should not be built outward from a spine like
+everything else here.
+
+That suits the overhead camera better than a body does: limbs radiating from
+a central heap break the outline in every direction at once, which is a
+silhouette nothing else in the game makes. Pale dead flesh against a dark
+rotten core carries the contrast, and the limbs are what moves — a slow,
+aimless grasping, deliberately out of phase with itself, because anything
+synchronised would imply a single animal underneath and the whole point is
+that there is not one.
+
+**The Swarm of Rats is a carpet, not a unit.** *(Confirmed direction.)* Dozens
+of small bodies covering the whole stand, no ranks, no weapons, and no single
+rat meant to be picked out — if you can see one clearly there are not enough
+of them. The read is texture, which is a thing nothing else in the game looks
+like. Pale tails pointing every which way are what stop it becoming one grey
+blanket.
+
+---
+
+## Spellcasters, wherever they serve
+
+*(Confirmed direction.)* High Elf Battlemages, Healer Mages and the
+Elementalist are **robed, carrying staves, and standing well apart** — a
+handful of figures in loose order rather than a rank. They should not read as
+troops.
+
+A robe is a cone, and a cone from directly above is a disc, which is one of
+the broadest flat shapes a single figure can offer. Mages get their read from
+the very thing that makes them look least like soldiers.
+
+---
+
+## Monsters & Mercenaries
+
+*Direction inferred from the unit list; not yet confirmed.*
+
+Two different things in one list. The mercenaries — half-orcs, wildmen — are
+furs and hide with no livery at all, which is the point: they are the army
+with no uniform.
+
+The monsters are where the board's best silhouettes live. **Dragons are the
+easiest units in the game to make read**, because wings are exactly the shape
+an overhead camera wants. The Hydra has to manage without them and earns its
+outline with five necks fanned wide and moving independently — the formation
+trick, run on one body.
+
+Ogres, the Hill Giant and the Earth Elemental are brutes: hunched, wide-armed,
+pale across the shoulders. See the brute section of the skill.
+
+---
+
+## Still to brief
+
+Nothing. Every faction has figures — but every brief above except the
+Lizardmen's was written from unit names and stat lines alone and is waiting
+on a look.

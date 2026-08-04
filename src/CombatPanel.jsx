@@ -113,6 +113,7 @@ export default function CombatPanel({
   overrides,
   onOverride,
   onMark,
+  portrait,
   onClose,
 }) {
   const canMelee = Boolean(attackProfile(attacker.unit, "melee"));
@@ -205,6 +206,7 @@ export default function CombatPanel({
           mode={mode}
           role="attacker"
           onMark={(marked) => onMark(attacker.id, marked)}
+          portrait={portrait}
         />
 
         <div className="flex gap-3">
@@ -238,6 +240,7 @@ export default function CombatPanel({
           mode={mode}
           role="defender"
           onMark={(marked) => onMark(defender.id, marked)}
+          portrait={portrait}
         />
       </div>
 
