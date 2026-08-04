@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte, metal } from "./materials.js";
 
 // Lizardfolk — the three peoples of the Lizardmen list, built from one rig
 // with the proportions dialled per breed.
@@ -101,26 +102,23 @@ const STEEL = 0x9aa2aa;
 const HAFT = 0x3a2f24;
 const SHIELD_FACE = 0xb9a377;
 
-const matte = (color, roughness = 0.85) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-
 // One set of geometry, shared by every figure on every stand. Twenty
 // lizardfolk cost one lizardfolk's worth of buffers; only transforms differ.
 const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.2, 0.34, 4, 8),
+  body: new THREE.CapsuleGeometry(0.2, 0.34, 8, 16),
   ridge: new THREE.BoxGeometry(0.09, 0.05, 0.62),
-  spine: new THREE.ConeGeometry(0.05, 0.16, 4),
-  head: new THREE.ConeGeometry(0.14, 0.36, 6),
+  spine: new THREE.ConeGeometry(0.05, 0.16, 14),
+  head: new THREE.ConeGeometry(0.14, 0.36, 14),
   brow: new THREE.BoxGeometry(0.17, 0.04, 0.1),
-  tailA: new THREE.CylinderGeometry(0.085, 0.055, 0.34, 6),
-  tailB: new THREE.CylinderGeometry(0.055, 0.015, 0.36, 6),
-  thigh: new THREE.CapsuleGeometry(0.062, 0.16, 3, 6),
-  shin: new THREE.CapsuleGeometry(0.048, 0.16, 3, 6),
+  tailA: new THREE.CylinderGeometry(0.085, 0.055, 0.34, 18),
+  tailB: new THREE.CylinderGeometry(0.055, 0.015, 0.36, 18),
+  thigh: new THREE.CapsuleGeometry(0.062, 0.16, 8, 16),
+  shin: new THREE.CapsuleGeometry(0.048, 0.16, 8, 16),
   foot: new THREE.BoxGeometry(0.11, 0.05, 0.19),
-  arm: new THREE.CapsuleGeometry(0.048, 0.18, 3, 6),
-  haft: new THREE.CylinderGeometry(0.028, 0.024, 0.86, 5),
-  blade: new THREE.ConeGeometry(0.07, 0.26, 4),
-  shield: new THREE.CylinderGeometry(0.2, 0.2, 0.04, 6),
+  arm: new THREE.CapsuleGeometry(0.048, 0.18, 8, 16),
+  haft: new THREE.CylinderGeometry(0.028, 0.024, 0.86, 18),
+  blade: new THREE.ConeGeometry(0.07, 0.26, 14),
+  shield: new THREE.CylinderGeometry(0.2, 0.2, 0.04, 18),
 };
 
 const add = (geometry, material, parent, position, rotation) => {
@@ -259,7 +257,7 @@ export const buildLizardfolk = ({ breed = "trog" } = {}) => {
     body: matte(spec.body),
     ridge: matte(spec.ridge, 0.7),
     limb: matte(spec.limb),
-    steel: matte(STEEL, 0.4),
+    steel: metal(STEEL, 0.32),
     haft: matte(HAFT),
     shield: matte(SHIELD_FACE, 0.7),
     bone: matte(BONE, 0.7),

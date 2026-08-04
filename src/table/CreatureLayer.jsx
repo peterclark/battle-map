@@ -68,11 +68,13 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
     let frame = 0;
 
     const boot = async () => {
-      const [THREE, { buildScene }, { builderFor }] = await Promise.all([
-        import("three"),
-        import("../art/creatures/trex3d.js"),
-        import("../art/creatures/registry.js"),
-      ]);
+      const [THREE, { buildScene }, { tuneRenderer }, { builderFor }] =
+        await Promise.all([
+          import("three"),
+          import("../art/creatures/trex3d.js"),
+          import("../art/creatures/materials.js"),
+          import("../art/creatures/registry.js"),
+        ]);
       if (!live) return;
 
       const canvas = canvasRef.current;
@@ -86,6 +88,7 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.setClearAlpha(0);
+      tuneRenderer(renderer);
 
       // The board is wider than it is tall, and the fit is driven by whichever
       // axis runs out first — exactly as the 2D canvas does it.

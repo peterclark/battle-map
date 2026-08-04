@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte } from "./materials.js";
 
 // The Swarm of Rats, and anything else that is a carpet rather than a unit.
 //
@@ -18,9 +19,6 @@ import * as THREE from "three";
 // pale, thin, and pointing every which way, they break up the mass into
 // something that reads as *many* rather than as one grey blanket.
 
-const matte = (color, roughness = 0.9) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-
 const MATERIALS = {
   fur: matte(0x6f6455),
   furPale: matte(0x8d8271),
@@ -32,8 +30,9 @@ const MATERIALS = {
   }),
 };
 
-// Four meshes a rat. Fifty rats is two hundred meshes, which is well inside
-// what a block of twenty infantry already costs.
+// Four meshes a rat, and deliberately coarse ones. This is the one rig that
+// was left out of the density pass: no rat is ever looked at closely, there
+// are four hundred meshes of them, and segments spent here buy nothing at all.
 const GEOMETRY = {
   body: new THREE.CapsuleGeometry(0.055, 0.11, 3, 6),
   head: new THREE.ConeGeometry(0.045, 0.11, 5),

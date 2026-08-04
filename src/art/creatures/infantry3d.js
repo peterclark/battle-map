@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte, metal } from "./materials.js";
 
 // A block of foot — the shape most of the game takes.
 //
@@ -25,9 +26,6 @@ import * as THREE from "three";
 // track individual models, and the count follows the density of the printed
 // card art: a rank is only a rank if there are enough of them to make a
 // pattern.
-
-const matte = (color, roughness = 0.85) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
 
 // Palettes have one job beyond looking right: something on every figure must
 // carry real value contrast against the turf, which is a dark yellow-green.
@@ -147,34 +145,34 @@ const BUILDS = {
 // One set of geometry, shared by every figure in every block on the board.
 // Twenty men cost one man's worth of buffers; only the transforms differ.
 const GEOMETRY = {
-  torso: new THREE.CapsuleGeometry(0.19, 0.3, 4, 8),
-  pauldron: new THREE.SphereGeometry(0.13, 8, 6),
-  head: new THREE.SphereGeometry(0.13, 10, 8),
-  helm: new THREE.ConeGeometry(0.155, 0.22, 8),
-  limb: new THREE.CapsuleGeometry(0.062, 0.22, 3, 6),
+  torso: new THREE.CapsuleGeometry(0.19, 0.3, 8, 16),
+  pauldron: new THREE.SphereGeometry(0.13, 18, 14),
+  head: new THREE.SphereGeometry(0.13, 18, 14),
+  helm: new THREE.ConeGeometry(0.155, 0.22, 14),
+  limb: new THREE.CapsuleGeometry(0.062, 0.22, 8, 16),
   boot: new THREE.BoxGeometry(0.13, 0.08, 0.2),
   // A shield is the broadest thing an infantryman carries, which makes it the
   // most valuable thing on the model when the camera is directly above
-  shield: new THREE.CylinderGeometry(0.26, 0.26, 0.05, 12),
-  boss: new THREE.SphereGeometry(0.07, 8, 6),
+  shield: new THREE.CylinderGeometry(0.26, 0.26, 0.05, 18),
+  boss: new THREE.SphereGeometry(0.07, 18, 14),
 
-  axeHaft: new THREE.CylinderGeometry(0.038, 0.032, 1.05, 6),
+  axeHaft: new THREE.CylinderGeometry(0.038, 0.032, 1.05, 18),
   axeHead: new THREE.BoxGeometry(0.06, 0.32, 0.24),
-  axeHorn: new THREE.ConeGeometry(0.06, 0.17, 4),
+  axeHorn: new THREE.ConeGeometry(0.06, 0.17, 14),
 
   swordBlade: new THREE.BoxGeometry(0.05, 0.78, 0.13),
   swordGuard: new THREE.BoxGeometry(0.05, 0.05, 0.32),
-  swordGrip: new THREE.CylinderGeometry(0.033, 0.033, 0.22, 6),
+  swordGrip: new THREE.CylinderGeometry(0.033, 0.033, 0.22, 18),
 
-  spearHaft: new THREE.CylinderGeometry(0.032, 0.028, 1.9, 6),
-  spearHead: new THREE.ConeGeometry(0.055, 0.28, 5),
+  spearHaft: new THREE.CylinderGeometry(0.032, 0.028, 1.9, 18),
+  spearHead: new THREE.ConeGeometry(0.055, 0.28, 14),
 
   // A bow is a wide arc. Held across the body rather than upright, it is the
   // broadest pale shape an archer has — worth more from above than the arrow
   // ever will be.
-  bow: new THREE.TorusGeometry(0.32, 0.022, 5, 14, Math.PI * 1.15),
-  arrow: new THREE.CylinderGeometry(0.012, 0.012, 0.62, 4),
-  quiver: new THREE.CylinderGeometry(0.058, 0.05, 0.34, 6),
+  bow: new THREE.TorusGeometry(0.32, 0.022, 10, 28, Math.PI * 1.15),
+  arrow: new THREE.CylinderGeometry(0.012, 0.012, 0.62, 18),
+  quiver: new THREE.CylinderGeometry(0.058, 0.05, 0.34, 18),
 
   // A crossbow reads as a cross from above, which is the whole reason it is
   // worth distinguishing from a bow: the stock runs fore and aft and the prod
@@ -185,19 +183,19 @@ const GEOMETRY = {
   // Hangs off the shoulders and spreads behind — the broadest flat area a
   // man-sized figure has to offer a camera above it
   cloak: new THREE.BoxGeometry(0.46, 0.03, 0.5),
-  beard: new THREE.ConeGeometry(0.11, 0.24, 6),
-  robe: new THREE.ConeGeometry(0.3, 0.72, 10),
-  hood: new THREE.ConeGeometry(0.19, 0.3, 8),
+  beard: new THREE.ConeGeometry(0.11, 0.24, 14),
+  robe: new THREE.ConeGeometry(0.3, 0.72, 14),
+  hood: new THREE.ConeGeometry(0.19, 0.3, 14),
 
-  staffHaft: new THREE.CylinderGeometry(0.03, 0.026, 1.5, 6),
-  staffHead: new THREE.SphereGeometry(0.1, 9, 7),
+  staffHaft: new THREE.CylinderGeometry(0.03, 0.026, 1.5, 18),
+  staffHead: new THREE.SphereGeometry(0.1, 18, 14),
 
   // A banner is the best thing a foot unit can carry here — a broad sheet of
   // cloth held above the ranks, which from directly above is pure area and
   // sits clear of every other figure on the stand
-  bannerPole: new THREE.CylinderGeometry(0.028, 0.024, 1.45, 5),
+  bannerPole: new THREE.CylinderGeometry(0.028, 0.024, 1.45, 18),
   bannerCloth: new THREE.BoxGeometry(0.5, 0.03, 0.62),
-  bannerFinial: new THREE.ConeGeometry(0.06, 0.16, 5),
+  bannerFinial: new THREE.ConeGeometry(0.06, 0.16, 14),
 };
 
 const add = (geometry, material, parent, position, rotation) => {
@@ -422,10 +420,10 @@ export const buildInfantry = ({
     armour: matte(p.armour),
     armourLit: matte(p.armourLit),
     skin: matte(p.skin),
-    metal: matte(p.metal, 0.45),
-    metalDark: matte(p.metalDark, 0.5),
+    metal: metal(p.metal, 0.32),
+    metalDark: metal(p.metalDark, 0.45),
     shield: matte(p.shield),
-    shieldTrim: matte(p.shieldTrim, 0.4),
+    shieldTrim: metal(p.shieldTrim, 0.35),
     haft: matte(p.haft),
     cloth: matte(p.cloth, 0.7),
   };

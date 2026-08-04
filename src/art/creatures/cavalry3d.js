@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte, metal } from "./materials.js";
 
 // Mounted troops: a beast, a rider on its back, and something in the rider's
 // hand pointing the way the unit is going.
@@ -16,9 +17,6 @@ import * as THREE from "three";
 // mane running its neck. And a barded horse carries a caparison — a broad
 // cloth over its back — which is both historically right and the largest pale
 // area anything on this board presents to a camera above it.
-
-const matte = (color, roughness = 0.85) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
 
 const MOUNTS = {
   wolf: {
@@ -87,31 +85,31 @@ const ARMS = {
 };
 
 const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.34, 0.95, 4, 10),
-  chest: new THREE.CapsuleGeometry(0.3, 0.3, 4, 8),
+  body: new THREE.CapsuleGeometry(0.34, 0.95, 8, 16),
+  chest: new THREE.CapsuleGeometry(0.3, 0.3, 8, 16),
   skull: new THREE.BoxGeometry(0.3, 0.26, 0.46),
   snout: new THREE.BoxGeometry(0.17, 0.15, 0.28),
-  ear: new THREE.ConeGeometry(0.08, 0.18, 4),
-  eye: new THREE.SphereGeometry(0.045, 8, 6),
-  limb: new THREE.CapsuleGeometry(0.075, 0.3, 3, 6),
+  ear: new THREE.ConeGeometry(0.08, 0.18, 14),
+  eye: new THREE.SphereGeometry(0.045, 18, 14),
+  limb: new THREE.CapsuleGeometry(0.075, 0.3, 8, 16),
   paw: new THREE.BoxGeometry(0.14, 0.09, 0.2),
-  tailSeg: new THREE.CapsuleGeometry(0.09, 0.22, 3, 6),
+  tailSeg: new THREE.CapsuleGeometry(0.09, 0.22, 8, 16),
   maneStrip: new THREE.BoxGeometry(0.1, 0.06, 0.66),
   // Draped over the whole back and hanging past the flanks
   caparison: new THREE.BoxGeometry(0.92, 0.06, 1.34),
-  torso: new THREE.CapsuleGeometry(0.17, 0.24, 4, 8),
-  head: new THREE.SphereGeometry(0.16, 10, 8),
-  cap: new THREE.ConeGeometry(0.17, 0.2, 7),
-  arm: new THREE.CapsuleGeometry(0.055, 0.2, 3, 6),
-  point: new THREE.ConeGeometry(0.085, 0.26, 5),
-  bow: new THREE.TorusGeometry(0.3, 0.022, 5, 14, Math.PI * 1.15),
+  torso: new THREE.CapsuleGeometry(0.17, 0.24, 8, 16),
+  head: new THREE.SphereGeometry(0.16, 18, 14),
+  cap: new THREE.ConeGeometry(0.17, 0.2, 14),
+  arm: new THREE.CapsuleGeometry(0.055, 0.2, 8, 16),
+  point: new THREE.ConeGeometry(0.085, 0.26, 14),
+  bow: new THREE.TorusGeometry(0.3, 0.022, 10, 28, Math.PI * 1.15),
 };
 
 // Shaft geometry varies by weapon, so it is built per length and cached
 const shafts = new Map();
 const shaftFor = (length) => {
   if (!shafts.has(length)) {
-    shafts.set(length, new THREE.CylinderGeometry(0.042, 0.036, length, 6));
+    shafts.set(length, new THREE.CylinderGeometry(0.042, 0.036, length, 18));
   }
   return shafts.get(length);
 };
@@ -252,7 +250,7 @@ export const buildCavalry = ({
     caparison: matte(kit.cloth, 0.8),
     skin: matte(kit.skin),
     kit: matte(kit.kit),
-    metal: matte(kit.metal, 0.4),
+    metal: metal(kit.metal, 0.32),
     metalDark: matte(kit.kit, 0.5),
     eye: new THREE.MeshStandardMaterial({
       color: 0xd8b23a,

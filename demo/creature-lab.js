@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { buildScene, setTilt } from "../src/art/creatures/trex3d.js";
 import { BUILDERS } from "../src/art/creatures/registry.js";
+import { tuneRenderer } from "../src/art/creatures/materials.js";
 
 // A workbench for one creature at a time.
 //
@@ -87,6 +88,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(900, 560, false);
+tuneRenderer(renderer);
 
 const { scene, camera, key } = buildScene(900, 560, { span: 9 });
 key.shadow.mapSize.set(2048, 2048);

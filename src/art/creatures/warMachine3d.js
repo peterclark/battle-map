@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte, metal } from "./materials.js";
 
 // War machines: ballistae, scorpions, catapults, chariots and the goblins'
 // bomb-chucker.
@@ -21,9 +22,6 @@ import * as THREE from "three";
 // broad axles, short throwing arms, teams harnessed close. The first pass had
 // them roughly square and they came out too small to identify.
 
-const matte = (color, roughness = 0.85) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-
 const PALETTES = {
   dwarf: { frame: 0x6b4a2c, iron: 0x4d5058, trim: 0xb8a05e, crew: 0xc09274, cloth: 0xd9cdb4 },
   highElf: { frame: 0xd8d2c2, iron: 0xc9cdd4, trim: 0xe0c877, crew: 0xd6b394, cloth: 0xeef1f5 },
@@ -34,27 +32,27 @@ const PALETTES = {
 const GEOMETRY = {
   bed: new THREE.BoxGeometry(1.15, 0.14, 1.05),
   rail: new THREE.BoxGeometry(0.1, 0.12, 0.98),
-  axle: new THREE.CylinderGeometry(0.05, 0.05, 1.9, 6),
+  axle: new THREE.CylinderGeometry(0.05, 0.05, 1.9, 18),
   // Standing proud of the frame, and the one part of a machine nothing else
   // on the board has
-  wheel: new THREE.CylinderGeometry(0.4, 0.4, 0.11, 14),
-  hub: new THREE.CylinderGeometry(0.11, 0.11, 0.16, 8),
+  wheel: new THREE.CylinderGeometry(0.4, 0.4, 0.11, 18),
+  hub: new THREE.CylinderGeometry(0.11, 0.11, 0.16, 18),
   spoke: new THREE.BoxGeometry(0.05, 0.06, 0.72),
   // The throwing arm, laid back along the bed
   arm: new THREE.BoxGeometry(0.13, 0.11, 0.98),
-  bucket: new THREE.SphereGeometry(0.19, 9, 7),
+  bucket: new THREE.SphereGeometry(0.19, 18, 14),
   // A ballista's prod, across the frame
   prod: new THREE.BoxGeometry(2.3, 0.07, 0.1),
-  bolt: new THREE.CylinderGeometry(0.035, 0.035, 0.66, 5),
-  winch: new THREE.CylinderGeometry(0.13, 0.13, 0.5, 8),
+  bolt: new THREE.CylinderGeometry(0.035, 0.035, 0.66, 18),
+  winch: new THREE.CylinderGeometry(0.13, 0.13, 0.5, 18),
   // Chariot: an open car rather than a bed
   car: new THREE.BoxGeometry(1.05, 0.34, 0.66),
-  pole: new THREE.CylinderGeometry(0.05, 0.045, 1.0, 5),
-  crew: new THREE.CapsuleGeometry(0.13, 0.26, 4, 7),
-  crewHead: new THREE.SphereGeometry(0.11, 8, 6),
-  horseBody: new THREE.CapsuleGeometry(0.26, 0.5, 4, 8),
+  pole: new THREE.CylinderGeometry(0.05, 0.045, 1.0, 18),
+  crew: new THREE.CapsuleGeometry(0.13, 0.26, 8, 16),
+  crewHead: new THREE.SphereGeometry(0.11, 18, 14),
+  horseBody: new THREE.CapsuleGeometry(0.26, 0.5, 8, 16),
   horseNeck: new THREE.BoxGeometry(0.2, 0.18, 0.46),
-  horseLeg: new THREE.CapsuleGeometry(0.06, 0.34, 3, 6),
+  horseLeg: new THREE.CapsuleGeometry(0.06, 0.34, 8, 16),
 };
 
 const add = (geometry, material, parent, position, rotation, scale) => {
@@ -207,8 +205,8 @@ export const buildWarMachines = ({
   const p = PALETTES[palette] ?? PALETTES.dwarf;
   const m = {
     frame: matte(p.frame),
-    iron: matte(p.iron, 0.5),
-    trim: matte(p.trim, 0.45),
+    iron: metal(p.iron, 0.5),
+    trim: metal(p.trim, 0.38),
     crew: matte(p.crew),
     cloth: matte(p.cloth, 0.8),
   };

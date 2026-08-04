@@ -54,7 +54,7 @@ export const buildTyrannosaur = () => {
 
   // Trunk, running forward from the hips
   const trunk = part(
-    new THREE.CapsuleGeometry(1.15, 1.9, 6, 14),
+    new THREE.CapsuleGeometry(1.15, 1.9, 8, 16),
     hide,
     hips,
     [0, 0, -1.1]
@@ -63,7 +63,7 @@ export const buildTyrannosaur = () => {
   trunk.scale.set(1, 0.82, 1.05);
 
   const underside = part(
-    new THREE.CapsuleGeometry(0.92, 1.6, 4, 12),
+    new THREE.CapsuleGeometry(0.92, 1.6, 8, 16),
     belly,
     hips,
     [0, -0.42, -1.1]
@@ -75,7 +75,7 @@ export const buildTyrannosaur = () => {
   const neck = new THREE.Group();
   neck.position.set(0, 0.3, -1.95);
   hips.add(neck);
-  const neckMesh = part(new THREE.CapsuleGeometry(0.68, 0.6, 5, 10), hide, neck, [0, 0, -0.38]);
+  const neckMesh = part(new THREE.CapsuleGeometry(0.68, 0.6, 8, 16), hide, neck, [0, 0, -0.38]);
   neckMesh.rotation.x = Math.PI / 2.3;
 
   const head = new THREE.Group();
@@ -88,7 +88,7 @@ export const buildTyrannosaur = () => {
   // Brows, which is what makes a box read as a skull from above
   part(new THREE.BoxGeometry(0.28, 0.2, 0.42), hideDark, head, [0.4, 0.34, -0.72]);
   part(new THREE.BoxGeometry(0.28, 0.2, 0.42), hideDark, head, [-0.4, 0.34, -0.72]);
-  const eyeGeom = new THREE.SphereGeometry(0.12, 10, 8);
+  const eyeGeom = new THREE.SphereGeometry(0.12, 18, 14);
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0xe8a423,
     roughness: 0.3,
@@ -107,10 +107,10 @@ export const buildTyrannosaur = () => {
   for (let i = 0; i < 5; i += 1) {
     const z = -0.42 - i * 0.32;
     const s = 0.14 - i * 0.012;
-    part(new THREE.ConeGeometry(s, 0.3, 4), claw, jaw, [0.3, 0.12, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 4), claw, jaw, [-0.3, 0.12, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 4), claw, head, [0.32, -0.18, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 4), claw, head, [-0.32, -0.18, z]).rotation.x = Math.PI;
+    part(new THREE.ConeGeometry(s, 0.3, 14), claw, jaw, [0.3, 0.12, z]).rotation.x = Math.PI;
+    part(new THREE.ConeGeometry(s, 0.3, 14), claw, jaw, [-0.3, 0.12, z]).rotation.x = Math.PI;
+    part(new THREE.ConeGeometry(s, 0.3, 14), claw, head, [0.32, -0.18, z]).rotation.x = Math.PI;
+    part(new THREE.ConeGeometry(s, 0.3, 14), claw, head, [-0.32, -0.18, z]).rotation.x = Math.PI;
   }
 
   // Tail: a chain of groups, each hung off the last, so a wave started at the
@@ -122,7 +122,7 @@ export const buildTyrannosaur = () => {
     seg.position.set(0, 0, i === 0 ? 1.0 : 0.86);
     attach.add(seg);
     const r = 0.86 - i * 0.13;
-    const mesh = part(new THREE.CapsuleGeometry(r, 0.5, 4, 10), hide, seg, [0, 0, 0.42]);
+    const mesh = part(new THREE.CapsuleGeometry(r, 0.5, 8, 16), hide, seg, [0, 0, 0.42]);
     mesh.rotation.x = Math.PI / 2;
     tail.push(seg);
     attach = seg;
@@ -134,14 +134,14 @@ export const buildTyrannosaur = () => {
     thigh.position.set(side * 1.12, -0.1, -0.1);
     hips.add(thigh);
     thigh.rotation.z = -side * 0.34;
-    const thighMesh = part(new THREE.CapsuleGeometry(0.66, 1.05, 5, 10), hide, thigh, [0, -0.5, 0]);
+    const thighMesh = part(new THREE.CapsuleGeometry(0.66, 1.05, 8, 16), hide, thigh, [0, -0.5, 0]);
     thighMesh.scale.set(1, 1, 1.3);
 
     const shin = new THREE.Group();
     shin.position.set(0, -1.05, 0);
     shin.rotation.z = side * 0.34;
     thigh.add(shin);
-    part(new THREE.CapsuleGeometry(0.34, 0.95, 4, 8), hideDark, shin, [0, -0.5, 0]);
+    part(new THREE.CapsuleGeometry(0.34, 0.95, 8, 16), hideDark, shin, [0, -0.5, 0]);
 
     const foot = new THREE.Group();
     foot.position.set(0, -1.05, 0);
@@ -154,7 +154,7 @@ export const buildTyrannosaur = () => {
         -0.52 - Math.cos(fan) * 0.1,
       ]);
       toe.rotation.y = fan;
-      part(new THREE.ConeGeometry(0.09, 0.26, 5), claw, foot, [
+      part(new THREE.ConeGeometry(0.09, 0.26, 14), claw, foot, [
         Math.sin(fan) * 0.4,
         -0.12,
         -0.88 - Math.cos(fan) * 0.1,
@@ -171,8 +171,8 @@ export const buildTyrannosaur = () => {
     const arm = new THREE.Group();
     arm.position.set(side * 0.78, 0.1, -1.85);
     hips.add(arm);
-    part(new THREE.CapsuleGeometry(0.16, 0.42, 4, 8), hideDark, arm, [0, -0.3, 0]);
-    part(new THREE.ConeGeometry(0.07, 0.24, 5), claw, arm, [0, -0.62, -0.1]);
+    part(new THREE.CapsuleGeometry(0.16, 0.42, 8, 16), hideDark, arm, [0, -0.3, 0]);
+    part(new THREE.ConeGeometry(0.07, 0.24, 14), claw, arm, [0, -0.62, -0.1]);
     return arm;
   });
 
@@ -256,7 +256,7 @@ export const buildScene = (width, height, { span = 14 } = {}) => {
   camera.up.set(0, 0, -1);
   camera.lookAt(0, 0, 0);
 
-  const key = new THREE.DirectionalLight(0xfff0d0, 2.4);
+  const key = new THREE.DirectionalLight(0xfff0d0, 2.1);
   key.position.set(3.5, 17, 2.5);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
@@ -267,8 +267,16 @@ export const buildScene = (width, height, { span = 14 } = {}) => {
   key.shadow.bias = -0.0015;
   scene.add(key);
 
-  scene.add(new THREE.HemisphereLight(0xbcd6ff, 0x2b3d19, 0.75));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  scene.add(new THREE.HemisphereLight(0xbcd6ff, 0x2b3d19, 0.55));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+
+  // A rim from behind and low, opposite the key. It does almost nothing to
+  // brightness and a great deal to shape: it catches the far edge of a helmet
+  // or a shoulder and separates the figure from whatever is behind it, which
+  // is the difference between a lit model and a lump with a shadow.
+  const rim = new THREE.DirectionalLight(0xcfe0ff, 1.1);
+  rim.position.set(-6, 4, -9);
+  scene.add(rim);
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(60, 60),
@@ -278,7 +286,7 @@ export const buildScene = (width, height, { span = 14 } = {}) => {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  return { scene, camera, ground, key };
+  return { scene, camera, ground, key, rim };
 };
 
 /**

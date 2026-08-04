@@ -139,6 +139,16 @@ that size:
   weapon head.
 - Silhouette and value do the work. Texture and small geometry do not.
 
+**Metal needs help.** `matte()` and `metal()` in `materials.js` are the only
+two material factories; use `metal()` for steel, mail, brass and weapon heads.
+Note the constraint written up there: image-based lighting is *not* available
+here, because Three's prefiltered-environment path emits GLSL that ANGLE and
+SwiftShader reject, and when it fails every standard material in the scene
+fails to compile — the board goes black, not just the reflections. So metals
+sit at 0.72 metalness and are carried by the key and rim lights instead of by
+reflections. Do not reintroduce `scene.environment` without testing on a
+strict validator first.
+
 **Verify at stand scale, not at lab scale.** The lab shows a creature many
 times the size it will be played at, where everything looks good. That is not
 the test. The test is a screenshot of the actual board with the figures on
@@ -223,6 +233,10 @@ Headroom is real but not unlimited. Rules of thumb:
   the ceiling as far away.
 - Pose cost is not the constraint; **mesh count is**. If you need more
   figures, cut meshes per figure rather than reaching for instancing.
+- **Triangles are cheap; meshes are not.** The density pass took the rigs from
+  344k triangles to 1.9M for ten units with the mesh and draw-call counts
+  unchanged. Spend segments freely — a rounder capsule is nearly free. Adding
+  another *mesh* is what costs.
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte } from "./materials.js";
 
 // The big ones that are not beasts: Trolls, Ogres, the Hill Giant, the
 // Abomination, the Earth Elemental, and the undead versions of all of them.
@@ -22,9 +23,6 @@ import * as THREE from "three";
 //
 // Three or four to a stand, never one. Even at this size the count carries
 // more than the modelling does.
-
-const matte = (color, roughness = 0.9) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
 
 const KINDS = {
   troll: {
@@ -86,27 +84,27 @@ const KINDS = {
 };
 
 const GEOMETRY = {
-  torso: new THREE.CapsuleGeometry(0.42, 0.5, 5, 10),
+  torso: new THREE.CapsuleGeometry(0.42, 0.5, 8, 16),
   // The slab across the shoulders: the widest, brightest thing on the figure
   back: new THREE.BoxGeometry(1.02, 0.16, 0.62),
-  shoulder: new THREE.SphereGeometry(0.28, 9, 7),
-  head: new THREE.SphereGeometry(0.24, 10, 8),
+  shoulder: new THREE.SphereGeometry(0.28, 18, 14),
+  head: new THREE.SphereGeometry(0.24, 18, 14),
   jaw: new THREE.BoxGeometry(0.26, 0.12, 0.24),
-  tusk: new THREE.ConeGeometry(0.05, 0.18, 4),
-  upperArm: new THREE.CapsuleGeometry(0.15, 0.42, 4, 7),
-  foreArm: new THREE.CapsuleGeometry(0.13, 0.4, 4, 7),
-  fist: new THREE.SphereGeometry(0.2, 8, 6),
-  thigh: new THREE.CapsuleGeometry(0.18, 0.3, 4, 7),
-  shin: new THREE.CapsuleGeometry(0.15, 0.28, 4, 7),
+  tusk: new THREE.ConeGeometry(0.05, 0.18, 14),
+  upperArm: new THREE.CapsuleGeometry(0.15, 0.42, 8, 16),
+  foreArm: new THREE.CapsuleGeometry(0.13, 0.4, 8, 16),
+  fist: new THREE.SphereGeometry(0.2, 18, 14),
+  thigh: new THREE.CapsuleGeometry(0.18, 0.3, 8, 16),
+  shin: new THREE.CapsuleGeometry(0.15, 0.28, 8, 16),
   foot: new THREE.BoxGeometry(0.34, 0.14, 0.46),
-  club: new THREE.CylinderGeometry(0.09, 0.14, 1.15, 6),
+  club: new THREE.CylinderGeometry(0.09, 0.14, 1.15, 18),
 
   // The Abomination is built from these rather than from the brute skeleton
-  lump: new THREE.SphereGeometry(0.62, 11, 9),
-  limbUpper: new THREE.CapsuleGeometry(0.1, 0.34, 4, 6),
-  limbLower: new THREE.CapsuleGeometry(0.085, 0.32, 4, 6),
-  hand: new THREE.SphereGeometry(0.12, 7, 6),
-  spareHead: new THREE.SphereGeometry(0.17, 9, 7),
+  lump: new THREE.SphereGeometry(0.62, 18, 14),
+  limbUpper: new THREE.CapsuleGeometry(0.1, 0.34, 8, 16),
+  limbLower: new THREE.CapsuleGeometry(0.085, 0.32, 8, 16),
+  hand: new THREE.SphereGeometry(0.12, 18, 14),
+  spareHead: new THREE.SphereGeometry(0.17, 18, 14),
 };
 
 const add = (geometry, material, parent, position, rotation, scale) => {

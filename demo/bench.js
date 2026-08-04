@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { buildScene, setTilt } from "../src/art/creatures/trex3d.js";
 import { buildInfantry, poseInfantry } from "../src/art/creatures/infantry3d.js";
+import { tuneRenderer } from "../src/art/creatures/materials.js";
 
 // How much does a board of animated infantry actually cost?
 //
@@ -41,6 +42,8 @@ renderer.shadowMap.enabled = SHADOWS;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(1);
 renderer.setSize(WIDTH, HEIGHT, false);
+// Measure what the board actually runs, tone mapping included
+tuneRenderer(renderer);
 
 // A board's worth of units, laid out the way they would deploy
 const { scene, camera, key } = buildScene(WIDTH, HEIGHT, { span: 46 });
