@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte } from "./materials.js";
 
 // The heavy saurians of the Lizardmen list: Triceratops Herd and Ancients.
 //
@@ -32,9 +33,6 @@ import * as THREE from "three";
 // after: short tails, compact bodies, frills tucked close. Length is the one
 // thing there is no room for.
 
-const matte = (color, roughness = 0.9) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-
 // Bodies dark and cool, bone and lichen pale. The turf is a dark yellow-green
 // and the pale furniture is what has to carry the silhouette.
 const PALETTE = {
@@ -66,34 +64,34 @@ const MATERIALS = {
 // One set of geometry, shared by every animal on every stand.
 const GEOMETRY = {
   // Triceratops
-  trikeBody: new THREE.CapsuleGeometry(0.42, 0.52, 5, 10),
-  trikeHump: new THREE.SphereGeometry(0.36, 10, 8),
+  trikeBody: new THREE.CapsuleGeometry(0.42, 0.52, 8, 16),
+  trikeHump: new THREE.SphereGeometry(0.36, 18, 14),
   // A wide, shallow cylinder laid flat is the frill: all area, no height
-  frill: new THREE.CylinderGeometry(0.62, 0.52, 0.09, 12),
-  frillSpike: new THREE.ConeGeometry(0.07, 0.22, 5),
+  frill: new THREE.CylinderGeometry(0.62, 0.52, 0.09, 18),
+  frillSpike: new THREE.ConeGeometry(0.07, 0.22, 14),
   skull: new THREE.BoxGeometry(0.38, 0.24, 0.44),
-  beak: new THREE.ConeGeometry(0.16, 0.3, 6),
-  browHorn: new THREE.ConeGeometry(0.075, 0.46, 6),
-  noseHorn: new THREE.ConeGeometry(0.075, 0.26, 6),
-  legUpper: new THREE.CapsuleGeometry(0.15, 0.24, 4, 7),
-  legLower: new THREE.CapsuleGeometry(0.12, 0.2, 4, 7),
-  hoof: new THREE.CylinderGeometry(0.15, 0.17, 0.1, 7),
-  trikeTail: new THREE.CylinderGeometry(0.2, 0.07, 0.4, 7),
+  beak: new THREE.ConeGeometry(0.16, 0.3, 14),
+  browHorn: new THREE.ConeGeometry(0.075, 0.46, 14),
+  noseHorn: new THREE.ConeGeometry(0.075, 0.26, 14),
+  legUpper: new THREE.CapsuleGeometry(0.15, 0.24, 8, 16),
+  legLower: new THREE.CapsuleGeometry(0.12, 0.2, 8, 16),
+  hoof: new THREE.CylinderGeometry(0.15, 0.17, 0.1, 18),
+  trikeTail: new THREE.CylinderGeometry(0.2, 0.07, 0.4, 18),
   backPlate: new THREE.BoxGeometry(0.5, 0.07, 0.24),
 
   // Ancients
-  ancientBody: new THREE.CapsuleGeometry(0.38, 0.6, 5, 10),
-  shell: new THREE.SphereGeometry(0.56, 12, 9),
-  lichenPatch: new THREE.SphereGeometry(0.17, 7, 6),
-  ancientSkull: new THREE.ConeGeometry(0.26, 0.62, 7),
+  ancientBody: new THREE.CapsuleGeometry(0.38, 0.6, 8, 16),
+  shell: new THREE.SphereGeometry(0.56, 18, 14),
+  lichenPatch: new THREE.SphereGeometry(0.17, 18, 14),
+  ancientSkull: new THREE.ConeGeometry(0.26, 0.62, 14),
   jaw: new THREE.BoxGeometry(0.26, 0.09, 0.34),
-  crestHorn: new THREE.ConeGeometry(0.095, 0.66, 5),
-  ancientLimb: new THREE.CapsuleGeometry(0.145, 0.3, 4, 7),
-  ancientShin: new THREE.CapsuleGeometry(0.115, 0.26, 4, 7),
+  crestHorn: new THREE.ConeGeometry(0.095, 0.66, 14),
+  ancientLimb: new THREE.CapsuleGeometry(0.145, 0.3, 8, 16),
+  ancientShin: new THREE.CapsuleGeometry(0.115, 0.26, 8, 16),
   ancientFoot: new THREE.BoxGeometry(0.34, 0.12, 0.42),
-  ancientArm: new THREE.CapsuleGeometry(0.11, 0.26, 4, 7),
-  claw: new THREE.ConeGeometry(0.055, 0.2, 4),
-  ancientTail: new THREE.CylinderGeometry(0.22, 0.06, 0.52, 7),
+  ancientArm: new THREE.CapsuleGeometry(0.11, 0.26, 8, 16),
+  claw: new THREE.ConeGeometry(0.055, 0.2, 14),
+  ancientTail: new THREE.CylinderGeometry(0.22, 0.06, 0.52, 18),
 };
 
 const add = (geometry, material, parent, position, rotation, scale) => {

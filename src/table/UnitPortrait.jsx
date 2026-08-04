@@ -44,11 +44,13 @@ export default function UnitPortrait({ token, enabled = true, state = "attack" }
     const boot = async () => {
       // Three.js is already resident whenever this renders — portraits only
       // appear with figures switched on — so these resolve from cache
-      const [THREE, { buildScene, setTilt }, { builderFor }] = await Promise.all([
-        import("three"),
-        import("../art/creatures/trex3d.js"),
-        import("../art/creatures/registry.js"),
-      ]);
+      const [THREE, { buildScene, setTilt }, { tuneRenderer }, { builderFor }] =
+        await Promise.all([
+          import("three"),
+          import("../art/creatures/trex3d.js"),
+          import("../art/creatures/materials.js"),
+          import("../art/creatures/registry.js"),
+        ]);
       if (!live) return;
 
       const builder = builderFor(kind.kind);
@@ -63,6 +65,7 @@ export default function UnitPortrait({ token, enabled = true, state = "attack" }
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.setClearAlpha(0);
+      tuneRenderer(renderer);
 
       const rect = canvas.getBoundingClientRect();
       const width = Math.max(rect.width, 1);

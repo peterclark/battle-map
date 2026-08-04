@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { matte } from "./materials.js";
 
 // Dragons, and the Hydra that is built the same way without the wings.
 //
@@ -17,9 +18,6 @@ import * as THREE from "three";
 // necks. Five of them, fanned wide and moving independently, make a shape
 // nothing else in the game makes — which is the same trick as a formation,
 // run on one body.
-
-const matte = (color, roughness = 0.8) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
 
 const KINDS = {
   red: {
@@ -66,34 +64,34 @@ const KINDS = {
 };
 
 const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.52, 1.05, 5, 12),
-  chest: new THREE.SphereGeometry(0.52, 12, 9),
+  body: new THREE.CapsuleGeometry(0.52, 1.05, 8, 16),
+  chest: new THREE.SphereGeometry(0.52, 18, 14),
   // A dorsal ridge, the same device the lizardfolk use, at ten times the size
   ridge: new THREE.BoxGeometry(0.14, 0.1, 1.5),
-  spine: new THREE.ConeGeometry(0.1, 0.3, 4),
+  spine: new THREE.ConeGeometry(0.1, 0.3, 14),
 
-  neckSeg: new THREE.CapsuleGeometry(0.16, 0.34, 4, 8),
-  skull: new THREE.ConeGeometry(0.24, 0.66, 7),
+  neckSeg: new THREE.CapsuleGeometry(0.16, 0.34, 8, 16),
+  skull: new THREE.ConeGeometry(0.24, 0.66, 14),
   jaw: new THREE.BoxGeometry(0.22, 0.09, 0.38),
-  horn: new THREE.ConeGeometry(0.07, 0.42, 5),
+  horn: new THREE.ConeGeometry(0.07, 0.42, 14),
 
   // The wing: an upper spar, a lower spar, and the membrane between them.
   // Flat boxes rather than a real membrane — from directly above a flat box
   // and a curved sheet are the same thing, and one of them is free.
-  wingSpar: new THREE.CylinderGeometry(0.075, 0.045, 1.9, 6),
+  wingSpar: new THREE.CylinderGeometry(0.075, 0.045, 1.9, 18),
   wingInner: new THREE.BoxGeometry(1.7, 0.05, 1.15),
   wingOuter: new THREE.BoxGeometry(1.5, 0.045, 0.95),
-  wingClaw: new THREE.ConeGeometry(0.06, 0.26, 4),
+  wingClaw: new THREE.ConeGeometry(0.06, 0.26, 14),
 
-  thigh: new THREE.CapsuleGeometry(0.22, 0.42, 4, 8),
-  shin: new THREE.CapsuleGeometry(0.17, 0.38, 4, 7),
+  thigh: new THREE.CapsuleGeometry(0.22, 0.42, 8, 16),
+  shin: new THREE.CapsuleGeometry(0.17, 0.38, 8, 16),
   foot: new THREE.BoxGeometry(0.36, 0.14, 0.5),
-  talon: new THREE.ConeGeometry(0.06, 0.22, 4),
-  armUpper: new THREE.CapsuleGeometry(0.13, 0.3, 4, 7),
-  armLower: new THREE.CapsuleGeometry(0.1, 0.28, 4, 7),
+  talon: new THREE.ConeGeometry(0.06, 0.22, 14),
+  armUpper: new THREE.CapsuleGeometry(0.13, 0.3, 8, 16),
+  armLower: new THREE.CapsuleGeometry(0.1, 0.28, 8, 16),
 
-  tailSeg: new THREE.CylinderGeometry(0.3, 0.16, 0.8, 8),
-  tailTip: new THREE.CylinderGeometry(0.16, 0.03, 0.9, 6),
+  tailSeg: new THREE.CylinderGeometry(0.3, 0.16, 0.8, 18),
+  tailTip: new THREE.CylinderGeometry(0.16, 0.03, 0.9, 18),
 };
 
 const add = (geometry, material, parent, position, rotation, scale) => {
