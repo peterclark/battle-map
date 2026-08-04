@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { find, forEach, map, omit } from "lodash";
 import Battlefield from "./table/Battlefield.jsx";
+import CreatureLayer from "./table/CreatureLayer.jsx";
 import CombatPanel from "./CombatPanel.jsx";
 import TitleScreen from "./setup/TitleScreen.jsx";
 import ArmySelect from "./setup/ArmySelect.jsx";
@@ -32,6 +33,9 @@ export default function App() {
   // the table. Only one at a time: two players resolve one engagement
   // together, then move on.
   const [engagement, setEngagement] = useState(null);
+  // Cards or figures. Cards are the default because they are the game's own
+  // idiom and every unit has one; figures are modelled army by army.
+  const [figures, setFigures] = useState(false);
 
   const attacker = engagement && find(tokens, { id: engagement.attackerId });
   const defender = engagement && find(tokens, { id: engagement.defenderId });
@@ -179,6 +183,16 @@ export default function App() {
           </span>
           <button
             type="button"
+            onClick={() => setFigures((on) => !on)}
+            aria-pressed={figures}
+            className={`plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em] ${
+              figures ? "text-ember-400" : ""
+            }`}
+          >
+            {figures ? "Figures" : "Cards"}
+          </button>
+          <button
+            type="button"
             onClick={handleNewTurn}
             className="plate px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.2em]"
           >
@@ -194,7 +208,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="relative min-h-0 flex-1">
+      <main className="relative min-h-0 flex-1 overflow-hidden">
         <Battlefield
           tokens={tokens}
           onTokensChange={setTokens}
@@ -202,6 +216,12 @@ export default function App() {
           onSelect={setSelectedId}
           onEngage={handleEngage}
           engagement={engagement}
+          figures={figures}
+        />
+        <CreatureLayer
+          tokens={tokens}
+          engagement={engagement}
+          enabled={figures}
         />
         {!engagement && (
           <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-wider text-bone-500">
@@ -213,20 +233,35 @@ export default function App() {
 
         {/* The panel floats over the board rather than squeezing it: cards
             must not shift underneath the players' hands when an engagement
-            opens. */}
+            opens.
+
+            It arrives at the edge belonging to whoever called the attack, and
+            faces that seat. Two players stand on opposite sides of a table, so
+            there is no orientation that suits both — the one who has a
+            decision to make gets the readable copy. Player One's panel is
+            therefore upside down on a monitor and the right way up to the
+            person it is for. */}
         {result && (
-          <div className="absolute inset-x-0 bottom-0">
-            <CombatPanel
-              result={result}
-              attacker={attacker}
-              defender={defender}
-              mode={engagement.mode}
-              onModeChange={handleModeChange}
-              overrides={engagement.overrides}
-              onOverride={handleOverride}
-              onMark={handleMark}
-              onClose={() => setEngagement(null)}
-            />
+          <div
+            className={
+              attacker.side === "one"
+                ? "absolute inset-x-0 top-0 rotate-180"
+                : "absolute inset-x-0 bottom-0"
+            }
+          >
+            <div className="panel-in">
+              <CombatPanel
+                result={result}
+                attacker={attacker}
+                defender={defender}
+                mode={engagement.mode}
+                onModeChange={handleModeChange}
+                overrides={engagement.overrides}
+                onOverride={handleOverride}
+                onMark={handleMark}
+                onClose={() => setEngagement(null)}
+              />
+            </div>
           </div>
         )}
       </main>

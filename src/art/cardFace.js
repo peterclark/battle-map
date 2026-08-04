@@ -24,6 +24,11 @@ export const CARD_INCHES_H = 1.75;
 // with the standing-order disc set into the corner beside them. The name
 // banner straddles the edge of the field the way the printed cards do.
 const ART_BOTTOM = 104;
+
+// The share of a card's depth given over to the field the ranks are drawn on.
+// Modelled figures stand in exactly this band, so they land where the drawn
+// ranks would have and leave the banner, stat bar and damage track clear.
+export const ART_FIELD_DEPTH = (ART_BOTTOM - 4) / CARD_H;
 const BANNER_Y = 94;
 const BANNER_H = 18;
 const BANNER_LEFT = 24;
@@ -245,7 +250,7 @@ const escapeText = (text) =>
  * player's distance — the printed cards rely on faction art for that, which
  * a board seen from six feet up cannot lean on.
  */
-export const cardFaceSvg = (unit, armyColor) => {
+export const cardFaceSvg = (unit, armyColor, { liveOccupant = false } = {}) => {
   const seed = unit.uid ?? unit.id ?? unit.name;
   const melee = unit.melee;
   const ranged = unit.ranged;
@@ -289,7 +294,11 @@ export const cardFaceSvg = (unit, armyColor) => {
     <ellipse cx="42" cy="98" rx="26" ry="9" fill="#2b451a" opacity="0.5" />
     <ellipse cx="196" cy="46" rx="22" ry="8" fill="#2b451a" opacity="0.45" />
 
-    ${ranks(unit, seed)}
+    <!-- The drawn ranks come off when modelled figures are standing on this
+         stand: one army to a card. Everything else about the face stays,
+         because the banner, the stat bar and the damage track are what the
+         players actually read off it. -->
+    ${liveOccupant ? "" : ranks(unit, seed)}
 
     <!-- the ground plate the stat bar sits on -->
     <rect x="0" y="${ART_BOTTOM - 4}" width="${CARD_W}" height="${CARD_H - ART_BOTTOM + 4}"

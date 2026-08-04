@@ -4,6 +4,7 @@ import { damageStatus } from "../rules/data/index.js";
 import { inContact } from "../engagement.js";
 import { CARD_H, CARD_W, damageBoxRects } from "../art/cardFace.js";
 import { cardImage, isDrawable } from "../art/cardImage.js";
+import { hasCreature } from "../art/creatures/roster.js";
 import {
   BOARD_HEIGHT_INCHES,
   BOARD_WIDTH_INCHES,
@@ -134,10 +135,17 @@ const roundedRect = (ctx, x, y, w, h, r) => {
   ctx.roundRect(x, y, w, h, r);
 };
 
-const drawToken = (ctx, t, token, { held, selected, engaged, repaint }) => {
+const drawToken = (
+  ctx,
+  t,
+  token,
+  { held, selected, engaged, repaint, liveOccupant }
+) => {
   const cardW = token.halfWidth * 2 * t.scale;
   const cardH = token.halfDepth * 2 * t.scale;
-  const image = cardImage(token.unit, token.color, repaint);
+  // With figures on the board the stand keeps its banner, stats and damage
+  // track and gives up its drawn ranks, so there is one army on it, not two
+  const image = cardImage(token.unit, token.color, repaint, { liveOccupant });
   const status = damageStatus(token.unit, token.marked);
 
   enterTokenFrame(ctx, t, token);
@@ -168,9 +176,12 @@ const drawToken = (ctx, t, token, { held, selected, engaged, repaint }) => {
       const y = (box.y / CARD_H) * cardH - cardH / 2;
       const w = (box.w / CARD_W) * cardW;
       const h = (box.h / CARD_H) * cardH;
-      ctx.fillStyle = "rgba(14,12,10,0.82)";
+      ctx.fillStyle = "rgba(14,12,10,0.72)";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = "#e24b4a";
+      // Bone rather than red, and dimmed. The printed track is already green,
+      // yellow and red, so a red cross over a red box is a red cross nobody
+      // can see; a pale one at half strength reads on all three.
+      ctx.strokeStyle = "rgba(242,236,221,0.5)";
       ctx.lineWidth = Math.max(cardH * 0.012, 1);
       ctx.beginPath();
       ctx.moveTo(x + w * 0.2, y + h * 0.25);
@@ -206,7 +217,7 @@ const drawToken = (ctx, t, token, { held, selected, engaged, repaint }) => {
   }
 
   if (status === "destroyed") {
-    ctx.strokeStyle = "#a32d2d";
+    ctx.strokeStyle = "rgba(163,45,45,0.5)";
     ctx.lineWidth = Math.max(cardH * 0.06, 3);
     ctx.beginPath();
     ctx.moveTo(-cardW / 2, -cardH / 2);
@@ -321,6 +332,7 @@ export default function Battlefield({
   onSelect,
   onEngage,
   engagement,
+  figures = false,
 }) {
   const canvasRef = useRef(null);
   const transformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
@@ -392,6 +404,7 @@ export default function Battlefield({
           (engagement.attackerId === token.id ||
             engagement.defenderId === token.id),
         repaint,
+        liveOccupant: figures && hasCreature(token.unit),
       })
     );
 
@@ -401,7 +414,7 @@ export default function Battlefield({
     }
 
     ctx.restore();
-  }, [selectedId, engagement]);
+  }, [selectedId, engagement, figures]);
 
   renderRef.current = render;
 
