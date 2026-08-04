@@ -67,20 +67,48 @@ counter to the stride is visible from above where a leg cycle mostly is not.
 
 ---
 
+## Men of Hawkshold
+
+*Direction inferred from the unit list; not yet confirmed. Replace this note
+once the shape has been agreed.*
+
+Men in mail, and the list is unusually explicit about what they carry —
+Bowmen, Longbowmen, Spearmen, Communal Pikemen, Swordsmen, Great Swordsmen,
+Militia, Peasant Mob, and three kinds of horse. Almost every unit names its
+own weapon, so the weapon is the distinction the figures are built on.
+
+**Palette.** Steel and a pale surcoat, with heraldic red on shield and
+caparison. Both separate cleanly from the dark yellow-green turf, and the red
+gives a block a second read at distance.
+
+**Militia and the Peasant Mob get neither.** No mail, no livery, browns and
+homespun, and they form up wider and raggeder than the drilled foot. A mob
+should look like a mob from across the table.
+
+**The horse.** A pale mane runs the length of the neck — the same trick the
+lizardfolk dorsal ridge uses, and for the same reason. Knights add a
+caparison, a broad cloth over the horse's back: historically right, and the
+largest pale area anything on this board turns toward a camera above it.
+Lancers ride bare-backed by comparison, and Scout Cavalry are drabber again
+and carry a blade rather than a shaft.
+
+---
+
 ## Orc Army
 
 Modelled: Orc Axemen as the infantry archetype, Goblin Wolf Riders as the
 cavalry archetype.
 
-**Known problem.** The axemen's armour is `0x2f2a24`, which reads as a black
-lump at stand scale against the dark turf. They need a lighter element —
-shield face, helm, or weapon head — carrying real value contrast. See the
-"Value contrast beats detail" section of the skill.
+The axemen's armour was `0x2f2a24` and read as a black lump at stand scale
+against the dark turf. It has been lifted to `0x453d33` with a pale shield
+boss — the fix the "Value contrast beats detail" section of the skill asks
+for.
 
 ---
 
 ## Not yet briefed
 
-Dwarves of Runegard, High Elves, Men of Hawkshold, Monsters and
-Mercenaries, Undead Army. These fall back to the generic archetypes until
-someone writes them a paragraph here.
+Dwarves of Runegard, High Elves, Monsters and Mercenaries, Undead Army.
+These fall back to the generic archetypes — which now at least arm their
+figures from the card, so a spearman musters with a spear whoever fields
+him.

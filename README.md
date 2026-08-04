@@ -141,8 +141,8 @@ src/
       registry.js     which builder each kind maps to -- dynamically imported
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
-      infantry3d.js   the generic block of foot
-      wolfRiders3d.js the generic cavalry
+      infantry3d.js   foot, by weapon and palette -- axe, sword, spear, bow
+      cavalry3d.js    horse and wolf, by mount, rider and what they carry
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
   setup/
     TitleScreen.jsx   BattleMap, and the way in

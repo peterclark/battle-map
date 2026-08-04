@@ -102,7 +102,16 @@ size reads best on their own.
    - Share geometry across figures. One `CapsuleGeometry` reused by twenty
      bodies costs one body's worth of buffers; only the transforms differ.
      See `infantry3d.js` for the pattern.
+   - **Prefer a parameter to a new file.** A spearman and an archer are the
+     same skeleton carrying different things; `infantry3d.js` covers four
+     weapons and three palettes in one rig. A second copy of a rig drifts
+     from the first the day someone fixes a bug in only one of them.
    - Return the parts the poser needs: `{ root, ... }`.
+   - **Never write to `rig.root.scale` in a poser.** `CreatureLayer` owns it —
+     that scale is what fits the rig to its stand — so a poser that sets it
+     silently discards the fit and the unit renders at modelled size,
+     straddling half the board. Scale a child group instead. The cavalry rig
+     shipped with exactly this bug.
 2. **Add the kind** to `KINDS` in `roster.js`, with a `match` predicate and
    a `fill`. Order matters — named units first, archetypes after. Below 1,
    figures sit inside the printed edge; above 1 they overhang, which is what
