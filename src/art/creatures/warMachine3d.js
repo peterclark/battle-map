@@ -1,8 +1,11 @@
 import * as THREE from "three";
 import { matte, metal } from "./materials.js";
 
-// War machines: ballistae, scorpions, catapults, chariots and the goblins'
-// bomb-chucker.
+// War machines: ballistae, scorpions and chariots.
+//
+// The throwing engines used to live here too, blocked out from the same box
+// vocabulary. They have moved to catapult3d.js, which builds them properly —
+// see the note at the top of that file for why it was worth the trouble.
 //
 // These are the easiest units on the board to make read from above, and it is
 // worth saying why, because it is the opposite of every other problem here.
@@ -25,8 +28,6 @@ import { matte, metal } from "./materials.js";
 const PALETTES = {
   dwarf: { frame: 0x6b4a2c, iron: 0x4d5058, trim: 0xb8a05e, crew: 0xc09274, cloth: 0xd9cdb4 },
   highElf: { frame: 0xd8d2c2, iron: 0xc9cdd4, trim: 0xe0c877, crew: 0xd6b394, cloth: 0xeef1f5 },
-  orc: { frame: 0x4a3a26, iron: 0x646b73, trim: 0x8a9a4a, crew: 0x6a8a3c, cloth: 0x7a5c33 },
-  undead: { frame: 0x5c5647, iron: 0x4c4f4a, trim: 0x9aa08c, crew: 0xcfc6ad, cloth: 0x6d6a5c },
 };
 
 const GEOMETRY = {
@@ -38,9 +39,6 @@ const GEOMETRY = {
   wheel: new THREE.CylinderGeometry(0.4, 0.4, 0.11, 18),
   hub: new THREE.CylinderGeometry(0.11, 0.11, 0.16, 18),
   spoke: new THREE.BoxGeometry(0.05, 0.06, 0.72),
-  // The throwing arm, laid back along the bed
-  arm: new THREE.BoxGeometry(0.13, 0.11, 0.98),
-  bucket: new THREE.SphereGeometry(0.19, 18, 14),
   // A ballista's prod, across the frame
   prod: new THREE.BoxGeometry(2.3, 0.07, 0.1),
   bolt: new THREE.CylinderGeometry(0.035, 0.035, 0.66, 18),
@@ -118,35 +116,6 @@ const makeBolter = (m, heavy) => {
   return { group, bed, arm, wheels, crew, kind: "bolter" };
 };
 
-// A throwing engine: the arm stands up and comes down, which is the one
-// machine motion big enough to see from above.
-const makeThrower = (m) => {
-  const group = new THREE.Group();
-  const bed = new THREE.Group();
-  bed.position.y = 0.26;
-  group.add(bed);
-
-  add(GEOMETRY.bed, m.frame, bed, [0, 0, 0], null, [1.2, 1, 1.2]);
-  add(GEOMETRY.rail, m.frame, bed, [0.5, 0.14, 0]);
-  add(GEOMETRY.rail, m.frame, bed, [-0.5, 0.14, 0]);
-  add(GEOMETRY.axle, m.iron, bed, [0, -0.1, 0.4], [0, 0, Math.PI / 2]);
-
-  const wheels = [makeWheel(group, 0.86, m), makeWheel(group, -0.86, m)];
-
-  const arm = new THREE.Group();
-  arm.position.set(0, 0.18, 0.3);
-  bed.add(arm);
-  add(GEOMETRY.arm, m.frame, arm, [0, 0, -0.44], [0.1, 0, 0]);
-  add(GEOMETRY.bucket, m.iron, arm, [0, 0.06, -0.88]);
-
-  const crew = [
-    makeCrew(group, 0.5, 0.72, m),
-    makeCrew(group, -0.48, 0.8, m),
-    makeCrew(group, 0.05, 0.88, m),
-  ];
-  return { group, bed, arm, wheels, crew, kind: "thrower" };
-};
-
 // A chariot: a car, a pole, and a pair of horses in front of it.
 const makeChariot = (m) => {
   const group = new THREE.Group();
@@ -185,7 +154,6 @@ const makeChariot = (m) => {
 const ENGINES = {
   bolter: makeBolter,
   heavyBolter: (m) => makeBolter(m, true),
-  thrower: makeThrower,
   chariot: makeChariot,
 };
 

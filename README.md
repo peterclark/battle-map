@@ -180,7 +180,10 @@ src/
       infantry3d.js   foot, by weapon, palette and build -- five weapons,
                       eight palettes, four body plans
       cavalry3d.js    horse and wolf, by mount, rider and what they carry
-      warMachine3d.js ballistae, catapults and chariots, with their crews
+      warMachine3d.js ballistae, scorpions and chariots, with their crews
+      catapult3d.js   the throwing engines, modelled rather than blocked out:
+                      extruded timber and turned fittings merged into a
+                      handful of meshes
       brutes3d.js     trolls, ogres, giants -- the shape with no silhouette
       dragon3d.js     wings, and the hydra that manages without them
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera

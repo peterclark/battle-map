@@ -155,6 +155,47 @@ the test. The test is a screenshot of the actual board with the figures on
 their stands. This project has already made the mistake of judging a creature
 at lab scale and being wrong about it — twice, counting the Ancients.
 
+## Detail without meshes: merge the geometry
+
+The budget below says mesh count is the constraint and triangles are not.
+That has a consequence worth stating on its own, because it inverts how you
+would normally add detail:
+
+> Detail added as **separate meshes** costs the thing that is scarce.
+> Detail merged into **one mesh** costs the thing that is free.
+
+`BufferGeometryUtils.mergeGeometries` collapses any number of positioned
+geometries into a single buffer. Group by **material** and by **what moves** —
+everything static in timber becomes one mesh, everything static in iron
+another, and each moving part keeps its own. `catapult3d.js` is the worked
+example: it has roughly four times the geometry of the box-and-cylinder
+catapult it replaced and about half the meshes.
+
+Two mechanical gotchas, both of which will bite:
+
+- Merging **bakes transforms**, so position and rotation must be applied to
+  the vertices (`geometry.translate`, `.rotateX`) before merging, not to a
+  mesh that will not survive it. The `at()` helper in `catapult3d.js` is
+  worth copying wholesale.
+- `mergeGeometries` **refuses a mix of indexed and non-indexed inputs**, and
+  the built-in geometries are not consistent about which they are. Call
+  `.toNonIndexed()` on everything.
+
+Once merging is on the table, the shape vocabulary can widen past capsules
+and boxes:
+
+| Generator | Use it for |
+|---|---|
+| `ExtrudeGeometry` with a bevel | timber, plate, anything cut from stock. The bevel catches the key light along its length, which is what makes a beam read as a beam rather than as a box. |
+| `LatheGeometry` | anything that was turned in life — drums, hubs, finials, pottery. |
+| `TorusGeometry` | tyres, rings, torsion skeins, collars. |
+| `TubeGeometry` along a `CatmullRomCurve3` | rope, chain, cable, vine. |
+
+This is the right technique for **machines and single large figures**, where
+one rig is on the stand. It is the wrong technique for a block of twenty,
+where shared geometry across figures already gives you the same saving and
+merging would forfeit per-figure posing.
+
 ## How the pieces fit together
 
 Three files, and the split matters:
@@ -236,7 +277,8 @@ Headroom is real but not unlimited. Rules of thumb:
 - **Triangles are cheap; meshes are not.** The density pass took the rigs from
   344k triangles to 1.9M for ten units with the mesh and draw-call counts
   unchanged. Spend segments freely — a rounder capsule is nearly free. Adding
-  another *mesh* is what costs.
+  another *mesh* is what costs. See **Detail without meshes** above for how to
+  turn that into real detail.
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 
