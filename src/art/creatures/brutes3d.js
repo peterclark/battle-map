@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte } from "./materials.js";
+import { at, bevelled, merge, part, surfaceMaterial, swept, turned } from "./kit.js";
 
 // The big ones that are not beasts: Trolls, Ogres, the Hill Giant, the
 // Abomination, the Earth Elemental, and the undead versions of all of them.
@@ -23,6 +23,12 @@ import { matte } from "./materials.js";
 //
 // Three or four to a stand, never one. Even at this size the count carries
 // more than the modelling does.
+//
+// The merge pays for itself twice over here. A brute is twelve buffers rather
+// than twenty meshes, and a brute's *skin* is where the freed budget went:
+// knotted muscle, warts, a hide cloak cut with a ragged hem, a club that is a
+// tree rather than a cylinder. None of that would have been affordable as
+// separate meshes on three or four figures a stand.
 
 const KINDS = {
   troll: {
@@ -34,6 +40,8 @@ const KINDS = {
     count: 3,
     hunch: 0.62,
     club: true,
+    // What lies across the shoulders, which is the brightest thing on it
+    mantle: "moss",
   },
   ogre: {
     hide: 0x8a6a4c,
@@ -44,6 +52,7 @@ const KINDS = {
     count: 3,
     hunch: 0.5,
     club: true,
+    mantle: "hide",
   },
   giant: {
     // One of him, and correspondingly huge. The exception that proves the
@@ -57,6 +66,7 @@ const KINDS = {
     count: 1,
     hunch: 0.45,
     club: true,
+    mantle: "hide",
   },
   boneBrute: {
     // Skeleton and Zombie Trolls. Bone against dark turf carries itself.
@@ -68,6 +78,7 @@ const KINDS = {
     count: 3,
     hunch: 0.66,
     club: true,
+    mantle: "bone",
   },
   elemental: {
     // Stone rather than meat: blockier, paler on top where the light hits
@@ -80,46 +91,339 @@ const KINDS = {
     count: 2,
     hunch: 0.35,
     club: false,
+    mantle: "stone",
   },
 };
 
-const GEOMETRY = {
-  torso: new THREE.CapsuleGeometry(0.42, 0.5, 8, 16),
-  // The slab across the shoulders: the widest, brightest thing on the figure
-  back: new THREE.BoxGeometry(1.02, 0.16, 0.62),
-  shoulder: new THREE.SphereGeometry(0.28, 18, 14),
-  head: new THREE.SphereGeometry(0.24, 18, 14),
-  jaw: new THREE.BoxGeometry(0.26, 0.12, 0.24),
-  tusk: new THREE.ConeGeometry(0.05, 0.18, 14),
-  upperArm: new THREE.CapsuleGeometry(0.15, 0.42, 8, 16),
-  foreArm: new THREE.CapsuleGeometry(0.13, 0.4, 8, 16),
-  fist: new THREE.SphereGeometry(0.2, 18, 14),
-  thigh: new THREE.CapsuleGeometry(0.18, 0.3, 8, 16),
-  shin: new THREE.CapsuleGeometry(0.15, 0.28, 8, 16),
-  foot: new THREE.BoxGeometry(0.34, 0.14, 0.46),
-  club: new THREE.CylinderGeometry(0.09, 0.14, 1.15, 18),
+const MEAT = { roughness: 0.9 };
+const HORN = { metalness: 0.2, roughness: 0.5 };
+const STONE = { roughness: 0.95 };
 
-  // The Abomination is built from these rather than from the brute skeleton
-  lump: new THREE.SphereGeometry(0.62, 18, 14),
-  limbUpper: new THREE.CapsuleGeometry(0.1, 0.34, 8, 16),
-  limbLower: new THREE.CapsuleGeometry(0.085, 0.32, 8, 16),
-  hand: new THREE.SphereGeometry(0.12, 18, 14),
-  spareHead: new THREE.SphereGeometry(0.17, 18, 14),
+// A lopsided lump — the unit of construction for anything made of meat.
+// Scaled unevenly and rotated off-axis so no two read as the same sphere.
+const lump = (radius, seed) =>
+  new THREE.SphereGeometry(radius, 10 + (seed % 3) * 2, 8 + (seed % 2) * 2);
+
+const spineParts = (spec) => {
+  const parts = [
+    part(new THREE.CapsuleGeometry(0.42, 0.5, 10, 18), spec.hide, {
+      pos: [0, 0.1, 0],
+      rot: [Math.PI / 2.4, 0, 0],
+      scale: [1.08, 1, 1],
+      ...MEAT,
+    }),
+    ...[0.42, -0.42].map((x) =>
+      part(new THREE.SphereGeometry(0.28, 14, 12), spec.hideDark, {
+        pos: [x, 0.3, -0.14],
+        scale: [1.1, 0.95, 1],
+        ...MEAT,
+      })
+    ),
+  ];
+
+  // The slab across the shoulders: the widest, brightest thing on the figure,
+  // and the one place where the kind is worth distinguishing.
+  if (spec.mantle === "stone") {
+    // Slabs of rock, overlapping, at angles — weather rather than tailoring
+    [
+      [-0.34, 0.34, 0.02, 0.5, 0.16],
+      [0.16, 0.4, -0.02, 0.56, -0.2],
+      [-0.02, 0.3, 0.28, 0.44, 0.38],
+    ].forEach(([x, y, z, w, roll], i) => {
+      parts.push(
+        part(
+          bevelled(
+            [
+              [-w, -0.2],
+              [-w * 0.7, -0.28],
+              [w * 0.8, -0.24],
+              [w, 0.06],
+              [w * 0.5, 0.28],
+              [-w * 0.6, 0.24],
+            ],
+            0.15,
+            0.02
+          ),
+          i === 1 ? spec.back : spec.detail,
+          { pos: [x, y, z], rot: [Math.PI / 2 - 0.3, roll, 0], ...STONE }
+        )
+      );
+    });
+  } else {
+    // A hide, a bone plate or a mat of moss, cut with a ragged edge. A
+    // rectangle across the shoulders reads as a plank; a torn hem reads as
+    // something that was flayed off an animal.
+    parts.push(
+      part(
+        at(
+          bevelled(
+            [
+              [-0.52, 0.3],
+              [0.52, 0.3],
+              [0.56, 0.02],
+              [0.44, -0.1],
+              [0.5, -0.24],
+              [0.3, -0.32],
+              [0.12, -0.2],
+              [-0.06, -0.34],
+              [-0.26, -0.22],
+              [-0.44, -0.3],
+              [-0.5, -0.08],
+            ],
+            0.14,
+            0.016
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        spec.back,
+        { pos: [0, 0.36, 0.04], rot: [0.24, 0, 0], ...MEAT }
+      )
+    );
+    // Knots of muscle and warts over the back. Free, now that they merge.
+    [
+      [0.2, 0.42, -0.1, 0.1],
+      [-0.24, 0.4, 0.16, 0.085],
+      [0.06, 0.46, 0.26, 0.07],
+      [-0.1, 0.36, -0.24, 0.09],
+      [0.34, 0.24, 0.2, 0.075],
+    ].forEach(([x, y, z, r], i) => {
+      parts.push(
+        part(lump(r, i), i % 2 ? spec.hideDark : spec.detail, {
+          pos: [x, y, z],
+          scale: [1.2, 0.7, 1],
+          ...MEAT,
+        })
+      );
+    });
+  }
+
+  if (spec.mantle === "bone") {
+    // Ribs showing through, which is the whole point of a skeleton troll
+    [0.22, 0.06, -0.1].forEach((z, i) =>
+      parts.push(
+        part(swept(
+          [
+            [-0.34, -0.1, 0],
+            [-0.24, 0.12, 0],
+            [0, 0.2, 0],
+            [0.24, 0.12, 0],
+            [0.34, -0.1, 0],
+          ],
+          0.035,
+          { segments: 14, sides: 5 }
+        ), spec.detail, { pos: [0, 0.16 - i * 0.02, z], ...HORN })
+      )
+    );
+  }
+
+  return parts;
 };
 
-const add = (geometry, material, parent, position, rotation, scale) => {
+const headParts = (spec) => [
+  part(new THREE.SphereGeometry(0.24, 14, 12), spec.hide, {
+    scale: [1, 0.98, 1.1],
+    ...MEAT,
+  }),
+  // A heavy brow, which is most of what makes a head look brutal from above
+  part(
+    at(
+      bevelled(
+        [
+          [-0.2, -0.05],
+          [0.2, -0.05],
+          [0.22, 0.05],
+          [0, 0.09],
+          [-0.22, 0.05],
+        ],
+        0.14,
+        0.014
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    spec.hideDark,
+    { pos: [0, 0.06, -0.16], rot: [0.3, 0, 0], ...MEAT }
+  ),
+  // Jaw, undershot
+  part(
+    at(
+      bevelled(
+        [
+          [-0.14, -0.09],
+          [0.14, -0.09],
+          [0.15, 0.05],
+          [0.08, 0.08],
+          [-0.08, 0.08],
+          [-0.15, 0.05],
+        ],
+        0.24,
+        0.014
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    spec.hideDark,
+    { pos: [0, -0.16, -0.12], ...MEAT }
+  ),
+  // Tusks, turned so they curve rather than stand as cones
+  ...[0.1, -0.1].map((x) =>
+    part(
+      turned(
+        [
+          [0, 0],
+          [0.05, 0.03],
+          [0.045, 0.1],
+          [0.03, 0.16],
+          [0, 0.2],
+        ],
+        10
+      ),
+      spec.detail,
+      { pos: [x, -0.14, -0.2], rot: [-0.45, 0, x > 0 ? 0.22 : -0.22], ...HORN }
+    )
+  ),
+  ...[0.11, -0.11].map((x) =>
+    part(new THREE.SphereGeometry(0.05, 10, 8), 0xc8a83a, {
+      pos: [x, 0.02, -0.2],
+      ...HORN,
+    })
+  ),
+];
+
+const upperArmParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.15, 0.42, 8, 14), spec.hide, {
+    pos: [0, -0.3, 0],
+    ...MEAT,
+  }),
+  // A shoulder knot, so the arm has a shape rather than a diameter
+  part(lump(0.13, 1), spec.hideDark, {
+    pos: [0.02, -0.16, -0.06],
+    scale: [1, 1.2, 1],
+    ...MEAT,
+  }),
+];
+
+const foreArmParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.13, 0.4, 8, 14), spec.hide, {
+    pos: [0, -0.26, 0],
+    ...MEAT,
+  }),
+  part(new THREE.SphereGeometry(0.2, 12, 10), spec.hideDark, {
+    pos: [0, -0.5, 0],
+    scale: [1, 0.95, 1.05],
+    ...MEAT,
+  }),
+  // Knuckles
+  ...[-0.09, 0, 0.09].map((x, i) =>
+    part(lump(0.06, i), spec.hideDark, {
+      pos: [x, -0.55, -0.14],
+      ...MEAT,
+    })
+  ),
+];
+
+// A club is a tree with the branches broken off, not a cylinder
+const clubParts = (spec) => [
+  part(
+    turned(
+      [
+        [0.075, 0],
+        [0.085, 0.18],
+        [0.075, 0.36],
+        [0.09, 0.52],
+        [0.11, 0.72],
+        [0.145, 0.92],
+        [0.155, 1.05],
+        [0.13, 1.14],
+        [0, 1.16],
+      ],
+      12
+    ),
+    spec.hideDark,
+    { pos: [0, -0.18, 0], ...MEAT }
+  ),
+  // Stubs where limbs were torn off, and a couple of driven spikes
+  ...[
+    [0.09, 0.62, 0.03, 0.9],
+    [-0.08, 0.78, -0.04, -0.8],
+    [0.02, 0.44, 0.09, 0.2],
+  ].map(([x, y, z, roll], i) =>
+    part(new THREE.ConeGeometry(0.05, 0.16, 8), i === 2 ? spec.detail : spec.hideDark, {
+      pos: [x, y - 0.18, z],
+      rot: [0, 0, roll],
+      ...(i === 2 ? HORN : MEAT),
+    })
+  ),
+];
+
+const thighParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.18, 0.3, 8, 14), spec.hide, {
+    pos: [0, -0.24, 0.02],
+    scale: [1.1, 1, 1],
+    ...MEAT,
+  }),
+];
+
+const shinParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.15, 0.28, 8, 14), spec.hide, {
+    pos: [0, -0.22, 0],
+    ...MEAT,
+  }),
+];
+
+const footParts = (spec) => [
+  // A splayed foot with toes, cut as a profile
+  part(
+    at(
+      bevelled(
+        [
+          [-0.18, -0.24],
+          [0.18, -0.24],
+          [0.2, 0.08],
+          [0.11, 0.2],
+          [0.04, 0.14],
+          [-0.04, 0.2],
+          [-0.11, 0.14],
+          [-0.2, 0.08],
+        ],
+        0.16,
+        0.018
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    spec.hide,
+    { pos: [0, -0.05, -0.1], ...MEAT }
+  ),
+  ...[-0.11, 0, 0.11].map((x) =>
+    part(new THREE.ConeGeometry(0.035, 0.09, 8), spec.detail, {
+      pos: [x, -0.06, -0.32],
+      rot: [-Math.PI / 2, 0, 0],
+      ...HORN,
+    })
+  ),
+];
+
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
-  if (scale) mesh.scale.set(...scale);
+  if (position) mesh.position.set(...position);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 };
 
+const buildBruteBuffers = (spec) => ({
+  spine: merge(spineParts(spec)),
+  head: merge(headParts(spec)),
+  upperArm: merge(upperArmParts(spec)),
+  foreArm: merge(foreArmParts(spec)),
+  club: spec.club ? merge(clubParts(spec)) : null,
+  thigh: merge(thighParts(spec)),
+  shin: merge(shinParts(spec)),
+  foot: merge(footParts(spec)),
+});
+
 // One brute, facing -Z, standing on y = 0.
-const makeBrute = (spec, m) => {
+const makeBrute = (spec, buffers, material) => {
   const group = new THREE.Group();
 
   const hips = new THREE.Group();
@@ -131,19 +435,12 @@ const makeBrute = (spec, m) => {
   const spine = new THREE.Group();
   spine.rotation.x = spec.hunch;
   hips.add(spine);
-
-  add(GEOMETRY.torso, m.hide, spine, [0, 0.1, 0], [Math.PI / 2.4, 0, 0]);
-  add(GEOMETRY.back, m.back, spine, [0, 0.36, 0.04], [0.24, 0, 0]);
-  add(GEOMETRY.shoulder, m.hideDark, spine, [0.42, 0.3, -0.14]);
-  add(GEOMETRY.shoulder, m.hideDark, spine, [-0.42, 0.3, -0.14]);
+  hang(spine, buffers.spine, material);
 
   const head = new THREE.Group();
   head.position.set(0, 0.3, -0.46);
   spine.add(head);
-  add(GEOMETRY.head, m.hide, head, [0, 0, 0]);
-  add(GEOMETRY.jaw, m.hideDark, head, [0, -0.16, -0.1]);
-  add(GEOMETRY.tusk, m.detail, head, [0.1, -0.12, -0.18], [-2.6, 0, 0.2]);
-  add(GEOMETRY.tusk, m.detail, head, [-0.1, -0.12, -0.18], [-2.6, 0, -0.2]);
+  hang(head, buffers.head, material);
 
   // Arms hung wide and long. Half the silhouette from above is here.
   const arms = [1, -1].map((side) => {
@@ -151,22 +448,22 @@ const makeBrute = (spec, m) => {
     shoulder.position.set(side * 0.46, 0.22, -0.06);
     spine.add(shoulder);
     shoulder.rotation.z = side * 0.42;
-    add(GEOMETRY.upperArm, m.hide, shoulder, [0, -0.3, 0]);
+    hang(shoulder, buffers.upperArm, material);
     const forearm = new THREE.Group();
     forearm.position.y = -0.6;
     shoulder.add(forearm);
     forearm.rotation.x = -0.5;
-    add(GEOMETRY.foreArm, m.hide, forearm, [0, -0.26, 0]);
-    add(GEOMETRY.fist, m.hideDark, forearm, [0, -0.5, 0]);
+    hang(forearm, buffers.foreArm, material);
 
     let club = null;
-    if (spec.club && side > 0) {
+    if (buffers.club && side > 0) {
       club = new THREE.Group();
       club.position.set(0, -0.5, 0);
       forearm.add(club);
       // Laid back over the shoulder, like every other weapon on this board,
       // and for the same reason
-      add(GEOMETRY.club, m.hideDark, club, [0, 0.4, 0.1], [0.9, 0, 0]);
+      club.rotation.x = 0.9;
+      hang(club, buffers.club, material, [0, 0.4, 0.1]);
     }
     return { shoulder, forearm, club, side };
   });
@@ -175,16 +472,16 @@ const makeBrute = (spec, m) => {
     const hip = new THREE.Group();
     hip.position.set(side * 0.24, -0.08, 0);
     hips.add(hip);
-    add(GEOMETRY.thigh, m.hide, hip, [0, -0.24, 0.02]);
+    hang(hip, buffers.thigh, material);
     const shin = new THREE.Group();
     shin.position.y = -0.46;
     hip.add(shin);
     shin.rotation.x = -0.3;
-    add(GEOMETRY.shin, m.hide, shin, [0, -0.22, 0]);
+    hang(shin, buffers.shin, material);
     const foot = new THREE.Group();
     foot.position.y = -0.44;
     shin.add(foot);
-    add(GEOMETRY.foot, m.hideDark, foot, [0, -0.05, -0.1]);
+    hang(foot, buffers.foot, material);
     return { hip, shin, foot, side };
   });
 
@@ -209,24 +506,18 @@ const ABOMINATION = {
   coreDark: 0x322a27,
   flesh: 0xb9a894,
   fleshDark: 0x8a7a68,
+  bone: 0xd8cebb,
 };
 
-const makeAbomination = (m) => {
-  const group = new THREE.Group();
-
-  const mass = new THREE.Group();
-  mass.position.y = 0.72;
-  group.add(mass);
-
-  // The heap: overlapping lumps, deliberately lopsided. A symmetrical blob
-  // would read as a boulder.
-  //
-  // It is also spread far wider than it is deep, which is both what a mass
-  // dragging itself along would do and what the stand demands — a rig built
-  // square fits the shallow axis and then wastes two thirds of the width it
-  // was given. The first pass was 1.74 by 1.58 and came out a third too
-  // small.
-  const lumps = [
+// The heap: overlapping lumps, deliberately lopsided. A symmetrical blob
+// would read as a boulder.
+//
+// It is also spread far wider than it is deep, which is both what a mass
+// dragging itself along would do and what the stand demands — a rig built
+// square fits the shallow axis and then wastes two thirds of the width it
+// was given. The first pass was 1.74 by 1.58 and came out a third too small.
+const massParts = () => {
+  const parts = [
     [0, 0, 0, 1],
     [0.78, -0.1, 0.12, 0.82],
     [-0.72, -0.06, -0.14, 0.76],
@@ -235,15 +526,126 @@ const makeAbomination = (m) => {
     [1.18, -0.16, -0.06, 0.6],
     [-1.12, -0.14, 0.08, 0.62],
   ].map(([x, y, z, r], i) =>
-    add(GEOMETRY.lump, i % 2 ? m.core : m.coreDark, mass, [x, y, z], null, [
-      r,
-      r * 0.82,
-      r,
-    ])
+    part(lump(0.62, i), i % 2 ? ABOMINATION.core : ABOMINATION.coreDark, {
+      pos: [x, y, z],
+      scale: [r, r * 0.82, r],
+      ...MEAT,
+    })
   );
+
+  // Ribcages surfacing out of the mass. Pale, curved, unmistakably human, and
+  // the one detail that says this is made of people rather than of mud.
+  [
+    [0.5, 0.3, 0.1, 0.5, -0.3],
+    [-0.6, 0.26, -0.06, 0.42, 0.5],
+    [0.06, 0.36, 0.34, 0.36, 0.1],
+  ].forEach(([x, y, z, s, yaw]) => {
+    [0, 1, 2].forEach((i) =>
+      parts.push(
+        part(
+          swept(
+            [
+              [-0.3, -0.12, 0],
+              [-0.2, 0.1, 0],
+              [0, 0.17, 0],
+              [0.2, 0.1, 0],
+              [0.3, -0.12, 0],
+            ],
+            0.03,
+            { segments: 12, sides: 5 }
+          ),
+          ABOMINATION.bone,
+          {
+            pos: [x, y, z + (i - 1) * 0.13 * s],
+            rot: [0, yaw, 0],
+            scale: [s, s, s],
+            ...HORN,
+          }
+        )
+      )
+    );
+  });
+
+  return parts;
+};
+
+const limbUpperParts = () => [
+  part(new THREE.CapsuleGeometry(0.1, 0.34, 8, 12), ABOMINATION.flesh, {
+    pos: [0, 0, -0.26],
+    rot: [Math.PI / 2, 0, 0],
+    ...MEAT,
+  }),
+];
+
+const limbLowerParts = () => [
+  part(new THREE.CapsuleGeometry(0.085, 0.32, 8, 12), ABOMINATION.fleshDark, {
+    pos: [0, 0, -0.24],
+    rot: [Math.PI / 2, 0, 0],
+    ...MEAT,
+  }),
+  part(new THREE.SphereGeometry(0.12, 10, 8), ABOMINATION.flesh, {
+    pos: [0, 0, -0.46],
+    ...MEAT,
+  }),
+  // Fingers. On a hand this size they are two pixels each, but a grasping
+  // hand and a ball are different silhouettes and the difference carries.
+  ...[-0.06, -0.02, 0.02, 0.06].map((x, i) =>
+    part(new THREE.CapsuleGeometry(0.022, 0.08, 5, 7), ABOMINATION.flesh, {
+      pos: [x, 0.02 + (i % 2) * 0.02, -0.57],
+      rot: [Math.PI / 2 - 0.4, 0, 0],
+      ...MEAT,
+    })
+  ),
+];
+
+// The faces in the heap. Half of them still have skin.
+const spareHeadParts = (index) => {
+  const skull = index % 3 === 0;
+  return [
+    part(new THREE.SphereGeometry(0.17, 12, 10), skull ? ABOMINATION.bone : ABOMINATION.flesh, {
+      scale: [1, 0.94, 1.06],
+      ...(skull ? HORN : MEAT),
+    }),
+    // A jaw, hanging open
+    part(
+      at(
+        bevelled(
+          [
+            [-0.09, -0.06],
+            [0.09, -0.06],
+            [0.1, 0.04],
+            [-0.1, 0.04],
+          ],
+          0.16,
+          0.01
+        ),
+        { rot: [Math.PI / 2, 0, 0] }
+      ),
+      skull ? ABOMINATION.bone : ABOMINATION.fleshDark,
+      { pos: [0, -0.14, -0.06], rot: [0.35, 0, 0], ...(skull ? HORN : MEAT) }
+    ),
+    // Eye sockets, dark and sunken
+    ...[0.06, -0.06].map((x) =>
+      part(new THREE.SphereGeometry(0.04, 8, 7), ABOMINATION.coreDark, {
+        pos: [x, 0.02, -0.14],
+        ...MEAT,
+      })
+    ),
+  ];
+};
+
+const makeAbomination = (material) => {
+  const group = new THREE.Group();
+
+  const mass = new THREE.Group();
+  mass.position.y = 0.72;
+  group.add(mass);
+  hang(mass, merge(massParts()), material);
 
   // Limbs, all round the mass and pointing every way. Some reach the ground
   // and take weight; the rest paw at the air.
+  const upper = merge(limbUpperParts());
+  const lower = merge(limbLowerParts());
   const limbs = [];
   const COUNT = 14;
   for (let i = 0; i < COUNT; i += 1) {
@@ -263,14 +665,13 @@ const makeAbomination = (m) => {
     const down = i % 3 === 0;
     socket.rotation.x = down ? 1.1 : 0.15 + (i % 4) * 0.12;
     mass.add(socket);
+    hang(socket, upper, material);
 
-    add(GEOMETRY.limbUpper, m.flesh, socket, [0, 0, -0.26], [Math.PI / 2, 0, 0]);
     const joint = new THREE.Group();
     joint.position.z = -0.52;
     socket.add(joint);
     joint.rotation.x = down ? 0.5 : -0.4;
-    add(GEOMETRY.limbLower, m.fleshDark, joint, [0, 0, -0.24], [Math.PI / 2, 0, 0]);
-    add(GEOMETRY.hand, m.flesh, joint, [0, 0, -0.46]);
+    hang(joint, lower, material);
 
     limbs.push({ socket, joint, down, phase: i * 1.31 });
   }
@@ -286,25 +687,19 @@ const makeAbomination = (m) => {
       Math.sin(a) * 0.34
     );
     mass.add(head);
-    add(GEOMETRY.spareHead, m.flesh, head, [0, 0, 0], null, [1, 0.94, 1]);
+    hang(head, merge(spareHeadParts(i)), material);
     heads.push({ head, phase: i * 2.03 });
   }
 
-  return { group, mass, lumps, limbs, heads };
+  return { group, mass, limbs, heads };
 };
 
 /**
  * The Abomination — one mass, alone on its stand.
  */
 export const buildAbomination = () => {
-  const m = {
-    core: matte(ABOMINATION.core),
-    coreDark: matte(ABOMINATION.coreDark),
-    flesh: matte(ABOMINATION.flesh, 0.8),
-    fleshDark: matte(ABOMINATION.fleshDark, 0.85),
-  };
   const root = new THREE.Group();
-  const mass = makeAbomination(m);
+  const mass = makeAbomination(surfaceMaterial());
   root.add(mass.group);
   return { root, mass, count: 1 };
 };
@@ -359,18 +754,14 @@ export const poseAbomination = (rig, time, state = "idle") => {
  */
 export const buildBrutes = ({ kind = "troll" } = {}) => {
   const spec = KINDS[kind] ?? KINDS.troll;
-  const m = {
-    hide: matte(spec.hide),
-    hideDark: matte(spec.hideDark),
-    back: matte(spec.back, 0.95),
-    detail: matte(spec.detail, 0.6),
-  };
+  const material = surfaceMaterial();
+  const buffers = buildBruteBuffers(spec);
 
   const root = new THREE.Group();
   const brutes = [];
 
   for (let i = 0; i < spec.count; i += 1) {
-    const brute = makeBrute(spec, m);
+    const brute = makeBrute(spec, buffers, material);
     const across = spec.count === 1 ? 0 : (i / (spec.count - 1) - 0.5) * 2.3;
     brute.group.position.set(across, 0, ((i % 2) - 0.5) * 0.7);
     brute.group.rotation.y = (((i * 7) % 5) - 2) * 0.11;
