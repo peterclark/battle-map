@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { UNITS_BY_UID } from "./rules/data/index.js";
-import { unitStand } from "./table/board.js";
+import { UNITS_BY_UID, damageBoxes } from "./rules/data/index.js";
+import { stillStanding, unitStand } from "./table/board.js";
 import {
   arcFrom,
   distanceInches,
@@ -261,6 +261,31 @@ describe("resolveEngagement — what the board asserts", () => {
 
     expect(result.auto).toContain("attackingToMyFlank");
     expect(result.diceToRoll).toBe(4); // 5 dice, -1
+  });
+
+  it("stops seeing a flanker once it has been destroyed", () => {
+    const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, facing: EAST });
+    const defender = token("orcArmy/orcSpearmen", {
+      x: CONTACT_X,
+      y: 0,
+      facing: WEST,
+      side: "defender",
+    });
+    // The same harasser as above, but every damage box is marked off
+    const harasser = token("orcArmy/goblinRaiders", {
+      x: 0,
+      y: CONTACT_Y,
+      side: "defender",
+    });
+    const dead = { ...harasser, marked: damageBoxes(harasser.unit) };
+
+    const result = resolveEngagement(attacker, defender, {
+      mode: "melee",
+      others: stillStanding([attacker, defender, dead]),
+    });
+
+    expect(result.auto).not.toContain("attackingToMyFlank");
+    expect(result.diceToRoll).toBe(5); // the full five: nothing is pinning it
   });
 
   it("fires a unit's own card ability off an asserted modifier", () => {

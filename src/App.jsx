@@ -13,6 +13,7 @@ import {
   SIDES,
   deployTokens,
   rosterPoints,
+  stillStanding,
   withDamage,
   withNewTurn,
 } from "./table/board.js";
@@ -45,7 +46,11 @@ export default function App() {
     return resolveEngagement(attacker, defender, {
       mode: engagement.mode,
       overrides: engagement.overrides,
-      others: tokens,
+      // Only the living. `others` is what raises Attack my Flank and Attack
+      // my Rear, and a destroyed unit standing where it fell is not pinning
+      // anybody — leaving it in would have the board assert a modifier the
+      // players can see is wrong.
+      others: stillStanding(tokens),
     });
   }, [attacker, defender, engagement, tokens]);
 
