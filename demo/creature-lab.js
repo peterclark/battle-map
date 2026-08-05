@@ -29,6 +29,10 @@ const params = new URLSearchParams(location.search);
 let kind = KINDS.includes(params.get("kind")) ? params.get("kind") : KINDS[0];
 let gait = GAITS.includes(params.get("gait")) ? params.get("gait") : "march";
 let tilted = params.get("tilt") === "on";
+// Figures are modelled facing -Z, so an untilted camera sees their backs.
+// Most of the detail worth checking — faces, beards, breastplates, shield
+// faces — is on the other side.
+let yaw = Number(params.get("yaw")) || 0;
 let running = true;
 
 document.getElementById("lab").innerHTML = `
@@ -64,6 +68,7 @@ document.getElementById("lab").innerHTML = `
     <div class="row"><b>Gait</b><span id="gaits"></span></div>
     <div class="row">
       <button id="tilt">Tilt the camera</button>
+      <button id="spin">Turn them round</button>
       <button id="play" aria-pressed="true">Pause</button>
     </div>
     <canvas id="stage" width="900" height="560"></canvas>
@@ -90,10 +95,15 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(900, 560, false);
 tuneRenderer(renderer);
 
-const { scene, camera, key } = buildScene(900, 560, { span: 9 });
+// The rig is always fitted to the same size; `span` is the camera's window on
+// it. Narrowing the span therefore zooms in — which is how you check whether
+// the detail on one figure is worth the triangles it costs.
+const span = Number(params.get("span")) || 9;
+const { scene, camera, key } = buildScene(900, 560, { span });
 key.shadow.mapSize.set(2048, 2048);
 
 let current = null;
+let facts = null;
 
 const mount = () => {
   if (current) {
@@ -114,17 +124,28 @@ const mount = () => {
   made.root.scale.setScalar(fit);
   made.root.position.set(-centre.x * fit, -box.min.y * fit, -centre.z * fit);
 
+  holder.rotation.y = (yaw * Math.PI) / 180;
   scene.add(holder);
   current = { holder, made, builder };
 
   let meshes = 0;
+  let triangles = 0;
   made.root.traverse((o) => {
-    if (o.isMesh) meshes += 1;
+    if (!o.isMesh) return;
+    meshes += 1;
+    triangles += o.geometry.attributes.position.count / 3;
   });
+  facts = {
+    meshes,
+    triangles,
+    figures: made.rig.count ?? 1,
+    size: [Number(size.x.toFixed(2)), Number(size.z.toFixed(2))],
+  };
   document.getElementById("facts").innerHTML = `
     <dt>meshes</dt><dd>${meshes}</dd>
     <dt>modelled size</dt><dd>${size.x.toFixed(2)} × ${size.z.toFixed(2)} units</dd>
     <dt>figures</dt><dd>${made.rig.count ?? 1}</dd>
+    <dt>triangles</dt><dd>${triangles.toLocaleString()}</dd>
   `;
 };
 
@@ -144,11 +165,18 @@ const sync = () => {
   url.searchParams.set("kind", kind);
   url.searchParams.set("gait", gait);
   url.searchParams.set("tilt", tilted ? "on" : "off");
+  url.searchParams.set("yaw", String(yaw));
   history.replaceState(null, "", url);
 };
 
 document.getElementById("tilt").addEventListener("click", () => {
   tilted = !tilted;
+  sync();
+});
+
+document.getElementById("spin").addEventListener("click", () => {
+  yaw = (yaw + 45) % 360;
+  if (current) current.holder.rotation.y = (yaw * Math.PI) / 180;
   sync();
 });
 
@@ -176,4 +204,9 @@ const frame = (now) => {
 requestAnimationFrame(frame);
 
 // A handle for driving this page from a browser test
-window.__lab = { get kind() { return kind; }, get gait() { return gait; }, KINDS };
+window.__lab = {
+  get kind() { return kind; },
+  get gait() { return gait; },
+  get facts() { return facts; },
+  KINDS,
+};
