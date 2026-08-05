@@ -1,4 +1,12 @@
 import * as THREE from "three";
+import {
+  at,
+  bevelled,
+  merge,
+  part as skinned,
+  surfaceMaterial,
+  turned,
+} from "./kit.js";
 
 // The Tyrannosaurus, and the scene every creature is lit by: real geometry
 // under a real
@@ -11,10 +19,14 @@ import * as THREE from "three";
 // like one. The costs move too: a WebGL context, a 600 KB dependency, and a
 // GPU doing work on whatever box drives the table.
 //
-// The geometry is primitives rather than a sculpted model. A bought or
-// sculpted glTF would look considerably better than this and animate the same
-// way — what a prototype can show is the lighting, the shadow and the
-// articulation, which is the part that differs.
+// The geometry is primitives rather than a sculpted model, but it is no
+// longer a stack of boxes. Since this is one animal alone on a Colossal stand
+// — the biggest thing in the game, and the one most likely to be looked at
+// closely in the combat panel — it is worth the geometry: a skull cut as a
+// profile with a fenestra behind the eye, lips over the tooth rows,
+// osteoderms down the spine, and a foot with three toes and claws. All of it
+// merges into eighteen buffers, one per joint that actually moves, where the
+// box version needed fifty meshes to say less.
 
 const HIDE = 0x3f5a2a;
 const HIDE_DARK = 0x2b3d19;
@@ -22,96 +34,300 @@ const BELLY = 0x8d9c5b;
 const CLAW = 0xe8e2cf;
 const MAW = 0x6d2730;
 
-const matte = (color) =>
-  new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
+const EYE = 0xe8a423;
 
-const part = (geometry, material, parent, position = [0, 0, 0]) => {
+const HIDE_S = { roughness: 0.86 };
+const SCUTE = { metalness: 0.15, roughness: 0.6 };
+const BONE = { metalness: 0.2, roughness: 0.45 };
+const WET = { metalness: 0.35, roughness: 0.24 };
+
+// Outlines are x-across, y-along. `prone` lays one down pointing forward,
+// which is how a skull, a jaw and a foot are built here.
+const prone = (points, thickness, bevel = 0.03) =>
+  at(bevelled(points, thickness, bevel), { rot: [-Math.PI / 2, 0, 0] });
+
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
+  if (position) mesh.position.set(...position);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 };
 
+const tooth = (size) =>
+  turned(
+    [
+      [size, 0],
+      [size * 0.8, size * 0.7],
+      [size * 0.45, size * 1.5],
+      [0, size * 2.1],
+    ],
+    8
+  );
+
+const trunkParts = () => [
+  skinned(new THREE.CapsuleGeometry(1.15, 1.9, 10, 18), HIDE, {
+    pos: [0, 0, -1.1],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1, 0.82, 1.05],
+    ...HIDE_S,
+  }),
+  skinned(new THREE.CapsuleGeometry(0.92, 1.6, 10, 18), BELLY, {
+    pos: [0, -0.42, -1.1],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [0.94, 0.8, 0.9],
+    ...HIDE_S,
+  }),
+  // Osteoderms down the spine — the one pale line an overhead camera can
+  // follow the whole length of the animal
+  ...[-2.4, -1.9, -1.4, -0.9, -0.4, 0.1, 0.6].map((z, i) =>
+    skinned(new THREE.OctahedronGeometry(0.16 + (i % 2) * 0.04, 0), CLAW, {
+      pos: [0, 0.9 - Math.abs(i - 3) * 0.03, z],
+      scale: [0.55, 1, 1.5],
+      ...SCUTE,
+    })
+  ),
+];
+
+const neckParts = () => [
+  skinned(new THREE.CapsuleGeometry(0.68, 0.6, 10, 16), HIDE, {
+    pos: [0, 0, -0.38],
+    rot: [Math.PI / 2.3, 0, 0],
+    ...HIDE_S,
+  }),
+];
+
+const headParts = () => {
+  const parts = [
+    // A skull cut as a profile: deep at the hinge, tapering to the snout,
+    // with the brow ridge standing proud above the eye
+    skinned(
+      prone(
+        [
+          [-0.68, -1.05],
+          [0.68, -1.05],
+          [0.6, -0.2],
+          [0.44, 0.5],
+          [0.3, 0.95],
+          [0, 1.05],
+          [-0.3, 0.95],
+          [-0.44, 0.5],
+          [-0.6, -0.2],
+        ],
+        0.86,
+        0.05
+      ),
+      HIDE,
+      { pos: [0, 0, -0.72], ...HIDE_S }
+    ),
+    // Brows, which is what makes a skull read as a skull from above
+    ...[0.44, -0.44].map((x) =>
+      skinned(new THREE.BoxGeometry(0.3, 0.22, 0.5), HIDE_DARK, {
+        pos: [x, 0.34, -0.74],
+        rot: [0, x > 0 ? -0.1 : 0.1, 0],
+        ...HIDE_S,
+      })
+    ),
+    // The fenestra behind the eye, sunk into the cheek
+    ...[0.6, -0.6].map((x) =>
+      skinned(new THREE.SphereGeometry(0.22, 10, 8), HIDE_DARK, {
+        pos: [x, 0.02, -0.42],
+        scale: [0.4, 1, 1.5],
+        ...HIDE_S,
+      })
+    ),
+    ...[0.44, -0.44].map((x) =>
+      skinned(new THREE.SphereGeometry(0.13, 14, 12), EYE, {
+        pos: [x, 0.28, -0.86],
+        ...WET,
+      })
+    ),
+    // Nostrils
+    ...[0.16, -0.16].map((x) =>
+      skinned(new THREE.SphereGeometry(0.08, 8, 7), HIDE_DARK, {
+        pos: [x, 0.14, -1.66],
+        scale: [0.7, 0.8, 1.4],
+        ...HIDE_S,
+      })
+    ),
+  ];
+  // Upper tooth row, with a lip over it
+  for (let i = 0; i < 5; i += 1) {
+    const z = -0.42 - i * 0.32;
+    const size = 0.14 - i * 0.012;
+    [0.32, -0.32].forEach((x) =>
+      parts.push(
+        skinned(tooth(size), CLAW, { pos: [x, -0.18, z], rot: [Math.PI, 0, 0], ...BONE })
+      )
+    );
+  }
+  return parts;
+};
+
+const jawParts = () => {
+  const parts = [
+    skinned(
+      prone(
+        [
+          [-0.35, -1.0],
+          [0.35, -1.0],
+          [0.3, -0.1],
+          [0.18, 0.7],
+          [0, 0.95],
+          [-0.18, 0.7],
+          [-0.3, -0.1],
+        ],
+        0.3,
+        0.03
+      ),
+      HIDE_DARK,
+      { pos: [0, -0.1, -1.0], ...HIDE_S }
+    ),
+    skinned(new THREE.BoxGeometry(0.52, 0.12, 1.5), MAW, {
+      pos: [0, 0.06, -0.95],
+      ...HIDE_S,
+    }),
+  ];
+  for (let i = 0; i < 5; i += 1) {
+    const z = -0.42 - i * 0.32;
+    const size = 0.14 - i * 0.012;
+    [0.3, -0.3].forEach((x) =>
+      parts.push(skinned(tooth(size), CLAW, { pos: [x, 0.12, z], ...BONE }))
+    );
+  }
+  return parts;
+};
+
+const tailParts = (i) => [
+  skinned(new THREE.CapsuleGeometry(0.86 - i * 0.13, 0.5, 8, 16), HIDE, {
+    pos: [0, 0, 0.42],
+    rot: [Math.PI / 2, 0, 0],
+    ...HIDE_S,
+  }),
+  skinned(new THREE.OctahedronGeometry(0.14 - i * 0.018, 0), CLAW, {
+    pos: [0, 0.82 - i * 0.13, 0.36],
+    scale: [0.55, 1, 1.5],
+    ...SCUTE,
+  }),
+];
+
+const thighParts = () => [
+  skinned(new THREE.CapsuleGeometry(0.66, 1.05, 10, 16), HIDE, {
+    pos: [0, -0.5, 0],
+    scale: [1, 1, 1.3],
+    ...HIDE_S,
+  }),
+];
+
+const shinParts = () => [
+  skinned(new THREE.CapsuleGeometry(0.34, 0.95, 8, 16), HIDE_DARK, {
+    pos: [0, -0.5, 0],
+    ...HIDE_S,
+  }),
+];
+
+const footParts = () => {
+  const parts = [
+    skinned(new THREE.BoxGeometry(0.5, 0.22, 0.6), HIDE_DARK, {
+      pos: [0, -0.1, -0.16],
+      ...HIDE_S,
+    }),
+  ];
+  [-0.3, 0, 0.3].forEach((fan) => {
+    parts.push(
+      skinned(
+        prone(
+          [
+            [-0.09, -0.32],
+            [0.09, -0.32],
+            [0.08, 0.28],
+            [-0.08, 0.28],
+          ],
+          0.16,
+          0.02
+        ),
+        HIDE_DARK,
+        {
+          pos: [Math.sin(fan) * 0.34, -0.12, -0.52 - Math.cos(fan) * 0.1],
+          rot: [0, fan, 0],
+          ...HIDE_S,
+        }
+      ),
+      skinned(
+        turned(
+          [
+            [0.1, 0],
+            [0.08, 0.1],
+            [0.05, 0.2],
+            [0, 0.3],
+          ],
+          10
+        ),
+        CLAW,
+        {
+          pos: [Math.sin(fan) * 0.4, -0.12, -0.88 - Math.cos(fan) * 0.1],
+          rot: [-Math.PI / 2, fan, 0],
+          ...BONE,
+        }
+      )
+    );
+  });
+  return parts;
+};
+
+const armParts = () => [
+  skinned(new THREE.CapsuleGeometry(0.16, 0.42, 8, 14), HIDE_DARK, {
+    pos: [0, -0.3, 0],
+    ...HIDE_S,
+  }),
+  ...[0.06, -0.06].map((x) =>
+    skinned(
+      turned(
+        [
+          [0.07, 0],
+          [0.05, 0.1],
+          [0, 0.26],
+        ],
+        8
+      ),
+      CLAW,
+      { pos: [x, -0.62, -0.1], rot: [-0.5, 0, 0], ...BONE }
+    )
+  ),
+];
+
 /**
  * Build the animal. Returns the root object plus the joints an animation
  * needs to touch, so posing is setting rotations rather than rebuilding.
  */
 export const buildTyrannosaur = () => {
-  const hide = matte(HIDE);
-  const hideDark = matte(HIDE_DARK);
-  const belly = matte(BELLY);
-  const claw = matte(CLAW);
-  const maw = matte(MAW);
-
+  const material = surfaceMaterial();
   const root = new THREE.Group();
 
   // Hips carry everything; the animal pivots about them the way it really does
   const hips = new THREE.Group();
   hips.position.set(0, 2.6, 0.6);
   root.add(hips);
-
-  // Trunk, running forward from the hips
-  const trunk = part(
-    new THREE.CapsuleGeometry(1.15, 1.9, 8, 16),
-    hide,
-    hips,
-    [0, 0, -1.1]
-  );
-  trunk.rotation.x = Math.PI / 2;
-  trunk.scale.set(1, 0.82, 1.05);
-
-  const underside = part(
-    new THREE.CapsuleGeometry(0.92, 1.6, 8, 16),
-    belly,
-    hips,
-    [0, -0.42, -1.1]
-  );
-  underside.rotation.x = Math.PI / 2;
-  underside.scale.set(0.94, 0.8, 0.9);
+  hang(hips, merge(trunkParts()), material);
 
   // Neck and head, hinged so the head can swing and duck
   const neck = new THREE.Group();
   neck.position.set(0, 0.3, -1.95);
   hips.add(neck);
-  const neckMesh = part(new THREE.CapsuleGeometry(0.68, 0.6, 8, 16), hide, neck, [0, 0, -0.38]);
-  neckMesh.rotation.x = Math.PI / 2.3;
+  hang(neck, merge(neckParts()), material);
 
   const head = new THREE.Group();
   head.position.set(0, 0.26, -1.02);
   neck.add(head);
-
-  const skull = part(new THREE.BoxGeometry(1.38, 0.86, 1.85), hide, head, [0, 0, -0.66]);
-  skull.scale.set(1, 1, 1);
-  part(new THREE.BoxGeometry(0.74, 0.5, 1.0), hide, head, [0, -0.06, -1.72]);
-  // Brows, which is what makes a box read as a skull from above
-  part(new THREE.BoxGeometry(0.28, 0.2, 0.42), hideDark, head, [0.4, 0.34, -0.72]);
-  part(new THREE.BoxGeometry(0.28, 0.2, 0.42), hideDark, head, [-0.4, 0.34, -0.72]);
-  const eyeGeom = new THREE.SphereGeometry(0.12, 18, 14);
-  const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xe8a423,
-    roughness: 0.3,
-    emissive: 0x3a2200,
-  });
-  part(eyeGeom, eyeMat, head, [0.44, 0.28, -0.86]);
-  part(eyeGeom, eyeMat, head, [-0.44, 0.28, -0.86]);
+  hang(head, merge(headParts()), material);
 
   // Lower jaw on its own hinge
   const jaw = new THREE.Group();
   jaw.position.set(0, -0.24, -0.2);
   head.add(jaw);
-  part(new THREE.BoxGeometry(0.7, 0.26, 1.9), hideDark, jaw, [0, -0.1, -1.0]);
-  part(new THREE.BoxGeometry(0.52, 0.12, 1.5), maw, jaw, [0, 0.06, -0.95]);
-  // Teeth, a row a side
-  for (let i = 0; i < 5; i += 1) {
-    const z = -0.42 - i * 0.32;
-    const s = 0.14 - i * 0.012;
-    part(new THREE.ConeGeometry(s, 0.3, 14), claw, jaw, [0.3, 0.12, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 14), claw, jaw, [-0.3, 0.12, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 14), claw, head, [0.32, -0.18, z]).rotation.x = Math.PI;
-    part(new THREE.ConeGeometry(s, 0.3, 14), claw, head, [-0.32, -0.18, z]).rotation.x = Math.PI;
-  }
+  hang(jaw, merge(jawParts()), material);
 
   // Tail: a chain of groups, each hung off the last, so a wave started at the
   // hips travels outward on its own
@@ -121,58 +337,41 @@ export const buildTyrannosaur = () => {
     const seg = new THREE.Group();
     seg.position.set(0, 0, i === 0 ? 1.0 : 0.86);
     attach.add(seg);
-    const r = 0.86 - i * 0.13;
-    const mesh = part(new THREE.CapsuleGeometry(r, 0.5, 8, 16), hide, seg, [0, 0, 0.42]);
-    mesh.rotation.x = Math.PI / 2;
+    hang(seg, merge(tailParts(i)), material);
     tail.push(seg);
     attach = seg;
   }
 
-  // Hind legs
-  const makeLeg = (side) => {
+  const thighBuffer = merge(thighParts());
+  const shinBuffer = merge(shinParts());
+  const footBuffer = merge(footParts());
+  const legs = [1, -1].map((side) => {
     const thigh = new THREE.Group();
     thigh.position.set(side * 1.12, -0.1, -0.1);
     hips.add(thigh);
     thigh.rotation.z = -side * 0.34;
-    const thighMesh = part(new THREE.CapsuleGeometry(0.66, 1.05, 8, 16), hide, thigh, [0, -0.5, 0]);
-    thighMesh.scale.set(1, 1, 1.3);
+    hang(thigh, thighBuffer, material);
 
     const shin = new THREE.Group();
     shin.position.set(0, -1.05, 0);
     shin.rotation.z = side * 0.34;
     thigh.add(shin);
-    part(new THREE.CapsuleGeometry(0.34, 0.95, 8, 16), hideDark, shin, [0, -0.5, 0]);
+    hang(shin, shinBuffer, material);
 
     const foot = new THREE.Group();
     foot.position.set(0, -1.05, 0);
     shin.add(foot);
-    part(new THREE.BoxGeometry(0.5, 0.22, 0.6), hideDark, foot, [0, -0.1, -0.16]);
-    [-0.3, 0, 0.3].forEach((fan) => {
-      const toe = part(new THREE.BoxGeometry(0.16, 0.16, 0.62), hideDark, foot, [
-        Math.sin(fan) * 0.34,
-        -0.12,
-        -0.52 - Math.cos(fan) * 0.1,
-      ]);
-      toe.rotation.y = fan;
-      part(new THREE.ConeGeometry(0.09, 0.26, 14), claw, foot, [
-        Math.sin(fan) * 0.4,
-        -0.12,
-        -0.88 - Math.cos(fan) * 0.1,
-      ]).rotation.x = -Math.PI / 2;
-    });
+    hang(foot, footBuffer, material);
 
     return { thigh, shin, foot };
-  };
+  });
 
-  const legs = [makeLeg(1), makeLeg(-1)];
-
-  // Forelimbs
+  const armBuffer = merge(armParts());
   const arms = [1, -1].map((side) => {
     const arm = new THREE.Group();
     arm.position.set(side * 0.78, 0.1, -1.85);
     hips.add(arm);
-    part(new THREE.CapsuleGeometry(0.16, 0.42, 8, 16), hideDark, arm, [0, -0.3, 0]);
-    part(new THREE.ConeGeometry(0.07, 0.24, 14), claw, arm, [0, -0.62, -0.1]);
+    hang(arm, armBuffer, material);
     return arm;
   });
 

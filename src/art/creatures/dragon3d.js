@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte } from "./materials.js";
+import { at, bevelled, merge, part, surfaceMaterial, turned } from "./kit.js";
 
 // Dragons, and the Hydra that is built the same way without the wings.
 //
@@ -63,122 +63,421 @@ const KINDS = {
   },
 };
 
-const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.52, 1.05, 8, 16),
-  chest: new THREE.SphereGeometry(0.52, 18, 14),
-  // A dorsal ridge, the same device the lizardfolk use, at ten times the size
-  ridge: new THREE.BoxGeometry(0.14, 0.1, 1.5),
-  spine: new THREE.ConeGeometry(0.1, 0.3, 14),
+const HIDE_S = { roughness: 0.82 };
+const SCALE_S = { metalness: 0.22, roughness: 0.5 };
+const HORN_S = { metalness: 0.22, roughness: 0.42 };
+const SKIN_S = { roughness: 0.88 };
 
-  neckSeg: new THREE.CapsuleGeometry(0.16, 0.34, 8, 16),
-  skull: new THREE.ConeGeometry(0.24, 0.66, 14),
-  jaw: new THREE.BoxGeometry(0.22, 0.09, 0.38),
-  horn: new THREE.ConeGeometry(0.07, 0.42, 14),
+const prone = (points, thickness, bevel = 0.02) =>
+  at(bevelled(points, thickness, bevel), { rot: [-Math.PI / 2, 0, 0] });
 
-  // The wing: an upper spar, a lower spar, and the membrane between them.
-  // Flat boxes rather than a real membrane — from directly above a flat box
-  // and a curved sheet are the same thing, and one of them is free.
-  wingSpar: new THREE.CylinderGeometry(0.075, 0.045, 1.9, 18),
-  wingInner: new THREE.BoxGeometry(1.7, 0.05, 1.15),
-  wingOuter: new THREE.BoxGeometry(1.5, 0.045, 0.95),
-  wingClaw: new THREE.ConeGeometry(0.06, 0.26, 14),
-
-  thigh: new THREE.CapsuleGeometry(0.22, 0.42, 8, 16),
-  shin: new THREE.CapsuleGeometry(0.17, 0.38, 8, 16),
-  foot: new THREE.BoxGeometry(0.36, 0.14, 0.5),
-  talon: new THREE.ConeGeometry(0.06, 0.22, 14),
-  armUpper: new THREE.CapsuleGeometry(0.13, 0.3, 8, 16),
-  armLower: new THREE.CapsuleGeometry(0.1, 0.28, 8, 16),
-
-  tailSeg: new THREE.CylinderGeometry(0.3, 0.16, 0.8, 18),
-  tailTip: new THREE.CylinderGeometry(0.16, 0.03, 0.9, 18),
-};
-
-const add = (geometry, material, parent, position, rotation, scale) => {
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
-  if (scale) mesh.scale.set(...scale);
+  if (position) mesh.position.set(...position);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 };
 
+// A horn or a talon: turned, tapering, and curved along its length
+const spike = (length, base, curve = 0) =>
+  at(
+    turned(
+      [
+        [base, 0],
+        [base * 0.82, length * 0.28],
+        [base * 0.55, length * 0.58],
+        [base * 0.26, length * 0.82],
+        [0, length],
+      ],
+      10
+    ),
+    { rot: [curve, 0, 0] }
+  );
+
+const bodyParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.52, 1.05, 10, 18), spec.hide, {
+    pos: [0, 0, 0.1],
+    rot: [Math.PI / 2, 0, 0],
+    ...HIDE_S,
+  }),
+  part(new THREE.SphereGeometry(0.52, 16, 13), spec.hideDark, {
+    pos: [0, -0.05, -0.5],
+    scale: [1, 0.85, 1],
+    ...HIDE_S,
+  }),
+  // A dorsal ridge, the same device the lizardfolk use, at ten times the
+  // size — and scalloped, so it reads as a crest rather than as a plank
+  part(
+    prone(
+      [
+        [-0.07, -0.75],
+        [0.07, -0.75],
+        [0.08, -0.42],
+        [0.062, -0.2],
+        [0.082, 0.06],
+        [0.06, 0.3],
+        [0.07, 0.55],
+        [0.05, 0.75],
+        [-0.05, 0.75],
+        [-0.07, 0.55],
+        [-0.06, 0.3],
+        [-0.082, 0.06],
+        [-0.062, -0.2],
+        [-0.08, -0.42],
+      ],
+      0.12,
+      0.012
+    ),
+    spec.belly,
+    { pos: [0, 0.46, 0.1], ...SCALE_S }
+  ),
+  ...[-0.5, 0, 0.5].map((z, i) =>
+    part(spike(0.32, 0.1), spec.horn, {
+      pos: [0, 0.56, z],
+      rot: [0.6 + i * 0.06, 0, 0],
+      ...HORN_S,
+    })
+  ),
+  // Scutes down the flanks
+  ...[-1, 1].flatMap((side) =>
+    [-0.5, -0.1, 0.3, 0.65].map((z, i) =>
+      part(new THREE.OctahedronGeometry(0.07 + (i % 2) * 0.015, 0), spec.belly, {
+        pos: [side * 0.5, 0.1 - (i % 2) * 0.05, z],
+        scale: [0.5, 1, 1.5],
+        ...SCALE_S,
+      })
+    )
+  ),
+];
+
+const neckSegParts = (spec, reach) => [
+  part(new THREE.CapsuleGeometry(0.16, 0.34, 8, 14), spec.hide, {
+    pos: [0, 0, -0.28 * reach],
+    rot: [Math.PI / 2, 0, 0],
+    ...HIDE_S,
+  }),
+  // A run of small spines, so a neck is not a hose
+  ...[0.02, -0.18, -0.38].map((z) =>
+    part(spike(0.11, 0.038), spec.horn, {
+      pos: [0, 0.14, z * reach],
+      rot: [0.9, 0, 0],
+      ...HORN_S,
+    })
+  ),
+];
+
+const dragonHeadParts = (spec) => [
+  // A wedge skull cut as a profile, rather than a cone
+  part(
+    prone(
+      [
+        [-0.2, -0.34],
+        [0.2, -0.34],
+        [0.17, 0.02],
+        [0.1, 0.25],
+        [0, 0.36],
+        [-0.1, 0.25],
+        [-0.17, 0.02],
+      ],
+      0.24,
+      0.016
+    ),
+    spec.hide,
+    { pos: [0, 0.02, -0.2], ...HIDE_S }
+  ),
+  part(
+    prone(
+      [
+        [-0.13, -0.28],
+        [0.13, -0.28],
+        [0.11, 0.08],
+        [0, 0.26],
+        [-0.11, 0.08],
+      ],
+      0.09,
+      0.01
+    ),
+    spec.hideDark,
+    { pos: [0, -0.1, -0.24], ...HIDE_S }
+  ),
+  // Teeth along the jaw line
+  ...[-0.09, -0.03, 0.03, 0.09].map((x, i) =>
+    part(spike(0.09, 0.022), spec.horn, {
+      pos: [x, -0.04, -0.26 - (i % 2) * 0.07],
+      rot: [Math.PI, 0, 0],
+      ...HORN_S,
+    })
+  ),
+  // A pair of swept horns off the back of the skull
+  ...[0.12, -0.12].map((x) =>
+    part(spike(0.46, 0.075, 0.4), spec.horn, {
+      pos: [x, 0.1, 0.06],
+      rot: [-0.9, 0, x > 0 ? 0.3 : -0.3],
+      ...HORN_S,
+    })
+  ),
+  ...[0.11, -0.11].map((x) =>
+    part(new THREE.SphereGeometry(0.045, 10, 8), spec.eye ?? 0xe8a423, {
+      pos: [x, 0.08, -0.26],
+      ...HORN_S,
+    })
+  ),
+];
+
+// The wing: spars and the membrane between them.
+//
+// This is the single best top-down feature in the game — a broad flat
+// membrane held out horizontally — so it is the one that most deserved the
+// geometry the merge freed. The membrane now has finger spars running through
+// it and a scalloped trailing edge, which is the difference between a wing
+// and a plank.
+const wingInnerParts = (spec, side) => [
+  part(new THREE.CylinderGeometry(0.075, 0.045, 1.9, 14), spec.hideDark, {
+    pos: [side * 0.9, 0, 0],
+    rot: [0, 0, Math.PI / 2],
+    ...HIDE_S,
+  }),
+  part(
+    prone(
+      [
+        // Straight along the leading spar, scalloped along the trailing edge —
+        // the scallops are what stop a wing reading as an aeroplane's
+        [-0.9, 0.56],
+        [0.9, 0.5],
+        [0.86, -0.2],
+        [0.62, -0.44],
+        [0.45, -0.3],
+        [0.2, -0.56],
+        [0.05, -0.4],
+        [-0.22, -0.62],
+        [-0.38, -0.45],
+        [-0.64, -0.66],
+        [-0.82, -0.48],
+      ],
+      0.05,
+      0.008
+    ),
+    spec.membrane,
+    { pos: [side * 0.85, -0.03, 0.42], ...SKIN_S }
+  ),
+  // Finger spars, splayed back through the membrane. They lie *along* the
+  // wing, which needs the quarter turn — a cylinder's axis is Y, and left
+  // upright these stood through the membrane like fence posts.
+  ...[-0.5, 0, 0.5].map((x) =>
+    part(new THREE.CylinderGeometry(0.032, 0.016, 1.1, 8), spec.hideDark, {
+      pos: [side * 0.85 + x * 0.72, 0.012, 0.46],
+      rot: [Math.PI / 2, x * 0.42, 0],
+      ...HIDE_S,
+    })
+  ),
+];
+
+const wingOuterParts = (spec, side) => [
+  part(new THREE.CylinderGeometry(0.075, 0.045, 1.9, 14), spec.hideDark, {
+    pos: [side * 0.72, 0, 0.2],
+    rot: [0.25, 0, Math.PI / 2],
+    scale: [1, 0.85, 1],
+    ...HIDE_S,
+  }),
+  part(
+    prone(
+      [
+        // Tapering outward, the way a wing actually does
+        [-0.8, 0.46],
+        [0.8, 0.2],
+        [0.66, -0.12],
+        [0.42, -0.3],
+        [0.26, -0.16],
+        [0.0, -0.42],
+        [-0.16, -0.26],
+        [-0.44, -0.52],
+        [-0.6, -0.34],
+        [-0.78, -0.46],
+      ],
+      0.045,
+      0.008
+    ),
+    spec.membrane,
+    { pos: [side * 0.7, -0.04, 0.58], ...SKIN_S }
+  ),
+  ...[-0.4, 0.2].map((x) =>
+    part(new THREE.CylinderGeometry(0.026, 0.012, 0.86, 8), spec.hideDark, {
+      pos: [side * 0.7 + x * 0.72, 0.008, 0.56],
+      rot: [Math.PI / 2, x * 0.5, 0],
+      ...HIDE_S,
+    })
+  ),
+  part(spike(0.3, 0.06, 0), spec.horn, {
+    pos: [side * 1.4, 0, -0.05],
+    rot: [0, 0, side * -1.3],
+    ...HORN_S,
+  }),
+];
+
+const thighParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.22, 0.42, 8, 14), spec.hide, {
+    pos: [0, -0.3, 0],
+    ...HIDE_S,
+  }),
+];
+
+const shinParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.17, 0.38, 8, 14), spec.hide, {
+    pos: [0, -0.28, 0],
+    ...HIDE_S,
+  }),
+];
+
+const footParts = (spec) => [
+  part(
+    prone(
+      [
+        [-0.18, -0.26],
+        [0.18, -0.26],
+        [0.19, 0.08],
+        [0.09, 0.22],
+        [-0.09, 0.22],
+        [-0.19, 0.08],
+      ],
+      0.14,
+      0.016
+    ),
+    spec.hideDark,
+    { pos: [0, -0.05, -0.12], ...HIDE_S }
+  ),
+  ...[0.11, -0.11, 0].map((x, i) =>
+    part(spike(0.26, 0.06), spec.horn, {
+      pos: [x, -0.05, -0.34 - (i === 2 ? 0.04 : 0)],
+      rot: [-1.5, 0, 0],
+      ...HORN_S,
+    })
+  ),
+];
+
+const armUpperParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.13, 0.3, 8, 12), spec.hide, {
+    pos: [0, -0.2, 0],
+    ...HIDE_S,
+  }),
+];
+
+const armLowerParts = (spec) => [
+  part(new THREE.CapsuleGeometry(0.1, 0.28, 8, 12), spec.hide, {
+    pos: [0, -0.18, 0],
+    ...HIDE_S,
+  }),
+  ...[0.06, -0.06].map((x) =>
+    part(spike(0.16, 0.035), spec.horn, {
+      pos: [x, -0.34, -0.06],
+      rot: [-1.2, 0, 0],
+      ...HORN_S,
+    })
+  ),
+];
+
+const tailParts = (spec) => [
+  part(new THREE.CylinderGeometry(0.3, 0.16, 0.8, 16), spec.hide, {
+    pos: [0, 0, 0.36],
+    rot: [Math.PI / 2.1, 0, 0],
+    ...HIDE_S,
+  }),
+  ...[0.16, 0.5].map((z) =>
+    part(new THREE.OctahedronGeometry(0.07, 0), spec.belly, {
+      pos: [0, 0.24 - z * 0.14, z],
+      scale: [0.5, 1, 1.5],
+      ...SCALE_S,
+    })
+  ),
+];
+
+const tailTipParts = (spec) => [
+  part(new THREE.CylinderGeometry(0.16, 0.03, 0.9, 14), spec.hide, {
+    pos: [0, -0.06, 0.4],
+    rot: [Math.PI / 2.2, 0, 0],
+    ...HIDE_S,
+  }),
+];
+
+const buildBuffers = (spec, reaches) => ({
+  body: merge(bodyParts(spec)),
+  neck: reaches.map((reach) => merge(neckSegParts(spec, reach))),
+  head: merge(dragonHeadParts(spec)),
+  wingInner: [1, -1].map((side) => merge(wingInnerParts(spec, side))),
+  wingOuter: [1, -1].map((side) => merge(wingOuterParts(spec, side))),
+  thigh: merge(thighParts(spec)),
+  shin: merge(shinParts(spec)),
+  foot: merge(footParts(spec)),
+  armUpper: merge(armUpperParts(spec)),
+  armLower: merge(armLowerParts(spec)),
+  tail: merge(tailParts(spec)),
+  tailTip: merge(tailTipParts(spec)),
+});
+
 // A neck with a head on it. The hydra gets five, fanned; a dragon gets one.
-const makeNeck = (parent, spec, m, angle, reach) => {
+const makeNeck = (parent, buffers, material, index, angle) => {
   const root = new THREE.Group();
   root.position.set(0, 0.42, -0.72);
   root.rotation.y = angle;
   parent.add(root);
 
+  const reach = buffers.reaches[index];
   const lower = new THREE.Group();
   lower.rotation.x = -0.5;
   root.add(lower);
-  add(GEOMETRY.neckSeg, m.hide, lower, [0, 0, -0.28 * reach], [Math.PI / 2, 0, 0]);
+  hang(lower, buffers.neck[index], material);
 
   const upper = new THREE.Group();
   upper.position.z = -0.58 * reach;
   lower.add(upper);
   upper.rotation.x = 0.55;
-  add(GEOMETRY.neckSeg, m.hide, upper, [0, 0, -0.28 * reach], [Math.PI / 2, 0, 0]);
+  hang(upper, buffers.neck[index], material);
 
   const head = new THREE.Group();
   head.position.z = -0.6 * reach;
   upper.add(head);
-  add(GEOMETRY.skull, m.hide, head, [0, 0, -0.2], [-Math.PI / 2, 0, 0]);
-  add(GEOMETRY.jaw, m.hideDark, head, [0, -0.1, -0.3]);
-  add(GEOMETRY.horn, m.horn, head, [0.12, 0.1, 0.06], [-0.9, 0, 0.3]);
-  add(GEOMETRY.horn, m.horn, head, [-0.12, 0.1, 0.06], [-0.9, 0, -0.3]);
+  hang(head, buffers.head, material);
 
   return { root, lower, upper, head, angle };
 };
 
 // One dragon, facing -Z, standing on y = 0.
-const makeDragon = (spec, m) => {
+const makeDragon = (spec, buffers, material) => {
   const group = new THREE.Group();
 
   const body = new THREE.Group();
   body.position.y = 1.15;
   group.add(body);
-
-  add(GEOMETRY.body, m.hide, body, [0, 0, 0.1], [Math.PI / 2, 0, 0]);
-  add(GEOMETRY.chest, m.hideDark, body, [0, -0.05, -0.5], null, [1, 0.85, 1]);
-  add(GEOMETRY.ridge, m.belly, body, [0, 0.46, 0.1]);
-  [-0.5, 0, 0.5].forEach((z, i) => {
-    add(GEOMETRY.spine, m.horn, body, [0, 0.56, z], [0.6 + i * 0.06, 0, 0]);
-  });
+  hang(body, buffers.body, material);
 
   const necks = [];
   if (spec.necks === 1) {
-    necks.push(makeNeck(body, spec, m, 0, 1.15));
+    necks.push(makeNeck(body, buffers, material, 0, 0));
   } else {
     // Fanned across the front, longest in the middle
     for (let i = 0; i < spec.necks; i += 1) {
       const spread = (i / (spec.necks - 1) - 0.5) * 1.5;
-      necks.push(makeNeck(body, spec, m, spread, 1 - Math.abs(spread) * 0.18));
+      necks.push(makeNeck(body, buffers, material, i, spread));
     }
   }
 
   // The wings. Held out and back at a shallow angle so they lie almost flat
   // to the ground — which is what makes this animal readable at all.
   const wings = spec.wings
-    ? [1, -1].map((side) => {
+    ? [1, -1].map((side, i) => {
         const shoulder = new THREE.Group();
         shoulder.position.set(side * 0.4, 0.34, -0.1);
         body.add(shoulder);
         shoulder.rotation.z = side * 0.28;
         shoulder.rotation.y = side * -0.25;
-
-        add(GEOMETRY.wingSpar, m.hideDark, shoulder, [side * 0.9, 0, 0], [0, 0, Math.PI / 2]);
-        add(GEOMETRY.wingInner, m.membrane, shoulder, [side * 0.85, -0.03, 0.42]);
+        hang(shoulder, buffers.wingInner[i], material);
 
         const outer = new THREE.Group();
         outer.position.set(side * 1.75, 0, 0);
         shoulder.add(outer);
-        add(GEOMETRY.wingSpar, m.hideDark, outer, [side * 0.72, 0, 0.2], [0.25, 0, Math.PI / 2], [1, 0.85, 1]);
-        add(GEOMETRY.wingOuter, m.membrane, outer, [side * 0.7, -0.04, 0.58]);
-        add(GEOMETRY.wingClaw, m.horn, outer, [side * 1.4, 0, -0.05], [0, 0, side * -1.3]);
+        hang(outer, buffers.wingOuter[i], material);
 
         return { shoulder, outer, side };
       })
@@ -190,18 +489,16 @@ const makeDragon = (spec, m) => {
     hip.position.set(side * 0.42, -0.16, 0.36);
     body.add(hip);
     hip.rotation.z = side * 0.2;
-    add(GEOMETRY.thigh, m.hide, hip, [0, -0.3, 0]);
+    hang(hip, buffers.thigh, material);
     const shin = new THREE.Group();
     shin.position.y = -0.62;
     hip.add(shin);
     shin.rotation.x = -0.55;
-    add(GEOMETRY.shin, m.hide, shin, [0, -0.28, 0]);
+    hang(shin, buffers.shin, material);
     const foot = new THREE.Group();
     foot.position.y = -0.54;
     shin.add(foot);
-    add(GEOMETRY.foot, m.hideDark, foot, [0, -0.05, -0.12]);
-    add(GEOMETRY.talon, m.horn, foot, [0.11, -0.05, -0.34], [-1.5, 0, 0]);
-    add(GEOMETRY.talon, m.horn, foot, [-0.11, -0.05, -0.34], [-1.5, 0, 0]);
+    hang(foot, buffers.foot, material);
     return { hip, shin, foot, side };
   });
 
@@ -210,23 +507,23 @@ const makeDragon = (spec, m) => {
     shoulder.position.set(side * 0.36, -0.1, -0.44);
     body.add(shoulder);
     shoulder.rotation.z = side * 0.5;
-    add(GEOMETRY.armUpper, m.hide, shoulder, [0, -0.2, 0]);
+    hang(shoulder, buffers.armUpper, material);
     const lower = new THREE.Group();
     lower.position.y = -0.38;
     shoulder.add(lower);
     lower.rotation.x = -0.9;
-    add(GEOMETRY.armLower, m.hide, lower, [0, -0.18, 0]);
+    hang(lower, buffers.armLower, material);
     return { shoulder, lower, side };
   });
 
   const tail = new THREE.Group();
   tail.position.set(0, -0.02, 0.62);
   body.add(tail);
-  add(GEOMETRY.tailSeg, m.hide, tail, [0, 0, 0.36], [Math.PI / 2.1, 0, 0]);
+  hang(tail, buffers.tail, material);
   const tailTip = new THREE.Group();
   tailTip.position.z = 0.74;
   tail.add(tailTip);
-  add(GEOMETRY.tailTip, m.hide, tailTip, [0, -0.06, 0.4], [Math.PI / 2.2, 0, 0]);
+  hang(tailTip, buffers.tailTip, material);
 
   return { group, body, necks, wings, legs, arms, tail, tailTip };
 };
@@ -238,16 +535,21 @@ const makeDragon = (spec, m) => {
  */
 export const buildDragon = ({ kind = "red" } = {}) => {
   const spec = KINDS[kind] ?? KINDS.red;
-  const m = {
-    hide: matte(spec.hide),
-    hideDark: matte(spec.hideDark),
-    membrane: matte(spec.membrane, 0.95),
-    belly: matte(spec.belly, 0.75),
-    horn: matte(spec.horn, 0.55),
-  };
+  const material = surfaceMaterial();
+  // A hydra's necks are not the same length — the middle ones reach further —
+  // so each gets its own buffer rather than sharing one
+  const reaches =
+    spec.necks === 1
+      ? [1.15]
+      : Array.from(
+          { length: spec.necks },
+          (_, i) => 1 - Math.abs((i / (spec.necks - 1) - 0.5) * 1.5) * 0.18
+        );
+  const buffers = buildBuffers(spec, reaches);
+  buffers.reaches = reaches;
 
   const root = new THREE.Group();
-  const dragon = makeDragon(spec, m);
+  const dragon = makeDragon(spec, buffers, material);
   dragon.group.scale.setScalar(spec.scale);
   root.add(dragon.group);
 

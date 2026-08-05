@@ -175,6 +175,9 @@ src/
       roster.js       which figures a unit fields -- no Three.js, so the board
                       can ask on every frame in card mode
       registry.js     which builder each kind maps to -- dynamically imported
+      kit.js          the toolkit every rig is built with: merged buffers, one
+                      material that carries colour and metalness per vertex,
+                      and the shapes worth more than a box
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
       infantry3d.js   foot, by weapon, palette and build -- five weapons,
