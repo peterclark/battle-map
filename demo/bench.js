@@ -12,9 +12,13 @@ import { tuneRenderer } from "../src/art/creatures/materials.js";
 //          submit one draw call per mesh. This is JavaScript and driver
 //          overhead, and it scales with the number of meshes rather than the
 //          number of pixels. It is roughly representative anywhere.
-//   GPU  — actually rasterising. On a headless container this is SwiftShader,
-//          a software rasteriser, and the number means nothing about a real
-//          panel. Reported, but do not read anything into it.
+//   GPU  — actually rasterising. Reported as wall-clock frame time, which is
+//          only meaningful on the machine that will drive the table: in a
+//          headless container this is SwiftShader, a software rasteriser, and
+//          the number says nothing about a real panel. Note that on real
+//          hardware a healthy result is the vsync cap rather than the true
+//          ceiling, so a comfortable frame time proves the board is *not*
+//          GPU-bound and does not say by how much.
 //
 // Shadows are measured separately from everything else, because they are the
 // one cost you can choose not to pay. The shadow pass re-draws every
@@ -158,9 +162,11 @@ const step = (now) => {
     poseMsMedian: round(median(samples.pose)),
     submitMsMedian: round(median(samples.submit)),
     cpuMsMedian: round(median(samples.pose) + median(samples.submit)),
-    // Wall clock on THIS machine, which is a software rasteriser
+    // Wall clock on whatever is running this. On the target Mac it is real
+    // and usually the vsync cap; in a headless container it is SwiftShader
+    // and means nothing.
     frameMsMedian: round(median(samples.frame)),
-    fpsOnSoftwareRasteriser: round(1000 / median(samples.frame)),
+    fps: round(1000 / median(samples.frame)),
     sampled: samples.frame.length,
   };
 

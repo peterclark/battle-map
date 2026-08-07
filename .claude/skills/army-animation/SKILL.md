@@ -363,36 +363,52 @@ the block shimmers.
 
 ## The performance budget
 
-Measured on a Mac mini, native 4K, shadows on, ten units on the board
-(a 1,250-point army is about five units, so ten is a full game):
+Measured on the target Mac mini, shadows on, ten units on the board — a
+1,250-point army is about five units, so ten is a full game.
 
-- **6ms of CPU** against a 16.7ms frame budget
-- ~3,600 meshes, ~7,200 submitted draw calls
-- Posing 200 figures costs about **1ms** — animation logic is effectively free
+| | before the merge (4K) | after the merge (720p) |
+|---|---|---|
+| CPU | 6ms | **3ms** |
+| of which posing 200 figures | ~1ms | **under the timer's resolution** |
+| meshes | ~3,600 | **1,601** |
+| submitted draw calls | ~7,200 | **3,201** |
+| triangles | 1.9M | 2.0M |
+
+Against a 16.7ms frame budget, so **CPU halved to about a fifth of the frame**
+— which is what halving the mesh count predicted, and confirms that submit
+cost tracks meshes rather than geometry. The two runs are at different
+resolutions, so only the CPU row compares like for like; that is the row that
+matters, because submitting draws is resolution-independent and it is the part
+that transfers to other machines.
+
+Two things the after-run does *not* tell us. Its 17ms frame time is the 60Hz
+vsync cap, so it says the board is not GPU-bound at 720p and nothing about 4K.
+And `poseMsMedian` came back as 0 because browsers coarsen `performance.now()`
+— read that as "too small to measure", not as free.
 
 Headroom is real but not unlimited. Rules of thumb:
 
-- **~8 meshes per figure, ~20 figures per unit** since the merge pass. It was
-  ~20 meshes a figure before, and those are the numbers the measurement above
-  was taken at — so there is now roughly twice the headroom it describes.
+- **~8 meshes per figure, ~20 figures per unit.** It was ~20 meshes a figure
+  before the merge pass.
 - Doubling to twenty units at 1080p reached 90% of budget *at the old mesh
-  counts*, so the ceiling is real even if it has moved.
+  counts*, so the ceiling is real even though it has moved out by about a
+  factor of two.
 - Pose cost is not the constraint; **mesh count is**. If you need more
   figures, cut meshes per figure rather than reaching for instancing.
 - **Triangles are cheap; meshes are not.** The density pass took the rigs from
   344k triangles to 1.9M for ten units with the mesh and draw-call counts
-  unchanged. The merge pass then took the *meshes* from ~3,600 to 1,601 with
-  triangles at 2.0M. Spend segments freely — a rounder capsule is nearly free.
-  Adding another *mesh* is what costs. See **Detail without meshes** above.
-- **These numbers need re-measuring on the Mac.** Everything above is a mesh
-  and triangle count, which transfers; the millisecond figures predate the
-  merge and are now pessimistic by roughly a factor of two.
+  unchanged, and cost nothing. The merge pass then took the *meshes* from
+  ~3,600 to 1,601 while triangles went slightly up again, and halved the CPU.
+  Two measurements, one conclusion: spend segments freely, and count meshes.
+  See **Detail without meshes** above.
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 
-`demo/bench.html?units=10` measures this. It must be run on the target
-hardware; a headless container uses a software rasteriser and its frame
-times mean nothing.
+`demo/bench.html?units=10` measures this, and it takes `width` and `height`.
+It must be run on the target hardware; a headless container uses a software
+rasteriser and its frame times mean nothing. Note that the field the page
+calls `fpsOnSoftwareRasteriser` is just wall-clock frame rate — on a real GPU
+it is real, and usually the vsync cap.
 
 ## Verifying
 
