@@ -135,15 +135,33 @@ const mount = () => {
     meshes += 1;
     triangles += o.geometry.attributes.position.count / 3;
   });
+  // The size a rig reports at rest is not the size it occupies once it is
+  // moving, and the stand fit is measured from the resting box. Sweep the
+  // gaits and report both, because a pose that leaves its own box is what
+  // puts a tail across the name banner.
+  const swept = new THREE.Box3();
+  const probe = new THREE.Box3();
+  GAITS.forEach((g) => {
+    for (let i = 0; i < 10; i += 1) {
+      builder.pose(made, i * 0.41, g);
+      made.root.updateMatrixWorld(true);
+      swept.union(probe.setFromObject(made.root));
+    }
+  });
+  const sweptSize = swept.getSize(new THREE.Vector3());
+  builder.pose(made, 0, gait);
+
   facts = {
     meshes,
     triangles,
     figures: made.rig.count ?? 1,
     size: [Number(size.x.toFixed(2)), Number(size.z.toFixed(2))],
+    swept: [Number((sweptSize.x / fit).toFixed(2)), Number((sweptSize.z / fit).toFixed(2))],
   };
   document.getElementById("facts").innerHTML = `
     <dt>meshes</dt><dd>${meshes}</dd>
     <dt>modelled size</dt><dd>${size.x.toFixed(2)} × ${size.z.toFixed(2)} units</dd>
+    <dt>swept by its gaits</dt><dd>${(sweptSize.x / fit).toFixed(2)} × ${(sweptSize.z / fit).toFixed(2)} units</dd>
     <dt>figures</dt><dd>${made.rig.count ?? 1}</dd>
     <dt>triangles</dt><dd>${triangles.toLocaleString()}</dd>
   `;

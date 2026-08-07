@@ -103,9 +103,13 @@ const trikeBodyParts = () => [
   }),
   // Two plates along the spine, pale enough to break up the hide from above,
   // cut with a scalloped edge rather than left as boxes
+  // At y = 0.44 and 0.42 rather than 0.32 and 0.30: the body capsule's
+  // surface is at 0.42, so both of these were inside it and contributing
+  // nothing. See the note in the guide — detail placed by eye against a
+  // rotated, scaled primitive is invisible without any sign that it is there.
   ...[
-    [0.04, 0.32, 1],
-    [0.34, 0.3, 0.8],
+    [0.04, 0.45, 1],
+    [0.34, 0.43, 0.8],
   ].map(([z, y, w]) =>
     part(
       prone(
@@ -127,15 +131,22 @@ const trikeBodyParts = () => [
     )
   ),
   // Osteoderms along the flanks
-  ...[-1, 1].flatMap((side) =>
-    [-0.28, -0.06, 0.16, 0.36].map((z, i) =>
-      part(new THREE.OctahedronGeometry(0.055 + (i % 2) * 0.012, 0), PALETTE.trikeBack, {
-        pos: [side * 0.4, 0.06 - (i % 2) * 0.04, z],
-        scale: [0.6, 1, 1.4],
-        ...HIDE,
-      })
-    )
-  ),
+  ...[40, 70].flatMap((deg, row) => {
+    const a = (deg * Math.PI) / 180;
+    return [-1, 1].flatMap((side) =>
+      [-0.28, -0.06, 0.16, 0.36].map((z, i) =>
+        part(
+          new THREE.OctahedronGeometry(0.055 - row * 0.01 + (i % 2) * 0.012, 0),
+          row ? PALETTE.trikeHide : PALETTE.trikeBack,
+          {
+            pos: [side * 0.43 * Math.sin(a), 0.43 * Math.cos(a), z + row * 0.1],
+            scale: [0.6, 1, 1.4],
+            ...HIDE,
+          }
+        )
+      )
+    );
+  }),
 ];
 
 const trikeHeadParts = () => {
@@ -339,14 +350,19 @@ const ancientSpineParts = () => [
   }),
   // Growth rings across the shell, which is what makes it read as a shell
   // rather than as a dome
-  ...[0.3, 0.45, 0.58].map((r, i) =>
-    part(new THREE.TorusGeometry(r, 0.022, 6, 26), PALETTE.ancientHide, {
-      pos: [0, 0.27 - i * 0.03, 0.02],
+  // Following the dome rather than a flat plane. The shell is a sphere of
+  // radius 0.56 scaled to 0.258 in height and centred at y = 0.14, so each
+  // ring has to sit where the surface actually is at its own radius.
+  ...[0.3, 0.44, 0.56].map((r) => {
+    const k = Math.min(r / (0.56 * 1.12), 1);
+    const y = 0.14 + 0.258 * Math.sqrt(Math.max(1 - k * k, 0)) + 0.012;
+    return part(new THREE.TorusGeometry(r, 0.022, 6, 26), PALETTE.ancientHide, {
+      pos: [0, y, 0.02],
       rot: [Math.PI / 2, 0, 0],
       scale: [1.12, 0.92, 1],
       ...HIDE,
-    })
-  ),
+    });
+  }),
   // Lichen, which is what makes the thing look old rather than merely large
   ...[
     [0.24, 0.3, -0.1, 1, 0.4, 1.2],

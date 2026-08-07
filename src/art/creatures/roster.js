@@ -33,11 +33,22 @@ const mounted = (unit) => keyworded(unit, "cavalry") || has(unit, "rider");
  * inside the printed edge, which is what a rank of infantry does on a real
  * stand. Above 1 a creature overhangs, because a monster that fits neatly
  * inside its card does not read as a monster.
+ *
+ * `depth` is the same fraction for the front-to-back axis, and defaults to
+ * `fill`. It exists because a stand is two and a half times wider than the
+ * band it gives its figures, and the fit takes the *smaller* of the two axes
+ * — so any animal longer than it is wide gets scaled down to squeeze its
+ * nose-to-tail length into the shallow axis. That is not a rounding error: a
+ * Tyrannosaurus was coming out at a seventh of the size its stand could
+ * carry, a Colossal rendering smaller than a spearman. The values below are
+ * set so that *width* is what limits each of these rather than length, and
+ * `CreatureLayer` sends the excess off the front edge rather than back across
+ * the name banner.
  */
 const KINDS = [
   // Units that have earned their own sculpt, matched by name. These come
   // first: a Tyrannosaurus Rex is not a re-tinted infantryman.
-  { kind: "tyrannosaur", fill: 1.15, match: (u) => has(u, "tyrannosaurus") },
+  { kind: "tyrannosaur", fill: 1.15, depth: 1.45, match: (u) => has(u, "tyrannosaurus") },
 
   // --- Lizardmen ---------------------------------------------------------
   // Three peoples rather than one, and the list says which by name.
@@ -72,11 +83,13 @@ const KINDS = [
   {
     kind: "saurians.triceratops",
     fill: 1.06,
+    depth: 1.6,
     match: (u) => faction(u, "lizardmen") && has(u, "triceratops"),
   },
   {
     kind: "saurians.ancients",
     fill: 1.06,
+    depth: 1.35,
     match: (u) => faction(u, "lizardmen") && has(u, "ancients"),
   },
 
@@ -131,30 +144,33 @@ const KINDS = [
 
   // --- Monsters, wherever they are fielded -------------------------------
   // Matched on name before any faction rule, because a dragon is a dragon.
-  { kind: "dragon.hydra", fill: 1.2, match: (u) => has(u, "hydra") },
+  { kind: "dragon.hydra", fill: 1.2, depth: 1.9, match: (u) => has(u, "hydra") },
   {
     kind: "dragon.blue",
     fill: 1.2,
+    depth: 1.9,
     match: (u) => has(u, "dragon") && has(u, "blue"),
   },
   {
     kind: "dragon.red",
     fill: 1.2,
+    depth: 1.9,
     match: (u) => has(u, "dragon") && has(u, "ancient"),
   },
-  { kind: "dragon.redLesser", fill: 1.15, match: (u) => has(u, "dragon") },
+  { kind: "dragon.redLesser", fill: 1.15, depth: 1.8, match: (u) => has(u, "dragon") },
 
-  { kind: "brute.giant", fill: 1.12, match: (u) => has(u, "giant") && !has(u, "catapult") },
-  { kind: "brute.elemental", fill: 1.08, match: (u) => has(u, "elemental") && keyworded(u, "large") },
-  { kind: "undead.abomination", fill: 1.1, match: (u) => has(u, "abomination") },
+  { kind: "brute.giant", fill: 1.12, depth: 1.7, match: (u) => has(u, "giant") && !has(u, "catapult") },
+  { kind: "brute.elemental", fill: 1.08, depth: 1.45, match: (u) => has(u, "elemental") && keyworded(u, "large") },
+  { kind: "undead.abomination", fill: 1.1, depth: 1.2, match: (u) => has(u, "abomination") },
   {
     // Skeleton and Zombie Trolls -- the same brute with the meat off
     kind: "brute.bone",
     fill: 1.08,
+    depth: 1.5,
     match: (u) => has(u, "troll") && (has(u, "skeleton") || has(u, "zombie")),
   },
-  { kind: "brute.troll", fill: 1.08, match: (u) => has(u, "troll") },
-  { kind: "brute.ogre", fill: 1.08, match: (u) => has(u, "ogre") },
+  { kind: "brute.troll", fill: 1.08, depth: 1.5, match: (u) => has(u, "troll") },
+  { kind: "brute.ogre", fill: 1.08, depth: 1.5, match: (u) => has(u, "ogre") },
 
   // --- War machines ------------------------------------------------------
   { kind: "engine.ballista", fill: 1.0, match: (u) => has(u, "ballista") },

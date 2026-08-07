@@ -52,9 +52,12 @@ const KINDS = {
   },
   hydra: {
     // No wings, so the necks do all of it
-    hide: 0x3f5f4a,
-    hideDark: 0x2a4232,
-    membrane: 0x6f8f6a,
+    // Was 0x3f5f4a, which is the turf's own value — a Colossal that
+    // disappears into the grass. Pushed darker and bluer so it separates by
+    // being *under* the field rather than level with it.
+    hide: 0x27443c,
+    hideDark: 0x172b26,
+    membrane: 0x5c7a68,
     belly: 0xbfc98f,
     horn: 0xe4dcbd,
     wings: false,
@@ -132,25 +135,33 @@ const bodyParts = (spec) => [
       0.012
     ),
     spec.belly,
-    { pos: [0, 0.46, 0.1], ...SCALE_S }
+    { pos: [0, 0.56, 0.1], ...SCALE_S }
   ),
   ...[-0.5, 0, 0.5].map((z, i) =>
     part(spike(0.32, 0.1), spec.horn, {
-      pos: [0, 0.56, z],
+      pos: [0, 0.63, z],
       rot: [0.6 + i * 0.06, 0, 0],
       ...HORN_S,
     })
   ),
   // Scutes down the flanks
-  ...[-1, 1].flatMap((side) =>
-    [-0.5, -0.1, 0.3, 0.65].map((z, i) =>
-      part(new THREE.OctahedronGeometry(0.07 + (i % 2) * 0.015, 0), spec.belly, {
-        pos: [side * 0.5, 0.1 - (i % 2) * 0.05, z],
-        scale: [0.5, 1, 1.5],
-        ...SCALE_S,
-      })
-    )
-  ),
+  // Two rows of scutes down each flank, set on the capsule's surface by angle
+  ...[38, 68].flatMap((deg, row) => {
+    const a = (deg * Math.PI) / 180;
+    return [-1, 1].flatMap((side) =>
+      [-0.6, -0.25, 0.1, 0.45, 0.75].map((z, i) =>
+        part(
+          new THREE.OctahedronGeometry(0.062 - row * 0.012 + (i % 2) * 0.012, 0),
+          row ? spec.hideDark : spec.belly,
+          {
+            pos: [side * 0.53 * Math.sin(a), 0.53 * Math.cos(a), z + row * 0.16],
+            scale: [0.45, 1, 1.5],
+            ...SCALE_S,
+          }
+        )
+      )
+    );
+  }),
 ];
 
 const neckSegParts = (spec, reach) => [
