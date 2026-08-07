@@ -65,6 +65,15 @@ const beam = (length, width, depth) =>
 
 // A wheel: a felloe, an iron tyre, a turned hub and six spokes, all merged.
 // From above the spokes are what tells a wheel from a disc.
+//
+// **The axle runs along X**, side to side across the hull, which is the only
+// orientation a wheel on a vehicle can have. Getting this wrong is easy and
+// was: a `LatheGeometry` spins about Y and a `TorusGeometry` lies in XY about
+// Z, so the three components of a wheel start on two different axes and both
+// are wrong. Turning them consistently onto the *same* wrong axis looks fine
+// in isolation and puts the whole wheel a quarter turn out on the vehicle.
+// The rule to check against is the poser: it rolls a wheel with
+// `rotation.x`, and that only spins the thing if X is the axle.
 const wheelParts = (p) => {
   const parts = [
     // A felloe rather than a solid disc. This matters more than it sounds:
@@ -83,9 +92,14 @@ const wheelParts = (p) => {
         20
       ),
       p.frame,
-      { rot: [Math.PI / 2, 0, 0], ...TIMBER }
+      { rot: [0, 0, Math.PI / 2], ...TIMBER }
     ),
-    part(new THREE.TorusGeometry(0.4, 0.032, 7, 24), p.iron, { ...IRON }),
+    // A torus is built about Z, so it takes a different quarter turn from the
+    // lathes to arrive on the same axle
+    part(new THREE.TorusGeometry(0.4, 0.032, 7, 24), p.iron, {
+      rot: [0, Math.PI / 2, 0],
+      ...IRON,
+    }),
     part(
       turned(
         [
@@ -99,13 +113,14 @@ const wheelParts = (p) => {
         14
       ),
       p.iron,
-      { rot: [Math.PI / 2, 0, 0], ...IRON }
+      { rot: [0, 0, Math.PI / 2], ...IRON }
     ),
   ];
+  // Spokes radiate in the wheel's own plane, which with the axle on X is YZ
   for (let i = 0; i < 6; i += 1) {
     parts.push(
       part(new THREE.CylinderGeometry(0.028, 0.034, 0.72, 8), p.frame, {
-        rot: [0, 0, (i * Math.PI) / 6],
+        rot: [(i * Math.PI) / 6, 0, 0],
         ...TIMBER,
       })
     );
@@ -167,8 +182,10 @@ const bolterBedParts = (p, heavy) => {
         ...TIMBER,
       })
     ),
+    // Through the hubs, not under them: the bed sits at y 0.26 and the wheel
+    // centres at 0.34
     part(new THREE.CylinderGeometry(0.05, 0.05, 1.9, 14), p.iron, {
-      pos: [0, -0.1, 0.34],
+      pos: [0, 0.08, 0.34],
       rot: [0, 0, Math.PI / 2],
       ...IRON,
     }),
@@ -355,8 +372,9 @@ const chariotCarParts = (p) => [
     rot: [-Math.PI / 2, 0, Math.PI / 2],
     ...BRASS,
   }),
+  // Through the hubs: the car sits at y 0.36 and the wheel centres at 0.34
   part(new THREE.CylinderGeometry(0.05, 0.05, 1.9, 14), p.iron, {
-    pos: [0, -0.14, 0.36],
+    pos: [0, -0.02, 0.34],
     rot: [0, 0, Math.PI / 2],
     ...IRON,
   }),
@@ -565,8 +583,9 @@ export const poseWarMachines = (rig, time, state = "idle") => {
   rig.engines.forEach((engine) => {
     const t = time * gait.rate + engine.phase;
 
-    engine.wheels.forEach((wheel, i) => {
-      wheel.rotation.x += 0.055 * gait.roll * (i === 0 ? 1 : 1);
+    engine.wheels.forEach((wheel) => {
+      // About X, which is the axle — see the note where they are built
+      wheel.rotation.x += 0.055 * gait.roll;
     });
 
     // Crew work: bobbing at the winch, ducking as it looses

@@ -288,18 +288,33 @@ const makeOnager = (m) => {
   winch.add(winchMesh);
 
   // --- wheels, each merged, and they turn ---------------------------------
+  //
+  // The axle is baked onto **X**, side to side across the hull, rather than
+  // left on the geometry's own axis and corrected with a rotation on the
+  // group. That is not a style preference. Three's default Euler order
+  // composes as Rx·Ry·Rz, so a group carrying `rotation.z = PI/2` to stand the
+  // wheel up and then rolling on `rotation.y` applies the roll *after* the
+  // stand-up, about world Y — which yaws the wheel like a turntable instead of
+  // spinning it. It splayed both wheels out at an angle and it was only
+  // visible once the spokes were.
+  //
+  // With the axle on X the poser rolls on `rotation.x`, which is the wheel's
+  // own axis, and no group rotation is needed at all.
   const wheels = [1, -1].map((side) => {
     const wheel = new THREE.Group();
     wheel.position.set(side * 0.94, 0.42, 0.22);
-    wheel.rotation.z = Math.PI / 2;
     group.add(wheel);
 
     const spokes = [];
     for (let i = 0; i < 6; i += 1) {
-      spokes.push(at(SPOKE, { rot: [0, 0, (i / 6) * Math.PI * 2] }));
+      spokes.push(at(SPOKE, { rot: [(i / 6) * Math.PI * 2, 0, 0] }));
     }
     const body = new THREE.Mesh(
-      merge([at(FELLOE, {}), at(HUB, {}), ...spokes]),
+      merge([
+        at(FELLOE, { rot: [0, 0, Math.PI / 2] }),
+        at(HUB, { rot: [0, 0, Math.PI / 2] }),
+        ...spokes,
+      ]),
       m.timber
     );
     body.castShadow = true;
@@ -307,8 +322,10 @@ const makeOnager = (m) => {
     wheel.add(body);
 
     // The iron tyre is a different material, so it stays a second mesh —
-    // merging is per material, not per object
-    const tyre = new THREE.Mesh(at(TYRE, { rot: [Math.PI / 2, 0, 0] }), m.iron);
+    // merging is per material, not per object. A torus is built about Z, so
+    // it takes a different quarter turn from the lathes to reach the same
+    // axle.
+    const tyre = new THREE.Mesh(at(TYRE, { rot: [0, Math.PI / 2, 0] }), m.iron);
     tyre.castShadow = true;
     wheel.add(tyre);
 
@@ -436,7 +453,8 @@ export const poseCatapults = (rig, time, state = "idle") => {
     engine.winch.rotation.x = -wind * 6 * gait.wind;
 
     engine.wheels.forEach((wheel) => {
-      wheel.rotation.y += 0.05 * gait.roll;
+      // About X, which is the axle. See the note where they are built.
+      wheel.rotation.x += 0.05 * gait.roll;
     });
 
     engine.crew.forEach((hand, i) => {

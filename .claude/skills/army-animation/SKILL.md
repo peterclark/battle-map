@@ -244,6 +244,31 @@ dark" or "the shading is wrong" rather than as what it is.
   rotation about X lifts the far end — the negative one buried a horse's head
   in the turf.
 
+### Wheels, and rotating a group you already rotated
+
+A wheel is the one part on this board where the axis is not a matter of taste,
+and it caught both engine files at once. Three generators start on three
+different axes — `CylinderGeometry` and `LatheGeometry` about Y,
+`TorusGeometry` about Z — so a felloe, a hub and a tyre need *different*
+quarter turns to arrive on the same axle. Turn them all the same way and they
+agree with each other while sitting a quarter turn out on the vehicle, which
+looks plausible in isolation and wrong the moment it is on a hull.
+
+**Bake the axle onto X in the geometry, and let the poser roll `rotation.x`.**
+
+The reason not to correct it with a rotation on the group instead is worth
+knowing, because it is a general trap. Three's default Euler order composes as
+`Rx · Ry · Rz`, so a group carrying `rotation.z = PI/2` to stand a wheel up and
+then rolling on `rotation.y` applies the roll *after* the stand-up, about world
+Y — the wheel yaws like a turntable rather than spinning. **Whenever a poser
+animates a rotation on a group that already carries a fixed one, check the
+order.** Bake the fixed part into the geometry and leave the group carrying
+only what moves.
+
+Both of these hid behind the solid-cylinder bug: while the spokes were buried
+inside a disc there was nothing on a wheel that could show it was turning the
+wrong way, or turning at all.
+
 ### The shape vocabulary
 
 Once merging is on the table, stop reaching for capsules and boxes:
