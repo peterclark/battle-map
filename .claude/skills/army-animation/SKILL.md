@@ -366,33 +366,42 @@ the block shimmers.
 Measured on the target Mac mini, shadows on, ten units on the board — a
 1,250-point army is about five units, so ten is a full game.
 
-| | before the merge (4K) | after the merge (720p) |
+| | before the merge | after the merge |
 |---|---|---|
-| CPU | 6ms | **3ms** |
-| of which posing 200 figures | ~1ms | **under the timer's resolution** |
+| CPU, at native 4K | 6ms | **3ms** |
+| of which posing 200 figures | ~1ms | **below the timer's resolution** |
 | meshes | ~3,600 | **1,601** |
 | submitted draw calls | ~7,200 | **3,201** |
 | triangles | 1.9M | 2.0M |
 
-Against a 16.7ms frame budget, so **CPU halved to about a fifth of the frame**
-— which is what halving the mesh count predicted, and confirms that submit
-cost tracks meshes rather than geometry. The two runs are at different
-resolutions, so only the CPU row compares like for like; that is the row that
-matters, because submitting draws is resolution-independent and it is the part
-that transfers to other machines.
+Against a 16.7ms frame budget, so CPU is now about a fifth of the frame. That
+is what halving the mesh count predicted, and it confirms that submit cost
+tracks meshes rather than geometry.
 
-Two things the after-run does *not* tell us. Its 17ms frame time is the 60Hz
-vsync cap, so it says the board is not GPU-bound at 720p and nothing about 4K.
-And `poseMsMedian` came back as 0 because browsers coarsen `performance.now()`
-— read that as "too small to measure", not as free.
+Two measurements now say the same thing from opposite directions: the density
+pass quadrupled triangles for nothing, and the merge pass halved meshes for
+half the CPU.
+
+**The board is not GPU-bound, and 4K is free.** Run at 1280×720 and at
+3840×2160 the numbers are the same — 3ms of CPU either way, and a frame time
+of 17ms and 16ms respectively, which is the vsync cap in both cases rather
+than a real difference. Nine times the pixels and two million triangles cost
+nothing measurable on this machine. Everything that matters here is on the CPU
+side, submitting draws.
+
+Two things the runs still do not show. A frame time at the vsync cap proves
+the board has GPU headroom without saying how much. And `poseMsMedian` comes
+back as 0 because browsers coarsen `performance.now()` — read that as "too
+small to measure", not as free.
 
 Headroom is real but not unlimited. Rules of thumb:
 
 - **~8 meshes per figure, ~20 figures per unit.** It was ~20 meshes a figure
   before the merge pass.
-- Doubling to twenty units at 1080p reached 90% of budget *at the old mesh
-  counts*, so the ceiling is real even though it has moved out by about a
-  factor of two.
+- Doubling to twenty units reached 90% of budget *at the old mesh counts*. The
+  same twenty would now sit near 6ms, so the ceiling is real but has moved out
+  by about a factor of two — and it is a ceiling on **meshes**, not on pixels
+  or triangles.
 - Pose cost is not the constraint; **mesh count is**. If you need more
   figures, cut meshes per figure rather than reaching for instancing.
 - **Triangles are cheap; meshes are not.** The density pass took the rigs from
@@ -406,9 +415,10 @@ Headroom is real but not unlimited. Rules of thumb:
 
 `demo/bench.html?units=10` measures this, and it takes `width` and `height`.
 It must be run on the target hardware; a headless container uses a software
-rasteriser and its frame times mean nothing. Note that the field the page
-calls `fpsOnSoftwareRasteriser` is just wall-clock frame rate — on a real GPU
-it is real, and usually the vsync cap.
+rasteriser and its frame times mean nothing. Run it at the panel's real
+resolution — `&width=3840&height=2160` — since that is the only setting whose
+GPU figure means anything, and compare the CPU number, which is
+resolution-independent and is the part that transfers between machines.
 
 ## Verifying
 
