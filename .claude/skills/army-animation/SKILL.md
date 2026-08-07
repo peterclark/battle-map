@@ -384,10 +384,16 @@ half the CPU.
 
 **The board is not GPU-bound, and 4K is free.** Run at 1280×720 and at
 3840×2160 the numbers are the same — 3ms of CPU either way, and a frame time
-of 17ms and 16ms respectively, which is the vsync cap in both cases rather
-than a real difference. Nine times the pixels and two million triangles cost
-nothing measurable on this machine. Everything that matters here is on the CPU
-side, submitting draws.
+of 16–17ms, which is the vsync cap in every case rather than a real
+difference. Nine times the pixels and two million triangles cost nothing
+measurable on this machine. Everything that matters here is on the CPU side,
+submitting draws.
+
+That held across three runs, one of them against the built and deployed site
+rather than the dev server. **A production build measures the same as `npm run
+dev`**, which is worth knowing before anyone goes looking for a difference:
+the cost is in the renderer, not in the module graph, so minification and
+bundling move none of it.
 
 Two things the runs still do not show. A frame time at the vsync cap proves
 the board has GPU headroom without saying how much. And `poseMsMedian` comes
