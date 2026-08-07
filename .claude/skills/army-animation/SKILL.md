@@ -139,21 +139,164 @@ that size:
   weapon head.
 - Silhouette and value do the work. Texture and small geometry do not.
 
-**Metal needs help.** `matte()` and `metal()` in `materials.js` are the only
-two material factories; use `metal()` for steel, mail, brass and weapon heads.
-Note the constraint written up there: image-based lighting is *not* available
-here, because Three's prefiltered-environment path emits GLSL that ANGLE and
-SwiftShader reject, and when it fails every standard material in the scene
-fails to compile — the board goes black, not just the reflections. So metals
-sit at 0.72 metalness and are carried by the key and rim lights instead of by
-reflections. Do not reintroduce `scene.environment` without testing on a
-strict validator first.
+**Metal needs help.** The creature rigs get their surfaces from `kit.js`
+rather than from `materials.js` — see *Detail without meshes* below — but the
+constraint `materials.js` documents still governs both: image-based lighting
+is *not* available here, because Three's prefiltered-environment path emits
+GLSL that ANGLE and SwiftShader reject, and when it fails every standard
+material in the scene fails to compile — the board goes black, not just the
+reflections. So metals top out at 0.72 metalness and are carried by the key
+and rim lights instead of by reflections. Do not reintroduce
+`scene.environment` without testing on a strict validator first.
 
 **Verify at stand scale, not at lab scale.** The lab shows a creature many
 times the size it will be played at, where everything looks good. That is not
 the test. The test is a screenshot of the actual board with the figures on
 their stands. This project has already made the mistake of judging a creature
 at lab scale and being wrong about it — twice, counting the Ancients.
+
+`demo/creature-lab.html` takes `kind`, `gait`, `tilt`, `span` and `yaw`.
+`span` narrows the camera to zoom in on one or two figures; `yaw` turns the
+rig, which you will need — figures are modelled facing away from the camera
+and most of the detail worth checking is on the front.
+
+## Detail without meshes: merge the geometry
+
+The budget below says mesh count is the constraint and triangles are not.
+That has a consequence worth stating on its own, because it inverts how you
+would normally add detail:
+
+> Detail added as **separate meshes** costs the thing that is scarce.
+> Detail merged into **one mesh** costs the thing that is free.
+
+**`src/art/creatures/kit.js` is the toolkit, and every rig on the board is
+built with it.** Do not go back to one-mesh-per-limb; there is nothing left in
+the codebase to copy that pattern from.
+
+### The rule
+
+**One merged buffer per part that moves independently. Everything else inside
+that part merges into it.**
+
+A man has eight such parts — body, head, two thighs, two shins, shield, weapon
+— so an infantryman is eight meshes, not nineteen. Before merging a part in,
+check the *poser*: an upper arm that is never rotated belongs in the body
+buffer, and a foot that never turns belongs in the shin's.
+
+The buffers are built **once per block** and shared by every figure in it, so
+twenty men still cost one man's worth of memory. Only the transforms differ.
+
+An earlier draft of this section said merging was "wrong for a block of
+twenty, where merging would forfeit per-figure posing". That is wrong and the
+rebuild proved it: merging happens *within* a figure and the merged buffers
+are then shared *across* figures, so posing is untouched and the saving
+applies to the largest units on the board — which are exactly the ones that
+needed it. Across all sixty-one kinds the pass went from **13,473 meshes to
+6,111**, the worst single unit from 456 to 216, and the ten-unit benchmark
+from ~3,600 meshes to 1,601 — with triangles slightly *up*, at 2.0M.
+
+### Surfaces in one mesh
+
+One mesh normally means one material, which would force skin, cloth, bone and
+steel to look identical. `surfaceMaterial()` gets round that with two
+mechanisms: **vertex colour** for the tint, and a **`surface` attribute**
+carrying metalness and roughness, injected into MeshStandardMaterial's shader
+by `onBeforeCompile`. So one merged mesh can hold matte bone and polished
+steel and still light correctly, in one draw call.
+
+There is exactly one such material for the whole board.
+
+### Grade the metalness by area
+
+`materials.js` explains why metalness tops out at 0.72 rather than 1. What it
+does not say, and what the infantry rebuild learned the hard way, is that
+**0.72 is only safe on small parts**. A blade or a brow band at 0.72 catches
+the key light and flashes. A breastplate at 0.72 fills the middle of a figure
+with a surface that has nothing to reflect, and the whole man goes black from
+above. The tiers the rigs use:
+
+| Tier | metalness / roughness | For |
+|---|---|---|
+| `PLATE` | 0.3 / 0.44 | breastplates, pauldrons, greaves, helm bowls |
+| `BLADE` | 0.5 / 0.26 | blades, axe heads, spear points |
+| `STEEL` | 0.68 / 0.3 | brow bands, bosses, finials, small fittings |
+| `IRON` | 0.55 / 0.55 | sockets, ferrules, rims |
+
+### Three traps that all look like lighting bugs
+
+Each of these cost real time, and each presents as "the figures came out too
+dark" or "the shading is wrong" rather than as what it is.
+
+- **Double colour conversion.** `Color.set(0x6b727c)` already converts out of
+  sRGB into the renderer's linear working space — the same thing
+  `material.color` does with the same number. Converting again is a second
+  gamma pass worth about two and a half stops. `kit.js` does not do it; do
+  not add it back.
+- **LatheGeometry winding.** A profile written top-down comes out inside-out
+  and the object renders black. `turned()` normalises the direction, so write
+  profiles whichever way reads naturally — but if you build a lathe by hand,
+  order it bottom to top.
+- **Double rotation on an extruded outline.** An outline can be laid down two
+  ways, and the helpers are named for them: `flat` for things carried along a
+  haft (width fore-and-aft, thickness side to side) and `prone` for things
+  lying along the ground pointing forward (width across, thickness as height).
+  Applying both stands a skull on edge. `prone` also means a **positive**
+  rotation about X lifts the far end — the negative one buried a horse's head
+  in the turf.
+
+### Wheels, and rotating a group you already rotated
+
+A wheel is the one part on this board where the axis is not a matter of taste,
+and it caught both engine files at once. Three generators start on three
+different axes — `CylinderGeometry` and `LatheGeometry` about Y,
+`TorusGeometry` about Z — so a felloe, a hub and a tyre need *different*
+quarter turns to arrive on the same axle. Turn them all the same way and they
+agree with each other while sitting a quarter turn out on the vehicle, which
+looks plausible in isolation and wrong the moment it is on a hull.
+
+**Bake the axle onto X in the geometry, and let the poser roll `rotation.x`.**
+
+The reason not to correct it with a rotation on the group instead is worth
+knowing, because it is a general trap. Three's default Euler order composes as
+`Rx · Ry · Rz`, so a group carrying `rotation.z = PI/2` to stand a wheel up and
+then rolling on `rotation.y` applies the roll *after* the stand-up, about world
+Y — the wheel yaws like a turntable rather than spinning. **Whenever a poser
+animates a rotation on a group that already carries a fixed one, check the
+order.** Bake the fixed part into the geometry and leave the group carrying
+only what moves.
+
+Both of these hid behind the solid-cylinder bug: while the spokes were buried
+inside a disc there was nothing on a wheel that could show it was turning the
+wrong way, or turning at all.
+
+### The shape vocabulary
+
+Once merging is on the table, stop reaching for capsules and boxes:
+
+| `kit.js` helper | Use it for |
+|---|---|
+| `bevelled(points, depth)` | timber, plate, blades, shield boards, cloaks, wings. The bevel catches the key light along the edge, which is what makes a slab read as a made object. |
+| `turned(profile)` | anything turned in life — helm bowls, drums, hubs, bosses, pommels, horns, hooves, beards. |
+| `swept(points, radius)` | rope, reins, chain, bowstrings, ribs, straps. |
+| `TorusGeometry` | rims, tyres, belts, brow bands, collars. |
+| `OctahedronGeometry` | osteoderms and scutes — a dotted pale line along a flank is what scaly hide looks like when it is too small to model. |
+
+### What the freed budget actually bought
+
+Worth reading as a list of what "detail" means at this scale, because most of
+it is not what you would guess:
+
+turned helms with brow bands and nasals; domed shield boards with raised rims
+and turned bosses; forged axe heads with a beard and a horn; leaf-bladed
+spears with pennons; crossbows with tillers, nuts and strings; recurve bows
+with strings on them; bridles, reins, girths and saddles; lance vamplates;
+spiked collars and hackles on war-wolves; knotted muscle and torn hide mantles
+on brutes; ribcages surfacing out of the Abomination; osteoderms and crests on
+lizardfolk; scalloped frills; wing membranes with finger spars and a scalloped
+trailing edge; and — the one that had been wrong since the day it was built —
+**wheels with visible spokes**, because the spokes had always been modelled
+inside a solid cylinder and every wheel on the board had been rendering as a
+plain dark circle.
 
 ## How the pieces fit together
 
@@ -163,6 +306,7 @@ Three files, and the split matters:
 |---|---|---|
 | `src/art/creatures/roster.js` | which *kind* a unit fields, and how much of its stand to fill | no |
 | `src/art/creatures/registry.js` | which *builder* each kind maps to | yes |
+| `src/art/creatures/kit.js` | the shared toolkit: `at`, `part`, `merge`, `surfaceMaterial`, `bevelled`, `turned`, `swept` | yes |
 | `src/art/creatures/<name>3d.js` | the builder and poser themselves | yes |
 
 `roster.js` must stay free of Three.js. The board asks "does this unit have
@@ -180,9 +324,10 @@ size reads best on their own.
    `build<Name>()` and `pose<Name>(rig, time, state)`.
    - Model facing **-Z**, standing on **y = 0**. `CreatureLayer` handles
      board placement and heading.
-   - Share geometry across figures. One `CapsuleGeometry` reused by twenty
-     bodies costs one body's worth of buffers; only the transforms differ.
-     See `infantry3d.js` for the pattern.
+   - Build with `kit.js`, one merged buffer per part that moves independently,
+     and share those buffers across every figure in the unit. Twenty men cost
+     one man's worth of memory; only the transforms differ. See
+     `infantry3d.js` for the pattern and *Detail without meshes* for the rule.
    - **Prefer a parameter to a new file.** Fifty-seven creature kinds come
      out of nine rigs, and adding an army is mostly adding rows to tables. A spearman and an archer are the
      same skeleton carrying different things; `infantry3d.js` covers four
@@ -227,16 +372,21 @@ Measured on a Mac mini, native 4K, shadows on, ten units on the board
 
 Headroom is real but not unlimited. Rules of thumb:
 
-- **~20 meshes per figure, ~20 figures per unit.** The Orc Axemen block sits
-  at exactly this and is comfortable.
-- Doubling to twenty units at 1080p reached 90% of budget, so do not treat
-  the ceiling as far away.
+- **~8 meshes per figure, ~20 figures per unit** since the merge pass. It was
+  ~20 meshes a figure before, and those are the numbers the measurement above
+  was taken at — so there is now roughly twice the headroom it describes.
+- Doubling to twenty units at 1080p reached 90% of budget *at the old mesh
+  counts*, so the ceiling is real even if it has moved.
 - Pose cost is not the constraint; **mesh count is**. If you need more
   figures, cut meshes per figure rather than reaching for instancing.
 - **Triangles are cheap; meshes are not.** The density pass took the rigs from
   344k triangles to 1.9M for ten units with the mesh and draw-call counts
-  unchanged. Spend segments freely — a rounder capsule is nearly free. Adding
-  another *mesh* is what costs.
+  unchanged. The merge pass then took the *meshes* from ~3,600 to 1,601 with
+  triangles at 2.0M. Spend segments freely — a rounder capsule is nearly free.
+  Adding another *mesh* is what costs. See **Detail without meshes** above.
+- **These numbers need re-measuring on the Mac.** Everything above is a mesh
+  and triangle count, which transfers; the millisecond figures predate the
+  merge and are now pessimistic by roughly a factor of two.
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 

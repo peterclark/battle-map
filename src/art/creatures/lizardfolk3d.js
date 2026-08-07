@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte, metal } from "./materials.js";
+import { at, bevelled, merge, part, surfaceMaterial, turned } from "./kit.js";
 
 // Lizardfolk — the three peoples of the Lizardmen list, built from one rig
 // with the proportions dialled per breed.
@@ -19,6 +19,12 @@ import { matte, metal } from "./materials.js";
 //   cycle mostly hides under the body that owns it.
 //
 // Everything else is in service of those two.
+//
+// The figures merge the way the infantry do — one buffer per part that moves
+// on its own, nine rather than eighteen meshes — and the budget that frees
+// went into the things that make a reptile a reptile at close range: a row of
+// osteoderms down each flank, a crest that sweeps back off the skull, clawed
+// three-toed feet, and a serrated blade rather than a cone.
 
 // Cool bodies against warm turf. The field is roughly 0x3d6421 — a dark
 // yellow-green — so the breeds separate from it by hue as well as by value,
@@ -102,37 +108,342 @@ const STEEL = 0x9aa2aa;
 const HAFT = 0x3a2f24;
 const SHIELD_FACE = 0xb9a377;
 
-// One set of geometry, shared by every figure on every stand. Twenty
-// lizardfolk cost one lizardfolk's worth of buffers; only transforms differ.
-const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.2, 0.34, 8, 16),
-  ridge: new THREE.BoxGeometry(0.09, 0.05, 0.62),
-  spine: new THREE.ConeGeometry(0.05, 0.16, 14),
-  head: new THREE.ConeGeometry(0.14, 0.36, 14),
-  brow: new THREE.BoxGeometry(0.17, 0.04, 0.1),
-  tailA: new THREE.CylinderGeometry(0.085, 0.055, 0.34, 18),
-  tailB: new THREE.CylinderGeometry(0.055, 0.015, 0.36, 18),
-  thigh: new THREE.CapsuleGeometry(0.062, 0.16, 8, 16),
-  shin: new THREE.CapsuleGeometry(0.048, 0.16, 8, 16),
-  foot: new THREE.BoxGeometry(0.11, 0.05, 0.19),
-  arm: new THREE.CapsuleGeometry(0.048, 0.18, 8, 16),
-  haft: new THREE.CylinderGeometry(0.028, 0.024, 0.86, 18),
-  blade: new THREE.ConeGeometry(0.07, 0.26, 14),
-  shield: new THREE.CylinderGeometry(0.2, 0.2, 0.04, 18),
+const SCALE = { roughness: 0.72 };
+const BONE_S = { metalness: 0.18, roughness: 0.55 };
+const BLADE = { metalness: 0.5, roughness: 0.26 };
+const HIDE = { roughness: 0.85 };
+const WOOD = { roughness: 0.8 };
+
+// Two ways to lay an extruded outline down, and mixing them up costs an
+// afternoon. `flat` is for things carried along a haft — blades, heads — and
+// puts width fore-and-aft with thickness side to side. `prone` is for things
+// that lie along the ground pointing forward — skulls, jaws, feet — and keeps
+// width across the figure with thickness as height. The outline is drawn the
+// same way for both: x across, y along.
+const flat = (points, thickness, bevel) =>
+  at(bevelled(points, thickness, bevel), { rot: [0, -Math.PI / 2, 0] });
+
+const prone = (points, thickness, bevel) =>
+  at(bevelled(points, thickness, bevel), { rot: [-Math.PI / 2, 0, 0] });
+
+// Body, dorsal ridge, forelimbs and whatever they hold that does not swing.
+const spineParts = (breed) => {
+  const parts = [
+    part(new THREE.CapsuleGeometry(0.2, 0.34, 8, 16), breed.body, {
+      pos: [0, 0.04, -0.06],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1.05, 1, 1],
+      ...SCALE,
+    }),
+    // The dorsal ridge: the brightest thing on the figure, running its length.
+    // This is the read from directly overhead and everything else is detail.
+    part(
+      at(
+        bevelled(
+          [
+            [-0.045, 0.34],
+            [0.045, 0.34],
+            [0.05, 0.12],
+            [0.038, -0.04],
+            [0.05, -0.2],
+            [0.04, -0.32],
+            [-0.04, -0.32],
+            [-0.05, -0.2],
+            [-0.038, -0.04],
+            [-0.05, 0.12],
+          ],
+          0.06,
+          0.006
+        ),
+        { rot: [Math.PI / 2, 0, 0] }
+      ),
+      breed.ridge,
+      { pos: [0, 0.2, -0.06], ...BONE_S }
+    ),
+    // Raked backward so each spine presents its length to the camera rather
+    // than its point
+    ...[-0.16, 0.02, 0.2].map((z, i) =>
+      part(
+        turned(
+          [
+            [0, 0],
+            [0.05, 0.02],
+            [0.036, 0.09],
+            [0, 0.17],
+          ],
+          10
+        ),
+        breed.ridge,
+        { pos: [0, 0.23, z], rot: [0.7 + i * 0.05, 0, 0], ...BONE_S }
+      )
+    ),
+  ];
+
+  // Osteoderms down the flanks. Individually two pixels; together they are a
+  // dotted line the length of the animal, which is what scaly hide looks like
+  // when it is too small to model.
+  [-1, 1].forEach((side) =>
+    [-0.24, -0.1, 0.04, 0.18].forEach((z, i) =>
+      parts.push(
+        part(new THREE.OctahedronGeometry(0.035 + (i % 2) * 0.008, 0), breed.ridge, {
+          pos: [side * 0.19, 0.06 - (i % 2) * 0.03, z],
+          scale: [0.7, 1, 1.3],
+          ...BONE_S,
+        })
+      )
+    )
+  );
+
+  // Forelimbs. Neither rotates in the poser — the blade does — so they belong
+  // here rather than in buffers of their own.
+  [-1, 1].forEach((side) =>
+    parts.push(
+      part(new THREE.CapsuleGeometry(0.048, 0.18, 8, 12), breed.limb, {
+        pos: [side * 0.19, -0.03, -0.06],
+        ...SCALE,
+      }),
+      // Claws on the hand
+      ...[-0.03, 0, 0.03].map((dx) =>
+        part(new THREE.ConeGeometry(0.014, 0.05, 6), BONE, {
+          pos: [side * 0.19 + dx, -0.14, -0.08],
+          rot: [-2.4, 0, 0],
+          ...BONE_S,
+        })
+      )
+    )
+  );
+
+  if (breed.shield) {
+    // A hide shield on a wicker frame, canted to present its face upward as
+    // well as forward — the broadest pale surface the figure has
+    parts.push(
+      part(
+        turned(
+          [
+            [0, -0.03],
+            [0.12, -0.025],
+            [0.18, -0.012],
+            [0.198, 0],
+            [0.19, 0.014],
+            [0, 0.022],
+          ],
+          18
+        ),
+        SHIELD_FACE,
+        { pos: [-0.25, -0.06, -0.14], rot: [Math.PI / 2.5, 0, 0.1], ...HIDE }
+      ),
+      part(new THREE.TorusGeometry(0.19, 0.016, 6, 20), HAFT, {
+        pos: [-0.25, -0.06, -0.14],
+        rot: [Math.PI / 2.5 + Math.PI / 2, 0, 0.1],
+        ...WOOD,
+      })
+    );
+  }
+
+  return parts;
 };
 
-const add = (geometry, material, parent, position, rotation) => {
+// A wedge laid along -Z: a snout, not a ball, with a crest sweeping back
+const headParts = (breed) => [
+  part(
+    prone(
+      [
+        [-0.088, -0.13],
+        [0.088, -0.13],
+        [0.078, 0.06],
+        [0.045, 0.17],
+        [0, 0.22],
+        [-0.045, 0.17],
+        [-0.078, 0.06],
+      ],
+      0.14,
+      0.01
+    ),
+    breed.body,
+    // Squeezed toward the snout so the skull wedges rather than sitting as a
+    // block: a reptile's head is deepest at the jaw hinge and thins forward
+    { pos: [0, 0.02, -0.07], rot: [0.12, 0, 0], scale: [1, 1, 1], ...SCALE }
+  ),
+  // Jaw, slung under the snout
+  part(
+    prone(
+      [
+        [-0.085, -0.13],
+        [0.085, -0.13],
+        [0.075, 0.1],
+        [0, 0.22],
+        [-0.075, 0.1],
+      ],
+      0.06,
+      0.008
+    ),
+    breed.limb,
+    { pos: [0, -0.06, -0.09], rot: [0.16, 0, 0], ...SCALE }
+  ),
+  // Teeth along the jaw line
+  ...[-0.06, -0.02, 0.02, 0.06].map((x, i) =>
+    part(new THREE.ConeGeometry(0.014, 0.045, 5), BONE, {
+      pos: [x, -0.035, -0.16 - (i % 2) * 0.04],
+      rot: [Math.PI, 0, 0],
+      ...BONE_S,
+    })
+  ),
+  // The crest: a fan of bone off the back of the skull, laid nearly flat so
+  // it reads as area rather than as a spike
+  part(
+    at(
+      bevelled(
+        [
+          [-0.02, 0],
+          [0.02, 0],
+          [0.13, -0.12],
+          [0.1, -0.22],
+          [0.04, -0.18],
+          [0, -0.26],
+          [-0.04, -0.18],
+          [-0.1, -0.22],
+          [-0.13, -0.12],
+        ],
+        0.035,
+        0.006
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    breed.ridge,
+    { pos: [0, 0.07, 0.02], rot: [-0.35, 0, 0], ...BONE_S }
+  ),
+  ...[0.07, -0.07].map((x) =>
+    part(new THREE.SphereGeometry(0.028, 8, 7), 0xd8b23a, {
+      pos: [x, 0.05, -0.12],
+      ...BLADE,
+    })
+  ),
+];
+
+const tailAParts = (breed) => [
+  part(new THREE.CylinderGeometry(0.075, 0.05, 0.34, 14), breed.body, {
+    pos: [0, 0, 0.16 * breed.tail],
+    rot: [Math.PI / 2, 0, 0],
+    ...SCALE,
+  }),
+  ...[0.06, 0.2].map((z) =>
+    part(new THREE.OctahedronGeometry(0.03, 0), breed.ridge, {
+      pos: [0, 0.07, z * breed.tail],
+      scale: [0.6, 1.3, 1],
+      ...BONE_S,
+    })
+  ),
+];
+
+const tailBParts = (breed) => [
+  part(new THREE.CylinderGeometry(0.055, 0.015, 0.36, 14), breed.body, {
+    pos: [0, -0.02, 0.17 * breed.tail],
+    rot: [Math.PI / 2.15, 0, 0],
+    ...SCALE,
+  }),
+];
+
+const thighParts = (breed) => [
+  part(new THREE.CapsuleGeometry(0.062, 0.16, 8, 12), breed.limb, {
+    pos: [0, -0.1, 0.02],
+    ...SCALE,
+  }),
+];
+
+// Shin and foot together: the foot never rotates on its own
+const shinParts = (breed) => [
+  part(new THREE.CapsuleGeometry(0.048, 0.16, 8, 12), breed.limb, {
+    pos: [0, -0.09, 0],
+    ...SCALE,
+  }),
+  // Three toes, splayed — a bird's foot, which is the correct foot for this
+  // and also the widest thing at ground level
+  ...[-0.055, 0, 0.055].map((x, i) =>
+    part(
+      prone(
+        [
+          [-0.024, -0.05],
+          [0.024, -0.05],
+          [0.02, 0.1],
+          [-0.02, 0.1],
+        ],
+        0.045,
+        0.006
+      ),
+      breed.limb,
+      { pos: [x, -0.19, -0.06 - (i === 1 ? 0.03 : 0)], rot: [0, x * 2.4, 0], ...SCALE }
+    )
+  ),
+  ...[-0.055, 0, 0.055].map((x, i) =>
+    part(new THREE.ConeGeometry(0.016, 0.055, 6), BONE, {
+      pos: [x, -0.215, -0.14 - (i === 1 ? 0.03 : 0)],
+      rot: [-Math.PI / 2, 0, 0],
+      ...BONE_S,
+    })
+  ),
+];
+
+// A serrated blade lashed to a haft — the weapon a people without forges makes
+const weaponParts = () => [
+  part(new THREE.CylinderGeometry(0.024, 0.028, 0.86, 12), HAFT, {
+    pos: [0, 0.3, 0],
+    ...WOOD,
+  }),
+  part(
+    flat(
+      [
+        [-0.055, 0],
+        [0.055, 0],
+        [0.07, 0.08],
+        [0.05, 0.13],
+        [0.068, 0.18],
+        [0.045, 0.23],
+        [0.06, 0.28],
+        [0, 0.38],
+        [-0.06, 0.28],
+        [-0.045, 0.23],
+        [-0.068, 0.18],
+        [-0.05, 0.13],
+        [-0.07, 0.08],
+      ],
+      0.038,
+      0.006
+    ),
+    STEEL,
+    { pos: [0, 0.66, 0], ...BLADE }
+  ),
+  // The lashing that holds it on
+  ...[0, 1, 2].map((i) =>
+    part(new THREE.TorusGeometry(0.032, 0.008, 5, 12), SHIELD_FACE, {
+      pos: [0, 0.6 + i * 0.03, 0],
+      rot: [Math.PI / 2, 0, 0.2 * (i - 1)],
+      ...HIDE,
+    })
+  ),
+];
+
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
+  if (position) mesh.position.set(...position);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 };
 
+const buildBuffers = (breed) => ({
+  spine: merge(spineParts(breed)),
+  head: merge(headParts(breed)),
+  tailA: merge(tailAParts(breed)),
+  tailB: merge(tailBParts(breed)),
+  thigh: merge(thighParts(breed)),
+  shin: merge(shinParts(breed)),
+  weapon: breed.armed ? merge(weaponParts()) : null,
+});
+
 // One lizardfolk, facing -Z, standing on y = 0.
-const makeLizard = (breed, materials) => {
+const makeLizard = (breed, buffers, material) => {
   const group = new THREE.Group();
 
   // The hips carry the whole animal. A reptile's spine runs closer to
@@ -146,48 +457,22 @@ const makeLizard = (breed, materials) => {
   const spine = new THREE.Group();
   spine.rotation.x = breed.lean * 0.55;
   hips.add(spine);
-
-  add(GEOMETRY.body, materials.body, spine, [0, 0.04, -0.06], [Math.PI / 2, 0, 0]);
-
-  // The dorsal ridge: the brightest thing on the figure, running its length.
-  // This is the read from directly overhead and everything else is detail.
-  add(GEOMETRY.ridge, materials.ridge, spine, [0, 0.2, -0.06]);
-  [-0.16, 0.02, 0.2].forEach((z, i) => {
-    add(
-      GEOMETRY.spine,
-      materials.ridge,
-      spine,
-      [0, 0.23, z],
-      // Raked backward so each spine presents its length to the camera
-      // rather than its point
-      [0.7 + i * 0.05, 0, 0]
-    );
-  });
+  hang(spine, buffers.spine, material);
 
   const head = new THREE.Group();
   head.position.set(0, 0.12, -0.36);
   spine.add(head);
-  // A wedge laid along -Z: a snout, not a ball
-  add(GEOMETRY.head, materials.body, head, [0, 0, -0.08], [-Math.PI / 2, 0, 0]);
-  add(GEOMETRY.brow, materials.ridge, head, [0, 0.08, 0.02]);
+  hang(head, buffers.head, material);
 
   // Tail: two tapering segments, hinged, so it can swing as one curve
   const tailRoot = new THREE.Group();
-  tailRoot.position.set(0, 0.06, 0.16);
+  tailRoot.position.set(0, 0.12, 0.08);
   hips.add(tailRoot);
-  add(GEOMETRY.tailA, materials.body, tailRoot, [0, 0, 0.16 * breed.tail], [
-    Math.PI / 2,
-    0,
-    0,
-  ]);
+  hang(tailRoot, buffers.tailA, material);
   const tailTip = new THREE.Group();
   tailTip.position.z = 0.32 * breed.tail;
   tailRoot.add(tailTip);
-  add(GEOMETRY.tailB, materials.body, tailTip, [0, -0.02, 0.17 * breed.tail], [
-    Math.PI / 2.15,
-    0,
-    0,
-  ]);
+  hang(tailTip, buffers.tailB, material);
   tailRoot.scale.z = breed.tail;
 
   // Digitigrade legs, splayed wider than a man's — the stance is half the
@@ -196,52 +481,27 @@ const makeLizard = (breed, materials) => {
     const hip = new THREE.Group();
     hip.position.set(side * 0.14, -0.04, 0);
     hips.add(hip);
-    add(GEOMETRY.thigh, materials.limb, hip, [0, -0.1, 0.02]);
+    hang(hip, buffers.thigh, material);
     const shin = new THREE.Group();
     shin.position.y = -0.2;
     hip.add(shin);
     shin.rotation.x = -0.5;
-    add(GEOMETRY.shin, materials.limb, shin, [0, -0.09, 0]);
-    const foot = new THREE.Group();
-    foot.position.y = -0.19;
-    shin.add(foot);
-    add(GEOMETRY.foot, materials.limb, foot, [0, -0.02, -0.04]);
-    return { hip, shin, foot, side };
+    hang(shin, buffers.shin, material);
+    return { hip, shin, side };
   });
 
-  // Forelimbs. On the armed breeds the right one carries a blade, shouldered
-  // — a vertical haft is a dot from overhead, and this project has learned
-  // that the hard way twice. The beasts just have claws.
-  const armR = new THREE.Group();
-  armR.position.set(0.19, 0.06, -0.06);
-  spine.add(armR);
-  add(GEOMETRY.arm, materials.limb, armR, [0, -0.09, 0]);
-
+  // On the armed breeds the right forelimb carries a blade, shouldered — a
+  // vertical haft is a dot from overhead, and this project has learned that
+  // the hard way twice. The beasts just have claws.
   let weapon = null;
-  if (breed.armed) {
+  if (buffers.weapon) {
     weapon = new THREE.Group();
-    weapon.position.set(0.02, -0.1, 0);
-    armR.add(weapon);
-    add(GEOMETRY.haft, materials.haft, weapon, [0, 0.3, 0]);
-    add(GEOMETRY.blade, materials.steel, weapon, [0, 0.72, 0]);
+    weapon.position.set(0.21, -0.04, -0.06);
+    spine.add(weapon);
+    hang(weapon, buffers.weapon, material);
   }
 
-  const armL = new THREE.Group();
-  armL.position.set(-0.19, 0.06, -0.06);
-  spine.add(armL);
-  add(GEOMETRY.arm, materials.limb, armL, [0, -0.09, 0]);
-
-  let shield = null;
-  if (breed.shield) {
-    shield = new THREE.Group();
-    shield.position.set(-0.06, -0.12, -0.08);
-    armL.add(shield);
-    // Canted to present its face upward as well as forward — the broadest
-    // pale surface the figure has
-    add(GEOMETRY.shield, materials.shield, shield, [0, 0, 0], [Math.PI / 2.5, 0, 0.1]);
-  }
-
-  return { group, hips, spine, head, tailRoot, tailTip, legs, weapon, shield };
+  return { group, hips, spine, head, tailRoot, tailTip, legs, weapon };
 };
 
 /**
@@ -253,15 +513,8 @@ const makeLizard = (breed, materials) => {
  */
 export const buildLizardfolk = ({ breed = "trog" } = {}) => {
   const spec = BREEDS[breed] ?? BREEDS.trog;
-  const materials = {
-    body: matte(spec.body),
-    ridge: matte(spec.ridge, 0.7),
-    limb: matte(spec.limb),
-    steel: metal(STEEL, 0.32),
-    haft: matte(HAFT),
-    shield: matte(SHIELD_FACE, 0.7),
-    bone: matte(BONE, 0.7),
-  };
+  const material = surfaceMaterial();
+  const buffers = buildBuffers(spec);
 
   const root = new THREE.Group();
   const lizards = [];
@@ -271,7 +524,7 @@ export const buildLizardfolk = ({ breed = "trog" } = {}) => {
 
   for (let rank = 0; rank < spec.ranks; rank += 1) {
     for (let file = 0; file < spec.files; file += 1) {
-      const lizard = makeLizard(spec, materials);
+      const lizard = makeLizard(spec, buffers, material);
       // Alternate ranks step half a file across, closing the gaps in front
       const stagger = rank % 2 === 1 ? stepX / 2 : 0;
       lizard.group.position.set(

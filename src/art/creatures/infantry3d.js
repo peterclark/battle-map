@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte, metal } from "./materials.js";
+import { at, bevelled, merge, part, surfaceMaterial, swept, turned } from "./kit.js";
 
 // A block of foot — the shape most of the game takes.
 //
@@ -7,10 +7,8 @@ import { matte, metal } from "./materials.js";
 // infantry, so this one rig carries more of the board than everything else
 // put together. It is parameterised twice over:
 //
-//   By weapon. The card already distinguishes a spearman from an archer from
-//   a swordsman, and until now the board did not — everyone mustered as an
-//   axeman. What a figure carries changes its silhouette more than anything
-//   else about it, so this is the distinction worth having.
+//   By weapon. What a figure carries changes its silhouette more than
+//   anything else about it, so this is the distinction worth having.
 //
 //   By palette. Orcs and men are the same skeleton in different colours and
 //   different kit, and pretending otherwise would mean two copies of one rig
@@ -22,10 +20,18 @@ import { matte, metal } from "./materials.js";
 // archer holds it, is a line four pixels wide. Both are turned until they
 // present their length or their face to the camera above them.
 //
-// Twenty figures rather than the card's attack dice. Battleground does not
-// track individual models, and the count follows the density of the printed
-// card art: a rank is only a rank if there are enough of them to make a
-// pattern.
+// --- on the merge ---------------------------------------------------------
+//
+// A figure used to be nineteen small meshes: a capsule per limb, a sphere per
+// pauldron, a box per boot. It is now eight, because eight is how many parts
+// of a man move independently of each other — body, head, two thighs, two
+// shins, shield, weapon. Everything within one of those is merged into a
+// single buffer by `kit.js`, which frees the budget that paid for the detail:
+// turned helms, bevelled shield boards with raised rims, forged axe heads
+// with a beard and a horn, recurve bows with strings on them.
+//
+// The buffers are built once per block and shared by all twenty figures, so
+// twenty men still cost one man's worth of memory. Only the transforms differ.
 
 // Palettes have one job beyond looking right: something on every figure must
 // carry real value contrast against the turf, which is a dark yellow-green.
@@ -142,71 +148,390 @@ const BUILDS = {
   mage: { height: 1.04, breadth: 1, cloak: false, beard: false, robe: true },
 };
 
-// One set of geometry, shared by every figure in every block on the board.
-// Twenty men cost one man's worth of buffers; only the transforms differ.
-const GEOMETRY = {
-  torso: new THREE.CapsuleGeometry(0.19, 0.3, 8, 16),
-  pauldron: new THREE.SphereGeometry(0.13, 18, 14),
-  head: new THREE.SphereGeometry(0.13, 18, 14),
-  helm: new THREE.ConeGeometry(0.155, 0.22, 14),
-  limb: new THREE.CapsuleGeometry(0.062, 0.22, 8, 16),
-  boot: new THREE.BoxGeometry(0.13, 0.08, 0.2),
-  // A shield is the broadest thing an infantryman carries, which makes it the
-  // most valuable thing on the model when the camera is directly above
-  shield: new THREE.CylinderGeometry(0.26, 0.26, 0.05, 18),
-  boss: new THREE.SphereGeometry(0.07, 18, 14),
+// Surfaces, as the merged material reads them.
+//
+// materials.js explains why metalness tops out at 0.72 rather than 1: with no
+// environment to reflect, a fully metallic surface has no diffuse term. What
+// it does not say, and what this rig learned the hard way, is that 0.72 is
+// only safe on *small* parts. A blade or a brow band at 0.72 catches the key
+// light and flashes. A breastplate at 0.72 fills the middle of the figure
+// with a surface that has nothing to reflect, and the whole man goes black
+// from above — which is the exact failure the guide warns about, arrived at
+// from the opposite direction.
+//
+// So metalness is graded by how much of the silhouette a part occupies.
+const PLATE = { metalness: 0.3, roughness: 0.44 }; // breastplate, cops, greaves
+const BLADE = { metalness: 0.5, roughness: 0.26 }; // blades and heads
+const STEEL = { metalness: 0.68, roughness: 0.3 }; // small bright fittings
+const IRON = { metalness: 0.55, roughness: 0.55 }; // sockets, ferrules, rims
+const CLOTH = { roughness: 0.92 };
+const WOOD = { roughness: 0.78 };
+const HIDE = { roughness: 0.72 };
 
-  axeHaft: new THREE.CylinderGeometry(0.038, 0.032, 1.05, 18),
-  axeHead: new THREE.BoxGeometry(0.06, 0.32, 0.24),
-  axeHorn: new THREE.ConeGeometry(0.06, 0.17, 14),
+// A flat profile — blade, board, plate.
+//
+// The convention is worth stating once because every weapon here uses it:
+// outlines are drawn in XY with **x across the blade and y along it**,
+// extruded for thickness, then turned a quarter so the width runs fore-and-aft
+// and the thickness runs side-to-side. That is the orientation an overhead
+// camera wants, and it matches how these parts hang off a shouldered haft.
+const flat = (points, thickness, bevel) =>
+  at(bevelled(points, thickness, bevel), { rot: [0, -Math.PI / 2, 0] });
 
-  swordBlade: new THREE.BoxGeometry(0.05, 0.78, 0.13),
-  swordGuard: new THREE.BoxGeometry(0.05, 0.05, 0.32),
-  swordGrip: new THREE.CylinderGeometry(0.033, 0.033, 0.22, 18),
+// --- the kit a figure wears ------------------------------------------------
 
-  spearHaft: new THREE.CylinderGeometry(0.032, 0.028, 1.9, 18),
-  spearHead: new THREE.ConeGeometry(0.055, 0.28, 14),
+// A round shield: a domed board, a raised rim, a turned boss.
+//
+// It replaces a cylinder and a sphere, and it is the single most valuable
+// object on an infantryman when the camera is overhead — the broadest thing
+// he carries, and the one most worth spending geometry on.
+const shieldParts = (p) => [
+  part(
+    turned(
+      [
+        [0, 0.052],
+        [0.07, 0.048],
+        [0.16, 0.036],
+        [0.225, 0.018],
+        [0.252, 0.004],
+        [0.26, -0.012],
+        [0.244, -0.03],
+        [0.16, -0.036],
+        [0, -0.04],
+      ],
+      22
+    ),
+    p.shield,
+    { rot: [Math.PI / 2.6, 0, 0.12], ...WOOD }
+  ),
+  // The rim is what makes a shield read as a made object rather than a disc
+  part(new THREE.TorusGeometry(0.252, 0.018, 8, 26), p.shieldTrim, {
+    rot: [Math.PI / 2.6 + Math.PI / 2, 0, 0.12],
+    pos: [0, -0.004, 0],
+    ...IRON,
+  }),
+  part(
+    turned(
+      [
+        [0, 0.098],
+        [0.03, 0.09],
+        [0.055, 0.062],
+        [0.07, 0.028],
+        [0.075, 0.006],
+        [0.075, 0],
+      ],
+      18
+    ),
+    p.shieldTrim,
+    { pos: [0, 0.03, -0.055], rot: [Math.PI / 2.6, 0, 0.12], ...STEEL }
+  ),
+];
 
-  // A bow is a wide arc. Held across the body rather than upright, it is the
-  // broadest pale shape an archer has — worth more from above than the arrow
-  // ever will be.
-  bow: new THREE.TorusGeometry(0.32, 0.022, 10, 28, Math.PI * 1.15),
-  arrow: new THREE.CylinderGeometry(0.012, 0.012, 0.62, 18),
-  quiver: new THREE.CylinderGeometry(0.058, 0.05, 0.34, 18),
+// A helm: a turned bowl with a brow band and a nasal, rather than a cone.
+const helmParts = (p, robed) =>
+  robed
+    ? [
+        // A hood, gathered rather than conical
+        part(
+          turned(
+            [
+              [0, 0.24],
+              [0.05, 0.19],
+              [0.11, 0.12],
+              [0.16, 0.02],
+              [0.185, -0.09],
+              [0.2, -0.17],
+              [0.18, -0.2],
+              [0, -0.21],
+            ],
+            18
+          ),
+          p.cloth,
+          { pos: [0, 0.05, 0.02], rot: [0.14, 0, 0], ...CLOTH }
+        ),
+        // The face inside it. A hood with nothing under it is a bag; one
+        // shadowed opening is the whole difference.
+        part(new THREE.SphereGeometry(0.105, 14, 12), p.haft, {
+          pos: [0, -0.02, -0.09],
+          scale: [1, 1, 0.7],
+          ...CLOTH,
+        }),
+      ]
+    : [
+        part(
+          turned(
+            [
+              [0, 0.15],
+              [0.045, 0.145],
+              [0.09, 0.115],
+              [0.122, 0.055],
+              [0.138, -0.02],
+              [0.142, -0.06],
+              [0.128, -0.075],
+              [0, -0.08],
+            ],
+            20
+          ),
+          p.metalDark,
+          { pos: [0, 0.045, 0], ...PLATE }
+        ),
+        // Brow band — a bright ring where the light catches hardest
+        part(new THREE.TorusGeometry(0.138, 0.015, 7, 22), p.metal, {
+          pos: [0, -0.025, 0],
+          rot: [Math.PI / 2, 0, 0],
+          ...STEEL,
+        }),
+        // Nasal, down the front of the face
+        part(new THREE.BoxGeometry(0.032, 0.13, 0.03), p.metal, {
+          pos: [0, -0.01, -0.14],
+          ...STEEL,
+        }),
+      ];
 
-  // A crossbow reads as a cross from above, which is the whole reason it is
-  // worth distinguishing from a bow: the stock runs fore and aft and the prod
-  // runs across it, and both lie flat
-  crossbowStock: new THREE.BoxGeometry(0.05, 0.05, 0.52),
-  crossbowProd: new THREE.BoxGeometry(0.56, 0.035, 0.05),
+// Torso, arms and whatever hangs off them. This is the biggest cluster and
+// the one that carries the figure's colour.
+const bodyParts = (p, body) => {
+  const parts = [];
 
-  // Hangs off the shoulders and spreads behind — the broadest flat area a
-  // man-sized figure has to offer a camera above it
-  cloak: new THREE.BoxGeometry(0.46, 0.03, 0.5),
-  beard: new THREE.ConeGeometry(0.11, 0.24, 14),
-  robe: new THREE.ConeGeometry(0.3, 0.72, 14),
-  hood: new THREE.ConeGeometry(0.19, 0.3, 14),
+  if (body.robe) {
+    // A cone seen from above is a disc: the broadest shape one figure offers
+    parts.push(
+      part(
+        turned(
+          [
+            [0.04, 0.36],
+            [0.12, 0.2],
+            [0.19, 0.02],
+            [0.26, -0.18],
+            [0.31, -0.34],
+            [0.32, -0.38],
+            [0, -0.39],
+          ],
+          18
+        ),
+        p.cloth,
+        { pos: [0, -0.02, 0], ...CLOTH }
+      )
+    );
+  }
 
-  staffHaft: new THREE.CylinderGeometry(0.03, 0.026, 1.5, 18),
-  staffHead: new THREE.SphereGeometry(0.1, 18, 14),
+  parts.push(
+    part(new THREE.CapsuleGeometry(0.19, 0.3, 8, 18), p.armour, {
+      pos: [0, 0.12, 0],
+      ...HIDE,
+    })
+  );
 
-  // A banner is the best thing a foot unit can carry here — a broad sheet of
-  // cloth held above the ranks, which from directly above is pure area and
-  // sits clear of every other figure on the stand
-  bannerPole: new THREE.CylinderGeometry(0.028, 0.024, 1.45, 18),
-  bannerCloth: new THREE.BoxGeometry(0.5, 0.03, 0.62),
-  bannerFinial: new THREE.ConeGeometry(0.06, 0.16, 14),
+  // Plate, and who wears it. A spellcaster in a breastplate and pauldrons is
+  // a soldier in a dress — and worse, three white domes in a row read as a
+  // snowman from above. Robed figures get a cord and nothing else.
+  if (body.robe) {
+    parts.push(
+      part(new THREE.TorusGeometry(0.2, 0.016, 6, 20), p.haft, {
+        pos: [0, -0.02, 0],
+        rot: [Math.PI / 2, 0, 0],
+        ...CLOTH,
+      })
+    );
+  } else {
+    parts.push(
+      // A breastplate laid over the chest. Bevelled, so its edge draws a
+      // bright line across the one face the camera sees square on.
+      part(
+        flat(
+          [
+            [-0.15, -0.16],
+            [0.15, -0.16],
+            [0.17, 0.06],
+            [0.11, 0.19],
+            [-0.11, 0.19],
+            [-0.17, 0.06],
+          ],
+          0.09,
+          0.014
+        ),
+        p.armourLit,
+        { pos: [0, 0.16, -0.13], rot: [0, Math.PI / 2, 0], ...PLATE }
+      ),
+      part(new THREE.TorusGeometry(0.185, 0.022, 6, 20), p.haft, {
+        pos: [0, -0.03, 0],
+        rot: [Math.PI / 2, 0, 0],
+        scale: [1, 1, 0.8],
+        ...HIDE,
+      })
+    );
+
+    // Shoulder cops, turned rather than spherical, so they read as plate
+    [-1, 1].forEach((side) => {
+      parts.push(
+        part(
+          turned(
+            [
+              [0, 0.075],
+              [0.055, 0.068],
+              [0.1, 0.04],
+              [0.128, -0.005],
+              [0.135, -0.045],
+              [0, -0.05],
+            ],
+            16
+          ),
+          p.armourLit,
+          { pos: [side * 0.2, 0.28, 0], rot: [0, 0, side * -0.22], ...PLATE }
+        )
+      );
+    });
+  }
+
+  // A cloak spread behind the shoulders. Nothing else on a figure this size
+  // presents so much flat area straight up — so it is cut with a curved hem
+  // rather than left a rectangle.
+  if (body.cloak) {
+    parts.push(
+      part(
+        at(
+          bevelled(
+            [
+              [-0.2, 0],
+              [0.2, 0],
+              [0.25, -0.2],
+              [0.23, -0.4],
+              [0.12, -0.52],
+              [0, -0.55],
+              [-0.12, -0.52],
+              [-0.23, -0.4],
+              [-0.25, -0.2],
+            ],
+            0.026,
+            0.008
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        p.cloth,
+        { pos: [0, 0.3, 0.06], rot: [-0.35, 0, 0], ...CLOTH }
+      )
+    );
+  }
+
+  // Both upper arms. Neither rotates in the poser — the shield and the weapon
+  // do — so they belong in the body buffer rather than in one of their own.
+  [
+    [-0.24, 0.08, -0.06],
+    [0.24, 0.1, -0.04],
+  ].forEach((pos, i) => {
+    parts.push(
+      part(new THREE.CapsuleGeometry(0.062, 0.22, 8, 14), p.skin, {
+        pos,
+        rot: [0, 0, (i === 0 ? 1 : -1) * 0.12],
+        ...HIDE,
+      }),
+      // A vambrace, which is the only thing that reads on an arm this size —
+      // or a sleeve cuff, on someone who does not wear plate
+      part(
+        new THREE.CylinderGeometry(
+          body.robe ? 0.08 : 0.064,
+          body.robe ? 0.07 : 0.058,
+          body.robe ? 0.16 : 0.085,
+          14
+        ),
+        body.robe ? p.cloth : p.metalDark,
+        {
+          pos: [pos[0], pos[1] - (body.robe ? 0.06 : 0.105), pos[2]],
+          ...(body.robe ? CLOTH : PLATE),
+        }
+      )
+    );
+  });
+
+  return parts;
 };
 
-const add = (geometry, material, parent, position, rotation) => {
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  parent.add(mesh);
-  return mesh;
+const headParts = (p, body) => {
+  const parts = [
+    part(new THREE.SphereGeometry(0.13, 18, 14), p.skin, {
+      scale: [1, 1.05, 1.02],
+      ...HIDE,
+    }),
+    ...helmParts(p, body.robe),
+  ];
+  // A beard hangs down the chest, which is one of the few parts of a figure
+  // an overhead camera sees square on. Turned, so it tapers.
+  if (body.beard) {
+    parts.push(
+      part(
+        turned(
+          [
+            [0, 0.02],
+            [0.115, -0.01],
+            [0.125, -0.1],
+            [0.1, -0.2],
+            [0.055, -0.29],
+            [0, -0.33],
+          ],
+          16
+        ),
+        p.cloth,
+        { pos: [0, -0.12, -0.13], rot: [-0.7, 0, 0], scale: [1.15, 1, 0.85], ...CLOTH }
+      )
+    );
+  }
+  return parts;
 };
+
+const thighParts = (p) => [
+  part(new THREE.CapsuleGeometry(0.068, 0.2, 8, 14), p.armour, {
+    pos: [0, -0.14, 0],
+    ...HIDE,
+  }),
+];
+
+const shinParts = (p) => [
+  part(new THREE.CapsuleGeometry(0.055, 0.2, 8, 14), p.armour, {
+    pos: [0, -0.11, 0],
+    ...HIDE,
+  }),
+  // Greave
+  part(new THREE.CylinderGeometry(0.066, 0.058, 0.16, 14), p.metalDark, {
+    pos: [0, -0.09, -0.012],
+    scale: [1, 1, 0.75],
+    ...PLATE,
+  }),
+  // A boot with a toe, cut as a profile rather than left a box
+  part(
+    at(
+      bevelled(
+        [
+          [-0.065, -0.1],
+          [0.065, -0.1],
+          [0.07, 0.03],
+          [0.03, 0.055],
+          [-0.03, 0.055],
+          [-0.07, 0.03],
+        ],
+        0.075,
+        0.01
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    p.haft,
+    { pos: [0, -0.26, -0.03], ...HIDE }
+  ),
+];
+
+// --- weapons ---------------------------------------------------------------
+
+// A tapered haft with a ferrule at the butt — shared by axe, spear and staff,
+// because they are the same stick with different things on the end.
+const haftParts = (p, length, radius = 0.036) => [
+  part(new THREE.CylinderGeometry(radius * 0.86, radius, length, 14), p.haft, {
+    pos: [0, length / 2 - 0.18, 0],
+    ...WOOD,
+  }),
+  part(new THREE.CylinderGeometry(radius * 1.25, radius * 1.15, 0.06, 14), p.metalDark, {
+    pos: [0, -0.16, 0],
+    ...IRON,
+  }),
+];
 
 // How each weapon is built, how the block carrying it forms up, and how it is
 // posed. Keeping the three together means a new weapon is one entry rather
@@ -216,11 +541,51 @@ const WEAPONS = {
     files: 5,
     ranks: 4,
     shield: true,
-    build: (parent, m) => {
-      add(GEOMETRY.axeHaft, m.haft, parent, [0, 0.34, 0]);
-      add(GEOMETRY.axeHead, m.metal, parent, [0.07, 0.76, 0]);
-      add(GEOMETRY.axeHorn, m.metal, parent, [0.07, 0.94, 0], [0, 0, -0.2]);
-    },
+    parts: (p) => [
+      ...haftParts(p, 1.08),
+      // A bearded axe: the beard hooks down below the socket and the horn
+      // rises above it, and between them they double the head's silhouette
+      part(
+        flat(
+          [
+            [-0.02, -0.14],
+            [0.09, -0.215],
+            [0.2, -0.15],
+            [0.245, 0.0],
+            [0.215, 0.145],
+            [0.09, 0.175],
+            [-0.02, 0.13],
+          ],
+          0.055,
+          0.012
+        ),
+        p.metal,
+        { pos: [0.05, 0.78, 0], ...BLADE }
+      ),
+      // The socket, wrapping the haft
+      part(new THREE.CylinderGeometry(0.058, 0.052, 0.3, 14), p.metalDark, {
+        pos: [0, 0.78, 0],
+        ...IRON,
+      }),
+      // Langets down the haft, which is where a real axe is bound
+      part(new THREE.BoxGeometry(0.016, 0.2, 0.05), p.metalDark, {
+        pos: [0, 0.58, 0],
+        ...IRON,
+      }),
+      part(
+        flat(
+          [
+            [0, -0.07],
+            [0.09, 0.0],
+            [0, 0.09],
+          ],
+          0.045,
+          0.008
+        ),
+        p.metal,
+        { pos: [0.02, 0.98, 0], ...BLADE }
+      ),
+    ],
     // Carried back over the shoulder. Authentic, and the only way the camera
     // sees an axe at all.
     rest: 0.85,
@@ -230,11 +595,75 @@ const WEAPONS = {
     files: 5,
     ranks: 4,
     shield: true,
-    build: (parent, m) => {
-      add(GEOMETRY.swordGrip, m.haft, parent, [0, 0.16, 0]);
-      add(GEOMETRY.swordGuard, m.metalDark, parent, [0, 0.29, 0]);
-      add(GEOMETRY.swordBlade, m.metal, parent, [0, 0.7, 0]);
-    },
+    parts: (p) => [
+      // A wrapped grip, turned so the wrap shows as ridges
+      part(
+        turned(
+          [
+            [0, 0],
+            [0.032, 0.01],
+            [0.03, 0.06],
+            [0.033, 0.11],
+            [0.03, 0.16],
+            [0.033, 0.21],
+            [0, 0.23],
+          ],
+          14
+        ),
+        p.haft,
+        { pos: [0, 0.06, 0], ...HIDE }
+      ),
+      // Pommel
+      part(
+        turned(
+          [
+            [0, 0],
+            [0.05, 0.015],
+            [0.055, 0.05],
+            [0.04, 0.08],
+            [0, 0.09],
+          ],
+          14
+        ),
+        p.metalDark,
+        { pos: [0, 0.0, 0], rot: [Math.PI, 0, 0], ...STEEL }
+      ),
+      // Cross guard, drooping toward the blade the way a real one does
+      part(
+        flat(
+          [
+            [-0.18, -0.022],
+            [-0.13, -0.05],
+            [0.13, -0.05],
+            [0.18, -0.022],
+            [0.17, 0.026],
+            [-0.17, 0.026],
+          ],
+          0.05,
+          0.008
+        ),
+        p.metalDark,
+        { pos: [0, 0.3, 0], rot: [0, Math.PI / 2, 0], ...BLADE }
+      ),
+      // The blade, tapered to a point with a fuller cut down its centre
+      part(
+        flat(
+          [
+            [-0.066, 0],
+            [0.066, 0],
+            [0.062, 0.4],
+            [0.045, 0.6],
+            [0, 0.72],
+            [-0.045, 0.6],
+            [-0.062, 0.4],
+          ],
+          0.05,
+          0.01
+        ),
+        p.metal,
+        { pos: [0, 0.33, 0], ...BLADE }
+      ),
+    ],
     // Laid flatter than an axe: a blade has less to show at its tip, so more
     // of its length has to face upward
     rest: 1.0,
@@ -246,10 +675,53 @@ const WEAPONS = {
     files: 5,
     ranks: 5,
     shield: true,
-    build: (parent, m) => {
-      add(GEOMETRY.spearHaft, m.haft, parent, [0, 0.72, 0]);
-      add(GEOMETRY.spearHead, m.metal, parent, [0, 1.75, 0]);
-    },
+    parts: (p) => [
+      ...haftParts(p, 1.92, 0.03),
+      // A leaf-bladed head with a socket and langets
+      part(
+        flat(
+          [
+            [-0.018, 0],
+            [0.018, 0],
+            [0.047, 0.07],
+            [0.05, 0.15],
+            [0.032, 0.27],
+            [0, 0.36],
+            [-0.032, 0.27],
+            [-0.05, 0.15],
+            [-0.047, 0.07],
+          ],
+          0.036,
+          0.006
+        ),
+        p.metal,
+        { pos: [0, 1.78, 0], ...BLADE }
+      ),
+      part(new THREE.CylinderGeometry(0.042, 0.034, 0.16, 14), p.metalDark, {
+        pos: [0, 1.7, 0],
+        ...IRON,
+      }),
+      // A pennon below the head. Free silhouette, and it puts the block's
+      // colour up where the camera can see it.
+      part(
+        at(
+          bevelled(
+            [
+              [-0.015, 0],
+              [0.015, 0],
+              [0.02, -0.16],
+              [-0.01, -0.22],
+              [-0.015, -0.16],
+            ],
+            0.11,
+            0.006
+          ),
+          { rot: [0, Math.PI / 2, 0] }
+        ),
+        p.shield,
+        { pos: [0, 1.62, 0], ...CLOTH }
+      ),
+    ],
     // Well down off the vertical. Held as a real pikeman holds it, a spear is
     // a single dark pixel; laid back over the shoulder it draws a line the
     // length of the stand, and a block of them reads as a thicket.
@@ -262,10 +734,65 @@ const WEAPONS = {
     files: 5,
     ranks: 4,
     shield: false,
-    build: (parent, m) => {
-      add(GEOMETRY.crossbowStock, m.haft, parent, [0, 0.3, -0.08]);
-      add(GEOMETRY.crossbowProd, m.metal, parent, [0, 0.31, -0.28]);
-    },
+    parts: (p) => [
+      // The tiller, cut as a profile so it has a stock and a nose
+      part(
+        at(
+          bevelled(
+            [
+              [-0.026, -0.3],
+              [0.026, -0.3],
+              [0.03, 0.02],
+              [0.024, 0.22],
+              [-0.024, 0.22],
+              [-0.03, 0.02],
+            ],
+            0.06,
+            0.008
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        p.haft,
+        { pos: [0, 0.3, 0.02], ...WOOD }
+      ),
+      // The prod, across the tiller. A crossbow reads as a cross from above,
+      // which is the whole reason it is worth distinguishing from a bow.
+      part(
+        at(
+          bevelled(
+            [
+              [-0.3, -0.018],
+              [-0.12, -0.026],
+              [0.12, -0.026],
+              [0.3, -0.018],
+              [0.3, 0.014],
+              [-0.3, 0.014],
+            ],
+            0.042,
+            0.006
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        p.metalDark,
+        { pos: [0, 0.315, -0.24], ...IRON }
+      ),
+      // String, drawn back to the nut
+      part(swept([[-0.29, 0, -0.235], [0, 0, -0.08], [0.29, 0, -0.235]], 0.008), p.cloth, {
+        pos: [0, 0.325, 0],
+        ...CLOTH,
+      }),
+      part(new THREE.CylinderGeometry(0.036, 0.036, 0.05, 12), p.metal, {
+        pos: [0, 0.325, -0.06],
+        rot: [0, 0, Math.PI / 2],
+        ...STEEL,
+      }),
+      // A quarrel in the groove
+      part(new THREE.CylinderGeometry(0.011, 0.011, 0.34, 8), p.haft, {
+        pos: [0, 0.345, -0.18],
+        rot: [Math.PI / 2, 0, 0],
+        ...WOOD,
+      }),
+    ],
     // Levelled, because that is both how a crossbow is carried ready and how
     // it turns its cross toward the camera
     rest: 1.35,
@@ -279,10 +806,48 @@ const WEAPONS = {
     ranks: 2,
     shield: false,
     spacing: 1.75,
-    build: (parent, m) => {
-      add(GEOMETRY.staffHaft, m.haft, parent, [0, 0.5, 0]);
-      add(GEOMETRY.staffHead, m.metal, parent, [0, 1.26, 0]);
-    },
+    parts: (p) => [
+      // A knotted shaft: the swell is what says grown rather than turned
+      part(
+        turned(
+          [
+            [0.028, 0],
+            [0.03, 0.3],
+            [0.036, 0.34],
+            [0.029, 0.4],
+            [0.031, 0.8],
+            [0.038, 0.85],
+            [0.03, 0.9],
+            [0.028, 1.2],
+            [0, 1.22],
+          ],
+          12
+        ),
+        p.haft,
+        { pos: [0, -0.16, 0], ...WOOD }
+      ),
+      // A cage of iron holding a stone at the head — three claws, and the
+      // stone bright enough to be the figure's contrast against the turf
+      part(new THREE.OctahedronGeometry(0.085, 1), p.metal, {
+        pos: [0, 1.2, 0],
+        ...BLADE,
+      }),
+      ...[0, 1, 2].map((i) =>
+        part(
+          swept(
+            [
+              [0, -0.14, 0],
+              [0.075, -0.05, 0],
+              [0.085, 0.06, 0],
+              [0.03, 0.12, 0],
+            ],
+            0.013
+          ),
+          p.metalDark,
+          { pos: [0, 1.2, 0], rot: [0, (i * Math.PI * 2) / 3, 0], ...IRON }
+        )
+      ),
+    ],
     // Held across the body rather than planted upright — a staff standing on
     // end is the single least useful shape on this board
     rest: 1.25,
@@ -294,18 +859,181 @@ const WEAPONS = {
     ranks: 3,
     shield: false,
     spacing: 1.16,
-    build: (parent, m) => {
-      // Laid over so the arc presents its face upward
-      add(GEOMETRY.bow, m.cloth, parent, [0, 0.3, 0], [1.15, 0, 0.15]);
-      add(GEOMETRY.arrow, m.haft, parent, [0.03, 0.34, -0.1], [1.35, 0, 0]);
-    },
+    parts: (p) => [
+      // A recurve, swept along a curve rather than cut from a torus: the tips
+      // turn back, which is the whole visual difference between a bow and a
+      // hoop. Laid over so the arc presents its face upward.
+      part(
+        swept(
+          [
+            [-0.28, -0.16, 0],
+            [-0.32, 0.0, 0],
+            [-0.24, 0.2, 0],
+            [0, 0.3, 0],
+            [0.24, 0.2, 0],
+            [0.32, 0.0, 0],
+            [0.28, -0.16, 0],
+          ],
+          0.02,
+          { segments: 30, sides: 6 }
+        ),
+        p.haft,
+        { pos: [0, 0.3, 0], rot: [1.15, 0, 0.15], ...WOOD }
+      ),
+      // The string, nocked and drawn a little
+      part(
+        swept(
+          [
+            [-0.28, -0.16, 0],
+            [0, 0.02, 0.05],
+            [0.28, -0.16, 0],
+          ],
+          0.006,
+          { segments: 12, sides: 5 }
+        ),
+        p.shieldTrim,
+        { pos: [0, 0.3, 0], rot: [1.15, 0, 0.15], ...CLOTH }
+      ),
+      part(new THREE.CylinderGeometry(0.011, 0.011, 0.62, 8), p.haft, {
+        pos: [0.03, 0.34, -0.1],
+        rot: [1.35, 0, 0],
+        ...WOOD,
+      }),
+      // Fletching. Three vanes, and the only part of an arrow with any area.
+      ...[0, 1, 2].map((i) =>
+        part(
+          at(
+            bevelled(
+              [
+                [-0.008, 0],
+                [0.008, 0],
+                [0.03, 0.03],
+                [0.03, 0.1],
+                [-0.008, 0.12],
+              ],
+              0.006,
+              0
+            ),
+            { rot: [0, 0, 0] }
+          ),
+          p.shieldTrim,
+          {
+            pos: [0.03, 0.34, -0.1],
+            rot: [1.35 + Math.PI / 2, (i * Math.PI * 2) / 3, 0],
+            ...CLOTH,
+          }
+        )
+      ),
+    ],
     rest: 0.2,
     swing: 0.35,
   },
 };
 
+// The colours, carried instead of a weapon by one figure in the front rank.
+const bannerParts = (p) => [
+  part(new THREE.CylinderGeometry(0.024, 0.028, 1.45, 12), p.haft, {
+    pos: [0, 0.5, 0],
+    ...WOOD,
+  }),
+  // A sheet with a swallow-tailed fly and a slight wave along its length —
+  // the wave is what catches the key light and stops it reading as card
+  part(
+    at(
+      bevelled(
+        [
+          [-0.25, 0],
+          [0.25, 0],
+          [0.25, -0.44],
+          [0.12, -0.54],
+          [0.0, -0.44],
+          [-0.12, -0.54],
+          [-0.25, -0.44],
+        ],
+        0.022,
+        0.008
+      ),
+      { rot: [Math.PI / 2, 0, 0] }
+    ),
+    p.shield,
+    { pos: [0, 1.16, 0.22], rot: [0.5, 0, 0], ...CLOTH }
+  ),
+  part(new THREE.TorusGeometry(0.03, 0.012, 6, 14), p.shieldTrim, {
+    pos: [0, 1.19, 0],
+    rot: [Math.PI / 2, 0, 0],
+    ...STEEL,
+  }),
+  part(
+    turned(
+      [
+        [0, 0],
+        [0.055, 0.04],
+        [0.04, 0.11],
+        [0, 0.18],
+      ],
+      14
+    ),
+    p.shieldTrim,
+    { pos: [0, 1.22, 0], ...STEEL }
+  ),
+];
+
+// One block's worth of buffers, built once and worn by every figure in it.
+const buildBuffers = (weapon, spec, p, body) => ({
+  body: merge(bodyParts(p, body)),
+  head: merge(headParts(p, body)),
+  thigh: merge(thighParts(p)),
+  shin: merge(shinParts(p)),
+  shield: spec.shield
+    ? merge(shieldParts(p))
+    : weapon === "bow"
+      ? // No shield, so a quiver takes the slot and gives the figure a second
+        // shape at its back
+        merge([
+          part(
+            turned(
+              [
+                [0, 0],
+                [0.06, 0.01],
+                [0.055, 0.28],
+                [0.062, 0.32],
+                [0.05, 0.34],
+                [0, 0.35],
+              ],
+              14
+            ),
+            p.haft,
+            { pos: [-0.02, -0.18, 0.1], rot: [0.5, 0, 0.2], ...HIDE }
+          ),
+          ...[-0.02, 0.02].map((dx) =>
+            part(new THREE.CylinderGeometry(0.009, 0.009, 0.2, 6), p.shieldTrim, {
+              pos: [-0.02 + dx, 0.06, 0.02],
+              rot: [0.5, 0, 0.2],
+              ...CLOTH,
+            })
+          ),
+        ])
+    : null,
+  weapon: merge(spec.parts(p)),
+  banner: merge(bannerParts(p)),
+});
+
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
+  const mesh = new THREE.Mesh(geometry, material);
+  if (position) mesh.position.set(...position);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+};
+
 // One figure, facing -Z, standing on y = 0.
-const makeFigure = (weapon, m, spec, build, carriesBanner) => {
+//
+// Eight meshes, which is one per part of a man that moves independently of
+// the others. Everything inside one of them was merged when the buffers were
+// built.
+const makeFigure = (buffers, material, spec, build, carriesBanner) => {
   const group = new THREE.Group();
   // Short and broad, or tall and narrow. Applied to the whole figure so the
   // kit scales with the body rather than floating beside it.
@@ -314,82 +1042,43 @@ const makeFigure = (weapon, m, spec, build, carriesBanner) => {
   const hips = new THREE.Group();
   hips.position.y = 0.52;
   group.add(hips);
-
-  // The robe goes on first so the torso sits inside it
-  if (build.robe) {
-    add(GEOMETRY.robe, m.cloth, hips, [0, -0.1, 0]);
-  }
-  add(GEOMETRY.torso, m.armour, hips, [0, 0.12, 0]);
-  add(GEOMETRY.pauldron, m.armourLit, hips, [0.2, 0.26, 0]);
-  add(GEOMETRY.pauldron, m.armourLit, hips, [-0.2, 0.26, 0]);
-
-  // A cloak spread behind the shoulders. Nothing else on a figure this size
-  // presents so much flat area straight up.
-  if (build.cloak) {
-    add(GEOMETRY.cloak, m.cloth, hips, [0, 0.24, 0.2], [-0.35, 0, 0]);
-  }
+  hang(hips, buffers.body, material);
 
   const head = new THREE.Group();
   head.position.set(0, 0.46, -0.02);
   hips.add(head);
-  add(GEOMETRY.head, m.skin, head, [0, 0, 0]);
-  add(build.robe ? GEOMETRY.hood : GEOMETRY.helm, build.robe ? m.cloth : m.metalDark, head, [0, 0.1, 0]);
-  // A beard hangs down the chest, which is one of the few parts of a figure
-  // an overhead camera sees square on
-  if (build.beard) {
-    add(GEOMETRY.beard, m.cloth, head, [0, -0.16, -0.08], [Math.PI - 0.3, 0, 0]);
-  }
+  hang(head, buffers.head, material);
 
   // Two legs, alternating on the march
   const legs = [1, -1].map((side) => {
     const hip = new THREE.Group();
     hip.position.set(side * 0.1, -0.06, 0);
     hips.add(hip);
-    add(GEOMETRY.limb, m.armour, hip, [0, -0.14, 0]);
+    hang(hip, buffers.thigh, material);
     const shin = new THREE.Group();
     shin.position.y = -0.26;
     hip.add(shin);
-    add(GEOMETRY.limb, m.armour, shin, [0, -0.11, 0]);
-    add(GEOMETRY.boot, m.armour, shin, [0, -0.24, -0.02]);
+    hang(shin, buffers.shin, material);
     return { hip, shin, side };
   });
 
   // Shield on the left, canted forward so it presents its face to an enemy —
   // and, incidentally, most of its area to the camera
   let shield = null;
-  const shieldArm = new THREE.Group();
-  shieldArm.position.set(-0.24, 0.18, -0.06);
-  hips.add(shieldArm);
-  add(GEOMETRY.limb, m.skin, shieldArm, [0, -0.1, 0]);
-  if (spec.shield) {
+  if (buffers.shield) {
     shield = new THREE.Group();
-    shield.position.set(-0.06, -0.08, -0.12);
-    shieldArm.add(shield);
-    add(GEOMETRY.shield, m.shield, shield, [0, 0, 0], [Math.PI / 2.6, 0, 0.12]);
-    add(GEOMETRY.boss, m.shieldTrim, shield, [0, 0.06, -0.1]);
-  } else if (weapon === "bow") {
-    // No shield, so the quiver takes the slot and gives the figure a second
-    // shape at its back
-    add(GEOMETRY.quiver, m.haft, shieldArm, [-0.02, -0.04, 0.14], [0.5, 0, 0.2]);
+    shield.position.set(-0.3, 0.1, -0.18);
+    hips.add(shield);
+    hang(shield, buffers.shield, material);
+    // A quiver is worn, not held: it must not swing with the shield arm
+    if (!spec.shield) shield = null;
   }
 
   // Weapon arm on the right
-  const weaponArm = new THREE.Group();
-  weaponArm.position.set(0.24, 0.2, -0.04);
-  hips.add(weaponArm);
-  add(GEOMETRY.limb, m.skin, weaponArm, [0, -0.1, 0]);
-
   const held = new THREE.Group();
-  held.position.set(0.02, -0.06, 0);
-  weaponArm.add(held);
-  if (carriesBanner) {
-    add(GEOMETRY.bannerPole, m.haft, held, [0, 0.5, 0]);
-    // Canted back so the cloth turns its face upward rather than edge-on
-    add(GEOMETRY.bannerCloth, m.shield, held, [0, 1.05, 0.24], [0.5, 0, 0]);
-    add(GEOMETRY.bannerFinial, m.shieldTrim, held, [0, 1.28, 0]);
-  } else {
-    spec.build(held, m);
-  }
+  held.position.set(0.26, 0.14, -0.04);
+  hips.add(held);
+  hang(held, carriesBanner ? buffers.banner : buffers.weapon, material);
 
   return { group, hips, head, legs, shield, weapon: held, carriesBanner };
 };
@@ -401,8 +1090,8 @@ const makeFigure = (weapon, m, spec, build, carriesBanner) => {
  * a formation is recognisable as a formation before any single figure in it
  * is recognisable as a man.
  *
- * `weapon` is axe, sword, spear or bow, and carries the block's shape with
- * it — pikes form deeper, archers looser.
+ * `weapon` is axe, sword, spear, crossbow, staff or bow, and carries the
+ * block's shape with it — pikes form deeper, archers looser.
  */
 export const buildInfantry = ({
   weapon = "axe",
@@ -416,17 +1105,8 @@ export const buildInfantry = ({
   const spec = WEAPONS[weapon] ?? WEAPONS.axe;
   const p = PALETTES[palette] ?? PALETTES.orc;
   const body = BUILDS[build] ?? BUILDS.man;
-  const m = {
-    armour: matte(p.armour),
-    armourLit: matte(p.armourLit),
-    skin: matte(p.skin),
-    metal: metal(p.metal, 0.32),
-    metalDark: metal(p.metalDark, 0.45),
-    shield: matte(p.shield),
-    shieldTrim: metal(p.shieldTrim, 0.35),
-    haft: matte(p.haft),
-    cloth: matte(p.cloth, 0.7),
-  };
+  const material = surfaceMaterial();
+  const buffers = buildBuffers(weapon, spec, p, body);
 
   const root = new THREE.Group();
   const figures = [];
@@ -444,7 +1124,7 @@ export const buildInfantry = ({
       // centre, where a real standard-bearer would stand
       const carriesBanner =
         banner && rank === 0 && file === Math.floor(across / 2);
-      const figure = makeFigure(weapon, m, spec, body, carriesBanner);
+      const figure = makeFigure(buffers, material, spec, body, carriesBanner);
       // Alternate ranks step half a file across, closing the gaps in front —
       // the same dressing the card art shows
       const stagger = rank % 2 === 1 ? stepX / 2 : 0;

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte } from "./materials.js";
+import { merge, part, surfaceMaterial } from "./kit.js";
 
 // The Swarm of Rats, and anything else that is a carpet rather than a unit.
 //
@@ -19,31 +19,60 @@ import { matte } from "./materials.js";
 // pale, thin, and pointing every which way, they break up the mass into
 // something that reads as *many* rather than as one grey blanket.
 
-const MATERIALS = {
-  fur: matte(0x6f6455),
-  furPale: matte(0x8d8271),
-  tail: matte(0xc4b49c, 0.8),
-  eye: new THREE.MeshStandardMaterial({
-    color: 0xc23a2a,
-    roughness: 0.3,
-    emissive: 0x2a0603,
+const FUR = 0x6f6455;
+const FUR_PALE = 0x8d8271;
+const TAIL = 0xc4b49c;
+const EYE = 0xc23a2a;
+
+const PELT = { roughness: 0.95 };
+const WET = { metalness: 0.3, roughness: 0.25 };
+
+// Two buffers a rat, and deliberately coarse ones. This is the one rig that
+// was left out of the density pass and stays out of it: no rat is ever looked
+// at closely, there are more of them than of anything else on the board, and
+// segments spent here buy nothing at all.
+//
+// What the merge buys here is not detail — it is the mesh count itself. A rat
+// used to be six meshes and sixty-six rats were four hundred of them, easily
+// the heaviest single unit in the game. Body, head, ears and eyes now share
+// one buffer because none of them moves independently at this size; only the
+// tail keeps its own, because the tail sweep is the whole read.
+const ratBodyParts = (pale) => [
+  part(new THREE.CapsuleGeometry(0.055, 0.11, 3, 6), pale ? FUR_PALE : FUR, {
+    pos: [0, 0, 0],
+    rot: [Math.PI / 2, 0, 0],
+    ...PELT,
   }),
-};
+  part(new THREE.ConeGeometry(0.045, 0.11, 5), pale ? FUR_PALE : FUR, {
+    pos: [0, 0, -0.15],
+    rot: [-Math.PI / 2, 0, 0],
+    ...PELT,
+  }),
+  ...[0.035, -0.035].map((x) =>
+    part(new THREE.SphereGeometry(0.022, 5, 4), FUR_PALE, {
+      pos: [x, 0.035, -0.09],
+      ...PELT,
+    })
+  ),
+  ...[0.025, -0.025].map((x) =>
+    part(new THREE.SphereGeometry(0.012, 4, 3), EYE, {
+      pos: [x, 0.015, -0.15],
+      ...WET,
+    })
+  ),
+];
 
-// Four meshes a rat, and deliberately coarse ones. This is the one rig that
-// was left out of the density pass: no rat is ever looked at closely, there
-// are four hundred meshes of them, and segments spent here buy nothing at all.
-const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.055, 0.11, 3, 6),
-  head: new THREE.ConeGeometry(0.045, 0.11, 5),
-  tail: new THREE.CylinderGeometry(0.012, 0.006, 0.2, 4),
-  ear: new THREE.SphereGeometry(0.022, 5, 4),
-};
+// The tail: pale, and laid almost flat so its whole length shows from above
+const ratTailParts = () => [
+  part(new THREE.CylinderGeometry(0.012, 0.006, 0.2, 4), TAIL, {
+    pos: [0, -0.01, 0.1],
+    rot: [Math.PI / 2.1, 0, 0],
+    ...PELT,
+  }),
+];
 
-const add = (geometry, material, parent, position, rotation) => {
+const hang = (parent, geometry, material) => {
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
@@ -51,36 +80,19 @@ const add = (geometry, material, parent, position, rotation) => {
 };
 
 // One rat, nose along -Z, on the ground.
-const makeRat = (pale) => {
+const makeRat = (buffers, material, pale) => {
   const group = new THREE.Group();
   const body = new THREE.Group();
   body.position.y = 0.075;
   group.add(body);
+  hang(body, pale ? buffers.pale : buffers.body, material);
 
-  add(GEOMETRY.body, pale ? MATERIALS.furPale : MATERIALS.fur, body, [0, 0, 0], [
-    Math.PI / 2,
-    0,
-    0,
-  ]);
-  const head = new THREE.Group();
-  head.position.z = -0.12;
-  body.add(head);
-  add(GEOMETRY.head, pale ? MATERIALS.furPale : MATERIALS.fur, head, [0, 0, -0.03], [
-    -Math.PI / 2,
-    0,
-    0,
-  ]);
-  add(GEOMETRY.ear, MATERIALS.furPale, head, [0.035, 0.035, 0.03]);
-  add(GEOMETRY.ear, MATERIALS.furPale, head, [-0.035, 0.035, 0.03]);
-  add(GEOMETRY.eye, MATERIALS.eye, head, [0.025, 0.015, -0.03]);
-
-  // The tail: pale, and laid almost flat so its whole length shows from above
   const tail = new THREE.Group();
   tail.position.z = 0.12;
   body.add(tail);
-  add(GEOMETRY.tail, MATERIALS.tail, tail, [0, -0.01, 0.1], [Math.PI / 2.1, 0, 0]);
+  hang(tail, buffers.tail, material);
 
-  return { group, body, head, tail };
+  return { group, body, tail };
 };
 
 /**
@@ -91,6 +103,12 @@ const makeRat = (pale) => {
  * without the regularity reading as a formation.
  */
 export const buildSwarm = ({ across = 11, deep = 6, spread = 3.0 } = {}) => {
+  const material = surfaceMaterial();
+  const buffers = {
+    body: merge(ratBodyParts(false)),
+    pale: merge(ratBodyParts(true)),
+    tail: merge(ratTailParts()),
+  };
   const root = new THREE.Group();
   const rats = [];
 
@@ -101,7 +119,7 @@ export const buildSwarm = ({ across = 11, deep = 6, spread = 3.0 } = {}) => {
       // would boil rather than scurry
       const jx = (((index * 13) % 17) / 17 - 0.5) * 1.4;
       const jz = (((index * 29) % 11) / 11 - 0.5) * 1.4;
-      const rat = makeRat(index % 5 === 0);
+      const rat = makeRat(buffers, material, index % 5 === 0);
       rat.group.position.set(
         (col / (across - 1) - 0.5) * spread + jx * (spread / across),
         0,
@@ -152,7 +170,9 @@ export const poseSwarm = (rig, time, state = "idle") => {
     // Nose swinging, and the body bobbing over its feet
     rat.group.rotation.y += Math.sin(t * 0.7) * 0.02 * gait.turn;
     rat.body.position.y = 0.075 + Math.abs(Math.sin(t * 2)) * 0.012 * gait.scurry;
-    rat.head.rotation.x = Math.sin(t * 1.6) * 0.2;
+    // The whole body pitches instead of the head alone: at four pixels a rat
+    // the difference is invisible and it saves a buffer on every one of them
+    rat.body.rotation.x = Math.sin(t * 1.6) * 0.12;
     rat.tail.rotation.y = Math.sin(t * 1.1) * 0.55;
   });
 };

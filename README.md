@@ -104,6 +104,19 @@ and `docs/creature-brief.md` holds the agreed direction per faction.
 Three.js loads on the first switch and not before, so a player who never turns
 figures on never pays for them.
 
+## When a unit is destroyed
+
+Marking off the last damage box takes a unit out of the game. Its stand stays
+where it fell as a record of what happened, dimmed to a third so it reads as
+visibly behind the living, and it stops answering to anything: it cannot be
+marched, selected, attacked, or charged into, and it no longer counts as
+pinning an enemy's flank or rear.
+
+The one gesture it still answers to is a double-tap, which rubs out a box and
+brings it back at In the Red. That exists because a destroyed unit is
+otherwise unreachable — a card marked off by accident could only be recovered
+by rebuilding the whole muster.
+
 ## Which way the panel faces
 
 An engagement opens the panel at the edge of the board belonging to whoever
@@ -122,6 +135,7 @@ down on a monitor and the right way up to the person it is for.
 | Tap your unit, then tap an enemy | Declares an attack without marching — this is how you shoot |
 | Double-tap a unit | Rescind its order; it marches back to where the turn began |
 | **New Turn** | Every unit's Movement allowance resets to where it now stands; charges and turn-scoped buffs clear |
+| Double-tap a destroyed unit | Rub out one damage box and bring it back into the fight — the undo for a mis-tapped kill |
 
 While setting out, dragging is bounded by the deployment line instead of by
 Movement, and nothing can be attacked — no army is committed until both are
@@ -161,12 +175,18 @@ src/
       roster.js       which figures a unit fields -- no Three.js, so the board
                       can ask on every frame in card mode
       registry.js     which builder each kind maps to -- dynamically imported
+      kit.js          the toolkit every rig is built with: merged buffers, one
+                      material that carries colour and metalness per vertex,
+                      and the shapes worth more than a box
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
       infantry3d.js   foot, by weapon, palette and build -- five weapons,
                       eight palettes, four body plans
       cavalry3d.js    horse and wolf, by mount, rider and what they carry
-      warMachine3d.js ballistae, catapults and chariots, with their crews
+      warMachine3d.js ballistae, scorpions and chariots, with their crews
+      catapult3d.js   the throwing engines, modelled rather than blocked out:
+                      extruded timber and turned fittings merged into a
+                      handful of meshes
       brutes3d.js     trolls, ogres, giants -- the shape with no silhouette
       dragon3d.js     wings, and the hydra that manages without them
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
@@ -215,6 +235,8 @@ Events, so either build works:
 ## Known rough edges
 
 - Only one engagement is open at a time.
+- Destroyed units stay on the table rather than being cleared away. They are
+  inert and dimmed, but they still occupy their square of board.
 - Command Cards are plumbed through `resolveEngagement` but have no UI yet.
 - The standing-order disc is drawn on every card but nothing writes to it yet;
   orders are still something the players hold between them.

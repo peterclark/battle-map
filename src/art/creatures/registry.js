@@ -15,6 +15,7 @@ import { buildTyrannosaur, poseTyrannosaur } from "./trex3d.js";
 import { buildLizardfolk, poseLizardfolk } from "./lizardfolk3d.js";
 import { buildSaurians, poseSaurians } from "./saurians3d.js";
 import { buildWarMachines, poseWarMachines } from "./warMachine3d.js";
+import { buildCatapults, poseCatapults } from "./catapult3d.js";
 import {
   buildAbomination,
   buildBrutes,
@@ -132,8 +133,6 @@ const HORSE = {
 const ENGINES = {
   "engine.ballista": { engine: "heavyBolter", palette: "dwarf", count: 2 },
   "engine.scorpion": { engine: "bolter", palette: "highElf", count: 2 },
-  "engine.catapult": { engine: "thrower", palette: "undead", count: 1 },
-  "engine.bombChucker": { engine: "thrower", palette: "orc", count: 2 },
   "engine.chariot": { engine: "chariot", palette: "highElf", count: 2 },
 };
 
@@ -195,6 +194,15 @@ Object.entries(HORSE).forEach(([kind, options]) => {
 
 Object.entries(ENGINES).forEach(([kind, options]) => {
   BUILDERS[kind] = wrap(() => buildWarMachines(options), poseWarMachines);
+});
+
+// The throwing engines have their own rig, modelled rather than blocked out
+const CATAPULTS = {
+  "engine.catapult": { palette: "undead", count: 1 },
+  "engine.bombChucker": { palette: "orc", count: 2 },
+};
+Object.entries(CATAPULTS).forEach(([kind, options]) => {
+  BUILDERS[kind] = wrap(() => buildCatapults(options), poseCatapults);
 });
 
 Object.entries(BRUTES).forEach(([kind, options]) => {

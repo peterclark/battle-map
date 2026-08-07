@@ -1,5 +1,5 @@
 import { find, flatMap, map, range, reject, sumBy } from "lodash";
-import { UNITS_BY_UID, damageBoxes } from "../rules/data/index.js";
+import { UNITS_BY_UID, damageBoxes, damageStatus } from "../rules/data/index.js";
 import { CARD_INCHES_H, CARD_INCHES_W } from "../art/cardFace.js";
 
 // 48" × 27" is a four-foot table at 16:9 — the aspect of the panel or the
@@ -211,6 +211,24 @@ export const withOrderRescinded = (token) => ({
   y: token.orderY,
   facing: token.orderFacing,
   charged: false,
+});
+
+// A unit with every damage box marked is out of the game. It stays on the
+// table as a record of what happened rather than being cleared away, but it
+// no longer marches, fights, or blocks anyone's flank.
+export const isDestroyed = (token) =>
+  damageStatus(token.unit, token.marked) === "destroyed";
+
+/** The units still in the fight — what the modifier rules should look at. */
+export const stillStanding = (tokens) => reject(tokens, isDestroyed);
+
+// Bring a destroyed unit back to In the Red by rubbing out one box. The undo
+// for a mis-tap: without it a card marked off in error is unrecoverable
+// short of rebuilding the whole muster, because a destroyed unit stops
+// answering to anything else.
+export const withOneBoxBack = (token) => ({
+  ...token,
+  marked: Math.max(token.marked - 1, 0),
 });
 
 export const withDamage = (token, marked) => ({

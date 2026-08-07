@@ -13,7 +13,9 @@ import {
   clampToDeployment,
   clampToMovement,
   deploymentZone,
+  isDestroyed,
   marchedInches,
+  withOneBoxBack,
 } from "./board.js";
 
 // A drag has to travel this far before it stops counting as a tap. An IR
@@ -171,8 +173,15 @@ const drawToken = (
   // track and gives up its drawn ranks, so there is one army on it, not two
   const image = cardImage(token.unit, token.color, repaint, { liveOccupant });
   const status = damageStatus(token.unit, token.marked);
+  const dead = status === "destroyed";
 
   enterTokenFrame(ctx, t, token);
+
+  // A destroyed unit is out of the game. It stays on the table as a record of
+  // what happened, but everything about it recedes: the whole stand drops to
+  // a third, which puts it visibly behind the living without removing the
+  // information on it.
+  if (dead) ctx.globalAlpha = 0.34;
 
   // Cast shadow, so a card reads as lying on the table rather than printed
   // into it
@@ -226,7 +235,7 @@ const drawToken = (
   ctx.lineTo(cardW / 2 - cardW * 0.08, -cardH / 2);
   ctx.stroke();
 
-  if (held || selected || engaged) {
+  if (!dead && (held || selected || engaged)) {
     ctx.strokeStyle = engaged ? "#e24b4a" : "#fac775";
     ctx.lineWidth = Math.max(cardH * 0.035, 2);
     roundedRect(
@@ -240,8 +249,8 @@ const drawToken = (
     ctx.stroke();
   }
 
-  if (status === "destroyed") {
-    ctx.strokeStyle = "rgba(163,45,45,0.5)";
+  if (dead) {
+    ctx.strokeStyle = "rgba(163,45,45,0.65)";
     ctx.lineWidth = Math.max(cardH * 0.06, 3);
     ctx.beginPath();
     ctx.moveTo(-cardW / 2, -cardH / 2);
@@ -440,27 +449,37 @@ export default function Battlefield({
     }
 
     // Two taps on the same card rescind its order — it marches back to where
-    // the turn found it, the undo for a march made in error.
+    // the turn found it, the undo for a march made in error. On a destroyed
+    // unit the same gesture rubs out one damage box and brings it back into
+    // the fight, which is the undo for a mis-tapped kill: nothing else on the
+    // board will answer to a corpse, so without this a card marked off by
+    // accident could only be recovered by rebuilding the muster.
     const now = event.timeStamp;
     const previous = lastTapRef.current;
     if (previous.tokenId === token.id && now - previous.at < DOUBLE_TAP_MS) {
       lastTapRef.current = { tokenId: null, at: 0 };
       onTokensChange((current) =>
         current.map((entry) =>
-          entry.id === token.id
-            ? {
-                ...entry,
-                x: entry.orderX,
-                y: entry.orderY,
-                facing: entry.orderFacing,
-                charged: false,
-              }
-            : entry
+          entry.id !== token.id
+            ? entry
+            : isDestroyed(entry)
+              ? withOneBoxBack(entry)
+              : {
+                  ...entry,
+                  x: entry.orderX,
+                  y: entry.orderY,
+                  facing: entry.orderFacing,
+                  charged: false,
+                }
         )
       );
       return;
     }
     lastTapRef.current = { tokenId: token.id, at: now };
+
+    // Beyond that undo, a destroyed unit is inert: it cannot be picked up,
+    // marched, selected or attacked.
+    if (isDestroyed(token)) return;
 
     pointersRef.current.set(event.pointerId, {
       tokenId: token.id,
@@ -529,7 +548,10 @@ export default function Battlefield({
       // the engagement without anyone reaching for a phone.
       const enemy = find(
         tokensRef.current,
-        (other) => other.side !== token.side && inContact(token, other)
+        (other) =>
+          other.side !== token.side &&
+          !isDestroyed(other) &&
+          inContact(token, other)
       );
       if (enemy) {
         updateToken(token.id, { charged: marchedInches(token) > 0.5 });
@@ -543,7 +565,12 @@ export default function Battlefield({
     // yours is selected it declares the attack — which is how a ranged
     // attack is made, with no need to march into contact.
     const selected = find(tokensRef.current, { id: selectedId });
-    if (!deploying && selected && selected.side !== token.side) {
+    if (
+      !deploying &&
+      selected &&
+      selected.side !== token.side &&
+      !isDestroyed(token)
+    ) {
       onEngage(selected.id, token.id);
     } else {
       onSelect(token.id === selectedId ? null : token.id);

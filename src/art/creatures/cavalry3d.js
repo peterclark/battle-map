@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { matte, metal } from "./materials.js";
+import { at, bevelled, merge, part, surfaceMaterial, swept, turned } from "./kit.js";
 
 // Mounted troops: a beast, a rider on its back, and something in the rider's
 // hand pointing the way the unit is going.
@@ -11,12 +11,18 @@ import { matte, metal } from "./materials.js";
 // way. A pattern survives the overhead camera where a single silhouette does
 // not.
 //
-// It is now parameterised by mount and by rider, because a knight's charger
-// is not a re-tinted wolf. The two differ where it matters from above: a wolf
-// is low and long with a brush tail, a horse is tall and deep-chested with a
-// mane running its neck. And a barded horse carries a caparison — a broad
-// cloth over its back — which is both historically right and the largest pale
-// area anything on this board presents to a camera above it.
+// It is parameterised by mount and by rider, because a knight's charger is not
+// a re-tinted wolf. The two differ where it matters from above: a wolf is low
+// and long with a brush tail, a horse is tall and deep-chested with a mane
+// running its neck. And a barded horse carries a caparison — a broad cloth
+// over its back — which is both historically right and the largest pale area
+// anything on this board presents to a camera above it.
+//
+// Like the infantry, a rider is now merged buffers rather than loose meshes:
+// one per part that moves on its own, which here is fourteen where it used to
+// be twenty-six. The saved budget went into tack. A horse with a bridle, reins
+// and a saddle reads as ridden; one without reads as a horse with a man
+// balanced on it.
 
 const MOUNTS = {
   wolf: {
@@ -28,7 +34,8 @@ const MOUNTS = {
     // A wolf slinks; a horse stands over its legs
     legReach: 0.34,
     brush: true,
-    caparison: null,
+    // A wolf wears a collar and a rope, not a bridle and a saddle
+    tack: "rope",
   },
   bonehorse: {
     // A dead horse. Bone reads against dark turf without any help, so the
@@ -40,7 +47,7 @@ const MOUNTS = {
     height: 0.82,
     legReach: 0.46,
     brush: false,
-    caparison: null,
+    tack: "bridle",
   },
   horse: {
     hide: 0x5a4436,
@@ -53,7 +60,7 @@ const MOUNTS = {
     height: 0.82,
     legReach: 0.44,
     brush: false,
-    caparison: null,
+    tack: "bridle",
   },
 };
 
@@ -74,85 +81,685 @@ const ARMS = {
   // the overhead camera loses it
   spear: { length: 1.75, rest: -0.5, level: 0.5, head: true },
   // A couched lance is the best of the three from above: nearly horizontal
-  // even at rest, so its whole length faces the camera
-  lance: { length: 2.3, rest: -0.25, level: 0.35, head: true },
+  // even at rest, so its whole length faces the camera. It also earns a
+  // vamplate and a pennon, which are pure area at the end of a long line.
+  lance: { length: 2.3, rest: -0.25, level: 0.35, head: true, vamplate: true },
   // Scouts carry a blade — short, raised, and no help at all from above,
   // which is why they also get the boldest mount colour
-  sword: { length: 0.8, rest: -1.0, level: 0.7, head: false },
+  sword: { length: 0.8, rest: -1.0, level: 0.7, head: false, blade: true },
   // Horse archers shoot rather than charge. The bow lies across the rider,
   // so the shaft is short and flat and the arc does the work.
   bow: { length: 0.62, rest: 1.3, level: -0.2, head: false, arc: true },
 };
 
-const GEOMETRY = {
-  body: new THREE.CapsuleGeometry(0.34, 0.95, 8, 16),
-  chest: new THREE.CapsuleGeometry(0.3, 0.3, 8, 16),
-  skull: new THREE.BoxGeometry(0.3, 0.26, 0.46),
-  snout: new THREE.BoxGeometry(0.17, 0.15, 0.28),
-  ear: new THREE.ConeGeometry(0.08, 0.18, 14),
-  eye: new THREE.SphereGeometry(0.045, 18, 14),
-  limb: new THREE.CapsuleGeometry(0.075, 0.3, 8, 16),
-  paw: new THREE.BoxGeometry(0.14, 0.09, 0.2),
-  tailSeg: new THREE.CapsuleGeometry(0.09, 0.22, 8, 16),
-  maneStrip: new THREE.BoxGeometry(0.1, 0.06, 0.66),
-  // Draped over the whole back and hanging past the flanks
-  caparison: new THREE.BoxGeometry(0.92, 0.06, 1.34),
-  torso: new THREE.CapsuleGeometry(0.17, 0.24, 8, 16),
-  head: new THREE.SphereGeometry(0.16, 18, 14),
-  cap: new THREE.ConeGeometry(0.17, 0.2, 14),
-  arm: new THREE.CapsuleGeometry(0.055, 0.2, 8, 16),
-  point: new THREE.ConeGeometry(0.085, 0.26, 14),
-  bow: new THREE.TorusGeometry(0.3, 0.022, 10, 28, Math.PI * 1.15),
-};
+// See infantry3d.js for why metalness is graded rather than uniform: 0.72
+// across a large surface has nothing to reflect and renders black.
+const PLATE = { metalness: 0.3, roughness: 0.44 };
+const BLADE = { metalness: 0.5, roughness: 0.26 };
+const STEEL = { metalness: 0.68, roughness: 0.3 };
+const CLOTH = { roughness: 0.92 };
+const WOOD = { roughness: 0.78 };
+const HIDE = { roughness: 0.8 };
+const FUR = { roughness: 0.95 };
 
-// Shaft geometry varies by weapon, so it is built per length and cached
-const shafts = new Map();
-const shaftFor = (length) => {
-  if (!shafts.has(length)) {
-    shafts.set(length, new THREE.CylinderGeometry(0.042, 0.036, length, 18));
+// Outlines are drawn in XY and turned a quarter, so width runs fore-and-aft
+// and thickness side-to-side — the same convention the infantry weapons use.
+const flat = (points, thickness, bevel) =>
+  at(bevelled(points, thickness, bevel), { rot: [0, -Math.PI / 2, 0] });
+
+// --- the animal ------------------------------------------------------------
+
+const spineParts = (mount, kit, caparison) => {
+  const parts = [
+    // The barrel, deeper at the chest than at the flank
+    part(new THREE.CapsuleGeometry(0.34, 0.95, 8, 16), mount.hide, {
+      pos: [0, 0, 0.05],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1, 1, 1.02],
+      ...HIDE,
+    }),
+    part(new THREE.CapsuleGeometry(0.3, 0.3, 8, 16), mount.hideDark, {
+      pos: [0, -0.04, -0.4],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1.08, 1.08, 1],
+      ...HIDE,
+    }),
+  ];
+
+  if (mount.tack === "bridle") {
+    // A saddle, cut as a profile so it has a cantle and a pommel. It is the
+    // one place a horse's outline breaks, and from above it separates the
+    // animal from the man.
+    parts.push(
+      part(
+        flat(
+          [
+            [-0.34, -0.02],
+            [-0.28, 0.1],
+            [-0.1, 0.04],
+            [0.1, 0.04],
+            [0.26, 0.12],
+            [0.34, -0.02],
+            [0.3, -0.1],
+            [-0.3, -0.1],
+          ],
+          0.44,
+          0.014
+        ),
+        kit.kit,
+        { pos: [0, 0.3, -0.14], ...HIDE }
+      ),
+      // Girth
+      part(new THREE.TorusGeometry(0.35, 0.022, 6, 20), kit.kit, {
+        pos: [0, 0.02, -0.14],
+        rot: [0, Math.PI / 2, 0],
+        scale: [1, 1.05, 1],
+        ...HIDE,
+      })
+    );
+  } else {
+    // A war-wolf is roped rather than saddled: a hide pad and a cinch
+    parts.push(
+      part(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 16), kit.kit, {
+        pos: [0, 0.3, -0.1],
+        scale: [1, 1, 1.3],
+        ...HIDE,
+      }),
+      part(new THREE.TorusGeometry(0.33, 0.018, 6, 18), kit.cloth, {
+        pos: [0, 0.02, -0.1],
+        rot: [0, Math.PI / 2, 0],
+        ...CLOTH,
+      }),
+      // A dark ridge of hackles down the spine, and a ruff at the shoulders.
+      // A wolf's whole body is one colour from above and reads as a lozenge
+      // without them — this is the "one strip tracing the length" trick, run
+      // dark-on-pale instead of the usual way round.
+      part(
+        at(
+          bevelled(
+            [
+              [-0.045, -0.72],
+              [0.045, -0.72],
+              [0.06, -0.5],
+              [0.042, -0.34],
+              [0.062, -0.16],
+              [0.04, 0.02],
+              [0.058, 0.2],
+              [0.035, 0.4],
+              [0.03, 0.6],
+              [-0.03, 0.6],
+              [-0.035, 0.4],
+              [-0.058, 0.2],
+              [-0.04, 0.02],
+              [-0.062, -0.16],
+              [-0.042, -0.34],
+              [-0.06, -0.5],
+            ],
+            0.12,
+            0.008
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        mount.hideDark,
+        { pos: [0, 0.3, 0.05], ...FUR }
+      ),
+      part(
+        turned(
+          [
+            [0.3, -0.16],
+            [0.42, -0.05],
+            [0.44, 0.03],
+            [0.3, 0.12],
+          ],
+          16
+        ),
+        mount.hideDark,
+        { pos: [0, 0.02, -0.34], rot: [Math.PI / 2, 0, 0], scale: [1, 0.9, 1], ...FUR }
+      )
+    );
   }
-  return shafts.get(length);
+
+  // The caparison goes on before the rider, so the rider sits on top of it.
+  // Scalloped along the hem, because a rectangle of cloth reads as a mattress.
+  if (caparison) {
+    parts.push(
+      part(
+        at(
+          bevelled(
+            [
+              [-0.46, 0.62],
+              [0.46, 0.62],
+              [0.46, -0.5],
+              [0.34, -0.62],
+              [0.23, -0.5],
+              [0.11, -0.62],
+              [0, -0.5],
+              [-0.11, -0.62],
+              [-0.23, -0.5],
+              [-0.34, -0.62],
+              [-0.46, -0.5],
+            ],
+            0.05,
+            0.012
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        kit.cloth,
+        { pos: [0, 0.22, 0.08], rot: [0.02, 0, 0], ...CLOTH }
+      )
+    );
+  }
+
+  return parts;
 };
 
-const add = (geometry, material, parent, position, rotation, scale) => {
+const neckParts = (mount, kit) => {
+  const parts = [
+    // A wedge skull rather than a box: narrower at the muzzle, with a
+    // pronounced brow
+    part(
+      flat(
+        [
+          [-0.15, -0.13],
+          [0.15, -0.13],
+          [0.16, 0.05],
+          [0.1, 0.13],
+          [-0.1, 0.13],
+          [-0.16, 0.05],
+        ],
+        0.3,
+        0.014
+      ),
+      mount.hide,
+      { pos: [0, 0, -0.16], rot: [0, Math.PI / 2, 0], ...HIDE }
+    ),
+    part(
+      flat(
+        [
+          [-0.085, -0.075],
+          [0.085, -0.075],
+          [0.09, 0.05],
+          [0.06, 0.078],
+          [-0.06, 0.078],
+          [-0.09, 0.05],
+        ],
+        0.3,
+        0.01
+      ),
+      mount.muzzle,
+      { pos: [0, -0.05, -0.46], rot: [0, Math.PI / 2, 0], ...HIDE }
+    ),
+    // Ears, turned so they cup
+    ...[0.11, -0.11].map((x) =>
+      part(
+        turned(
+          [
+            [0, -0.09],
+            [0.075, -0.05],
+            [0.06, 0.03],
+            [0.03, 0.07],
+            [0, 0.09],
+          ],
+          12
+        ),
+        mount.hideDark,
+        { pos: [x, 0.17, -0.06], rot: [-0.2, 0, x > 0 ? -0.2 : 0.2], ...FUR }
+      )
+    ),
+    ...[0.11, -0.11].map((x) =>
+      part(new THREE.SphereGeometry(0.045, 12, 10), 0xd8b23a, {
+        pos: [x, 0.06, -0.34],
+        ...BLADE,
+      })
+    ),
+    // The mane: pale, and running the length of the neck toward the camera.
+    // Cut with a ragged lower edge so it reads as hair rather than as a plank.
+    part(
+      at(
+        bevelled(
+          [
+            [-0.055, 0.33],
+            [0.055, 0.33],
+            [0.06, 0.1],
+            [0.048, -0.02],
+            [0.058, -0.14],
+            [0.045, -0.26],
+            [0.05, -0.33],
+            [-0.05, -0.33],
+            [-0.045, -0.26],
+            [-0.058, -0.14],
+            [-0.048, -0.02],
+            [-0.06, 0.1],
+          ],
+          0.1,
+          0.008
+        ),
+        { rot: [Math.PI / 2, 0, 0] }
+      ),
+      mount.mane,
+      { pos: [0, 0.17, -0.1], rot: [0.25, 0, 0], ...FUR }
+    ),
+  ];
+
+  if (mount.tack === "bridle") {
+    // Browband, noseband and cheek strap. Three thin lines, and between them
+    // they are the difference between a horse and a ridden horse.
+    parts.push(
+      part(new THREE.TorusGeometry(0.1, 0.014, 5, 16), kit.kit, {
+        pos: [0, -0.04, -0.42],
+        rot: [Math.PI / 2, 0, 0],
+        scale: [1, 1, 0.9],
+        ...HIDE,
+      }),
+      part(new THREE.TorusGeometry(0.16, 0.014, 5, 16), kit.kit, {
+        pos: [0, 0.03, -0.16],
+        rot: [Math.PI / 2, 0, 0],
+        scale: [1, 1, 0.85],
+        ...HIDE,
+      }),
+      ...[0.13, -0.13].map((x) =>
+        part(swept([[0, 0.1, -0.16], [0.01, 0.0, -0.3], [0, -0.04, -0.42]], 0.013), kit.kit, {
+          pos: [x, 0, 0],
+          ...HIDE,
+        })
+      ),
+      // Reins, running back to the rider's hands
+      ...[0.11, -0.11].map((x) =>
+        part(
+          swept(
+            [
+              [0, -0.04, -0.4],
+              [0.02, 0.06, -0.1],
+              [0.01, 0.16, 0.24],
+            ],
+            0.012
+          ),
+          kit.kit,
+          { pos: [x, 0, 0], ...HIDE }
+        )
+      )
+    );
+  } else {
+    // A spiked collar, which is what a war-wolf gets instead
+    parts.push(
+      part(new THREE.TorusGeometry(0.19, 0.03, 6, 18), kit.kit, {
+        pos: [0, 0.02, 0.04],
+        rot: [Math.PI / 2 + 0.2, 0, 0],
+        ...HIDE,
+      }),
+      ...[0, 1, 2, 3, 4].map((i) =>
+        part(new THREE.ConeGeometry(0.028, 0.09, 8), kit.metal, {
+          pos: [
+            Math.sin(((i - 2) * Math.PI) / 7) * 0.2,
+            0.02 + Math.cos(((i - 2) * Math.PI) / 7) * 0.19,
+            0.04,
+          ],
+          rot: [0, 0, ((i - 2) * -Math.PI) / 7],
+          ...STEEL,
+        })
+      )
+    );
+  }
+
+  return parts;
+};
+
+const legParts = (mount) => [
+  part(new THREE.CapsuleGeometry(0.078, 0.3, 8, 14), mount.hide, {
+    pos: [0, -0.18, 0],
+    ...HIDE,
+  }),
+];
+
+const shinParts = (mount) => [
+  part(new THREE.CapsuleGeometry(0.058, 0.3, 8, 14), mount.hideDark, {
+    pos: [0, -0.13, 0],
+    ...HIDE,
+  }),
+  mount.brush
+    ? // A paw, with claws
+      part(
+        at(
+          bevelled(
+            [
+              [-0.07, -0.11],
+              [0.07, -0.11],
+              [0.075, 0.03],
+              [0.03, 0.06],
+              [-0.03, 0.06],
+              [-0.075, 0.03],
+            ],
+            0.09,
+            0.012
+          ),
+          { rot: [Math.PI / 2, 0, 0] }
+        ),
+        mount.hideDark,
+        { pos: [0, -0.28, -0.02], ...FUR }
+      )
+    : // A hoof, turned — the one part of a horse that is genuinely a solid of
+      // revolution
+      part(
+        turned(
+          [
+            [0, 0],
+            [0.075, 0.01],
+            [0.082, 0.06],
+            [0.07, 0.11],
+            [0.062, 0.14],
+            [0, 0.15],
+          ],
+          14
+        ),
+        mount.muzzle,
+        { pos: [0, -0.33, -0.02], ...HIDE }
+      ),
+];
+
+const tailParts = (mount, index) =>
+  mount.brush
+    ? [
+        // A brush: fattest in the middle, tapering to a tip
+        part(
+          turned(
+            [
+              [0, 0],
+              [0.07, 0.06],
+              [0.105, 0.16],
+              [0.09, 0.28],
+              [0.045, 0.38],
+              [0, 0.42],
+            ],
+            12
+          ),
+          index === 0 ? mount.hideDark : mount.mane,
+          { pos: [0, 0, 0.02], rot: [Math.PI / 2.2, 0, 0], ...FUR }
+        ),
+      ]
+    : [
+        // A dock and a switch of hair hanging from it
+        part(new THREE.CapsuleGeometry(0.06, 0.14, 6, 12), mount.hide, {
+          pos: [0, 0, 0.08],
+          rot: [Math.PI / 3.4, 0, 0],
+          ...HIDE,
+        }),
+        part(
+          turned(
+            [
+              [0, 0],
+              [0.075, -0.06],
+              [0.085, -0.24],
+              [0.05, -0.44],
+              [0, -0.52],
+            ],
+            12
+          ),
+          mount.mane,
+          { pos: [0, 0.02, 0.18], rot: [-0.5, 0, 0], ...FUR }
+        ),
+      ];
+
+// --- the rider -------------------------------------------------------------
+
+const riderParts = (kit, arm) => {
+  const parts = [
+    part(new THREE.CapsuleGeometry(0.17, 0.24, 8, 16), kit.kit, { ...HIDE }),
+    // A cuirass over the torso
+    part(
+      flat(
+        [
+          [-0.14, -0.14],
+          [0.14, -0.14],
+          [0.155, 0.05],
+          [0.1, 0.17],
+          [-0.1, 0.17],
+          [-0.155, 0.05],
+        ],
+        0.08,
+        0.012
+      ),
+      kit.metal,
+      { pos: [0, 0.04, -0.11], rot: [0, Math.PI / 2, 0], ...PLATE }
+    ),
+    part(new THREE.SphereGeometry(0.155, 16, 13), kit.skin, {
+      pos: [0, 0.3, -0.03],
+      ...HIDE,
+    }),
+    // A helm, turned, with a brow band — the same shape the foot wear
+    part(
+      turned(
+        [
+          [0, -0.09],
+          [0.155, -0.07],
+          [0.168, -0.02],
+          [0.15, 0.06],
+          [0.11, 0.13],
+          [0.055, 0.17],
+          [0, 0.18],
+        ],
+        18
+      ),
+      kit.kit,
+      { pos: [0, 0.36, -0.03], ...PLATE }
+    ),
+    part(new THREE.TorusGeometry(0.163, 0.017, 6, 20), kit.metal, {
+      pos: [0, 0.325, -0.03],
+      rot: [Math.PI / 2, 0, 0],
+      ...STEEL,
+    }),
+    ...[
+      [0.19, 0.06, -0.06, -0.7],
+      [-0.19, 0.06, -0.06, 0.7],
+    ].map(([x, y, z, roll]) =>
+      part(new THREE.CapsuleGeometry(0.055, 0.2, 8, 12), kit.skin, {
+        pos: [x, y, z],
+        rot: [0, 0, roll],
+        ...HIDE,
+      })
+    ),
+  ];
+
+  // A lancer carries a shield on the bridle arm. It is the broadest thing on
+  // a mounted figure and it does the same work here it does on foot.
+  if (arm.vamplate) {
+    parts.push(
+      part(
+        turned(
+          [
+            [0, -0.03],
+            [0.14, -0.02],
+            [0.2, 0.0],
+            [0.22, 0.03],
+            [0.2, 0.05],
+            [0, 0.06],
+          ],
+          18
+        ),
+        kit.cloth,
+        { pos: [-0.24, 0.02, -0.12], rot: [Math.PI / 2.3, 0, 0.2], ...CLOTH }
+      ),
+      part(new THREE.TorusGeometry(0.21, 0.016, 6, 22), kit.metal, {
+        pos: [-0.24, 0.02, -0.12],
+        rot: [Math.PI / 2.3 + Math.PI / 2, 0, 0.2],
+        ...STEEL,
+      })
+    );
+  }
+
+  return parts;
+};
+
+const weaponParts = (kit, arm) => {
+  const parts = [
+    part(new THREE.CylinderGeometry(0.036, 0.044, arm.length, 14), kit.kit, {
+      rot: [Math.PI / 2, 0, 0],
+      ...WOOD,
+    }),
+  ];
+
+  if (arm.arc) {
+    // A horse archer's bow lies across him, arc turned upward — the same
+    // reasoning as the foot archers, and the only part of him that reads
+    parts.push(
+      part(
+        swept(
+          [
+            [-0.26, -0.15, 0],
+            [-0.3, 0, 0],
+            [-0.22, 0.19, 0],
+            [0, 0.28, 0],
+            [0.22, 0.19, 0],
+            [0.3, 0, 0],
+            [0.26, -0.15, 0],
+          ],
+          0.019,
+          { segments: 26, sides: 6 }
+        ),
+        kit.kit,
+        { pos: [0, 0.02, -0.1], rot: [1.2, 0, 0.1], ...WOOD }
+      ),
+      part(
+        swept(
+          [
+            [-0.26, -0.15, 0],
+            [0, 0.0, 0.04],
+            [0.26, -0.15, 0],
+          ],
+          0.006,
+          { segments: 10, sides: 5 }
+        ),
+        kit.cloth,
+        { pos: [0, 0.02, -0.1], rot: [1.2, 0, 0.1], ...CLOTH }
+      )
+    );
+  }
+
+  if (arm.head) {
+    parts.push(
+      part(
+        flat(
+          [
+            [-0.02, 0],
+            [0.02, 0],
+            [0.06, 0.08],
+            [0.055, 0.2],
+            [0, 0.34],
+            [-0.055, 0.2],
+            [-0.06, 0.08],
+          ],
+          0.04,
+          0.008
+        ),
+        kit.metal,
+        { pos: [0, 0, -arm.length / 2 - 0.16], rot: [-Math.PI / 2, 0, 0], ...BLADE }
+      )
+    );
+  }
+
+  if (arm.vamplate) {
+    // The cone that guards the hand. Pure area on a nearly horizontal shaft,
+    // which is the best thing a camera above can be given.
+    parts.push(
+      part(
+        turned(
+          [
+            [0.045, 0],
+            [0.1, 0.09],
+            [0.145, 0.16],
+            [0.15, 0.19],
+            [0.06, 0.19],
+          ],
+          16
+        ),
+        kit.metal,
+        { pos: [0, 0, 0.5], rot: [Math.PI / 2, 0, 0], ...PLATE }
+      ),
+      // A pennon below the head, streaming back
+      part(
+        at(
+          bevelled(
+            [
+              [-0.02, 0],
+              [0.02, 0],
+              [0.03, -0.3],
+              [-0.01, -0.4],
+              [-0.02, -0.3],
+            ],
+            0.13,
+            0.006
+          ),
+          { rot: [0, Math.PI / 2, 0] }
+        ),
+        kit.cloth,
+        { pos: [0, 0, -arm.length / 2 + 0.16], rot: [-Math.PI / 2, 0, 0], ...CLOTH }
+      )
+    );
+  }
+
+  if (arm.blade) {
+    parts.push(
+      part(
+        flat(
+          [
+            [-0.055, 0],
+            [0.055, 0],
+            [0.05, 0.34],
+            [0.034, 0.5],
+            [0, 0.6],
+            [-0.034, 0.5],
+            [-0.05, 0.34],
+          ],
+          0.042,
+          0.008
+        ),
+        kit.metal,
+        { pos: [0, 0, -arm.length / 2 - 0.24], rot: [-Math.PI / 2, 0, 0], ...BLADE }
+      ),
+      part(
+        flat([[-0.15, -0.022], [0.15, -0.022], [0.14, 0.024], [-0.14, 0.024]], 0.045, 0.008),
+        kit.kit,
+        { pos: [0, 0, -arm.length / 2 - 0.2], rot: [-Math.PI / 2, 0, 0], ...STEEL }
+      )
+    );
+  }
+
+  return parts;
+};
+
+const hang = (parent, geometry, material, position) => {
+  if (!geometry) return null;
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...position);
-  if (rotation) mesh.rotation.set(...rotation);
-  if (scale) mesh.scale.set(...scale);
+  if (position) mesh.position.set(...position);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 };
 
+// One formation's worth of buffers, shared by every rider in it
+const buildBuffers = (mount, kit, arm, caparison) => ({
+  spine: merge(spineParts(mount, kit, caparison)),
+  neck: merge(neckParts(mount, kit)),
+  leg: merge(legParts(mount)),
+  shin: merge(shinParts(mount)),
+  tail: [0, 1].map((i) => merge(tailParts(mount, i))),
+  rider: merge(riderParts(kit, arm)),
+  weapon: merge(weaponParts(kit, arm)),
+});
+
 // One mount and the figure on its back. Faces -Z, stands on y = 0.
-const makeRider = (mount, m, arm, caparison) => {
+const makeRider = (mount, buffers, material) => {
   const group = new THREE.Group();
 
   const spine = new THREE.Group();
   spine.position.y = mount.height;
   group.add(spine);
-
-  const body = add(GEOMETRY.body, m.hide, spine, [0, 0, 0.05]);
-  body.rotation.x = Math.PI / 2;
-  add(GEOMETRY.chest, m.hideDark, spine, [0, -0.04, -0.4], [Math.PI / 2, 0, 0]);
-
-  // The caparison goes on before the rider, so the rider sits on top of it
-  if (caparison) {
-    add(GEOMETRY.caparison, m.caparison, spine, [0, 0.22, 0.08], [0.02, 0, 0]);
-  }
+  hang(spine, buffers.spine, material);
 
   const neck = new THREE.Group();
   neck.position.set(0, 0.02, -0.62);
   spine.add(neck);
-  add(GEOMETRY.skull, m.hide, neck, [0, 0, -0.16]);
-  add(GEOMETRY.snout, m.muzzle, neck, [0, -0.05, -0.48]);
-  add(GEOMETRY.ear, m.hideDark, neck, [0.11, 0.17, -0.06]);
-  add(GEOMETRY.ear, m.hideDark, neck, [-0.11, 0.17, -0.06]);
-  add(GEOMETRY.eye, m.eye, neck, [0.11, 0.06, -0.34]);
-  add(GEOMETRY.eye, m.eye, neck, [-0.11, 0.06, -0.34]);
-  // The mane: pale, and running the length of the neck toward the camera
-  add(GEOMETRY.maneStrip, m.mane, neck, [0, 0.17, -0.1], [0.25, 0, 0]);
+  hang(neck, buffers.neck, material);
 
   // Four legs at the corners. Each is a hip group with a shin under it, so a
   // trot is two rotations rather than a translation.
@@ -166,12 +773,11 @@ const makeRider = (mount, m, arm, caparison) => {
     const hip = new THREE.Group();
     hip.position.set(x, -0.12, z);
     spine.add(hip);
-    add(GEOMETRY.limb, m.hide, hip, [0, -0.18, 0]);
+    hang(hip, buffers.leg, material);
     const shin = new THREE.Group();
     shin.position.y = -mount.legReach;
     hip.add(shin);
-    add(GEOMETRY.limb, m.hideDark, shin, [0, -0.13, 0]);
-    add(GEOMETRY.paw, m.hideDark, shin, [0, -0.28, -0.02]);
+    hang(shin, buffers.shin, material);
     legs.push({ hip, shin, kind });
   });
 
@@ -183,13 +789,7 @@ const makeRider = (mount, m, arm, caparison) => {
     const seg = new THREE.Group();
     seg.position.set(0, i === 0 ? 0.06 : 0, i === 0 ? 0.62 : 0.24);
     attach.add(seg);
-    add(
-      GEOMETRY.tailSeg,
-      mount.brush ? m.hideDark : m.mane,
-      seg,
-      [0, 0, 0.12],
-      [mount.brush ? Math.PI / 2.2 : Math.PI / 3.4, 0, 0]
-    );
+    hang(seg, buffers.tail[i], material);
     tail.push(seg);
     attach = seg;
   }
@@ -197,30 +797,14 @@ const makeRider = (mount, m, arm, caparison) => {
   const rider = new THREE.Group();
   rider.position.set(0, mount.height * 0.55, -0.12);
   spine.add(rider);
-  add(GEOMETRY.torso, m.kit, rider, [0, 0, 0]);
-  add(GEOMETRY.head, m.skin, rider, [0, 0.3, -0.03]);
-  add(GEOMETRY.cap, m.metalDark ?? m.kit, rider, [0, 0.42, -0.03]);
-  add(GEOMETRY.arm, m.skin, rider, [0.19, 0.06, -0.06], [0, 0, -0.7]);
-  add(GEOMETRY.arm, m.skin, rider, [-0.19, 0.06, -0.06], [0, 0, 0.7]);
+  hang(rider, buffers.rider, material);
 
   // The shaft is what makes a formation read from above: six of them pointing
   // the same way is a stronger cue than any single figure
   const weapon = new THREE.Group();
   weapon.position.set(0.22, 0.12, -0.1);
   rider.add(weapon);
-  add(shaftFor(arm.length), m.kit, weapon, [0, 0, 0], [Math.PI / 2, 0, 0]);
-  // A horse archer's bow lies across him, arc turned upward — the same
-  // reasoning as the foot archers, and the only part of him that reads
-  if (arm.arc) {
-    add(GEOMETRY.bow, m.cloth, weapon, [0, 0.02, -0.1], [1.2, 0, 0.1]);
-  }
-  if (arm.head) {
-    add(GEOMETRY.point, m.metal, weapon, [0, 0, -arm.length / 2 - 0.08], [
-      -Math.PI / 2,
-      0,
-      0,
-    ]);
-  }
+  hang(weapon, buffers.weapon, material);
 
   return { group, spine, neck, legs, tail, rider, weapon };
 };
@@ -241,23 +825,8 @@ export const buildCavalry = ({
   const profile = MOUNTS[mount] ?? MOUNTS.wolf;
   const kit = RIDERS[rider] ?? RIDERS.goblin;
   const weapon = ARMS[arm] ?? ARMS.spear;
-
-  const m = {
-    hide: matte(profile.hide),
-    hideDark: matte(profile.hideDark),
-    muzzle: matte(profile.muzzle),
-    mane: matte(profile.mane, 0.8),
-    caparison: matte(kit.cloth, 0.8),
-    skin: matte(kit.skin),
-    kit: matte(kit.kit),
-    metal: metal(kit.metal, 0.32),
-    metalDark: matte(kit.kit, 0.5),
-    eye: new THREE.MeshStandardMaterial({
-      color: 0xd8b23a,
-      roughness: 0.3,
-      emissive: 0x2a2000,
-    }),
-  };
+  const material = surfaceMaterial();
+  const buffers = buildBuffers(profile, kit, weapon, caparison);
 
   const root = new THREE.Group();
   // The formation opens out on the charge, and that is a scale on the riders
@@ -275,7 +844,7 @@ export const buildCavalry = ({
 
   for (let rank = 0; rank < ranks; rank += 1) {
     for (let file = 0; file < files; file += 1) {
-      const made = makeRider(profile, m, weapon, caparison);
+      const made = makeRider(profile, buffers, material);
       // The rear rank steps half a file across, closing the gaps in the front
       const stagger = rank % 2 === 1 ? stepX / 2 : 0;
       made.group.position.set(
