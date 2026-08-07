@@ -363,36 +363,68 @@ the block shimmers.
 
 ## The performance budget
 
-Measured on a Mac mini, native 4K, shadows on, ten units on the board
-(a 1,250-point army is about five units, so ten is a full game):
+Measured on the target Mac mini, shadows on, ten units on the board — a
+1,250-point army is about five units, so ten is a full game.
 
-- **6ms of CPU** against a 16.7ms frame budget
-- ~3,600 meshes, ~7,200 submitted draw calls
-- Posing 200 figures costs about **1ms** — animation logic is effectively free
+| | before the merge | after the merge |
+|---|---|---|
+| CPU, at native 4K | 6ms | **3ms** |
+| of which posing 200 figures | ~1ms | **below the timer's resolution** |
+| meshes | ~3,600 | **1,601** |
+| submitted draw calls | ~7,200 | **3,201** |
+| triangles | 1.9M | 2.0M |
+
+Against a 16.7ms frame budget, so CPU is now about a fifth of the frame. That
+is what halving the mesh count predicted, and it confirms that submit cost
+tracks meshes rather than geometry.
+
+Two measurements now say the same thing from opposite directions: the density
+pass quadrupled triangles for nothing, and the merge pass halved meshes for
+half the CPU.
+
+**The board is not GPU-bound, and 4K is free.** Run at 1280×720 and at
+3840×2160 the numbers are the same — 3ms of CPU either way, and a frame time
+of 16–17ms, which is the vsync cap in every case rather than a real
+difference. Nine times the pixels and two million triangles cost nothing
+measurable on this machine. Everything that matters here is on the CPU side,
+submitting draws.
+
+That held across three runs, one of them against the built and deployed site
+rather than the dev server. **A production build measures the same as `npm run
+dev`**, which is worth knowing before anyone goes looking for a difference:
+the cost is in the renderer, not in the module graph, so minification and
+bundling move none of it.
+
+Two things the runs still do not show. A frame time at the vsync cap proves
+the board has GPU headroom without saying how much. And `poseMsMedian` comes
+back as 0 because browsers coarsen `performance.now()` — read that as "too
+small to measure", not as free.
 
 Headroom is real but not unlimited. Rules of thumb:
 
-- **~8 meshes per figure, ~20 figures per unit** since the merge pass. It was
-  ~20 meshes a figure before, and those are the numbers the measurement above
-  was taken at — so there is now roughly twice the headroom it describes.
-- Doubling to twenty units at 1080p reached 90% of budget *at the old mesh
-  counts*, so the ceiling is real even if it has moved.
+- **~8 meshes per figure, ~20 figures per unit.** It was ~20 meshes a figure
+  before the merge pass.
+- Doubling to twenty units reached 90% of budget *at the old mesh counts*. The
+  same twenty would now sit near 6ms, so the ceiling is real but has moved out
+  by about a factor of two — and it is a ceiling on **meshes**, not on pixels
+  or triangles.
 - Pose cost is not the constraint; **mesh count is**. If you need more
   figures, cut meshes per figure rather than reaching for instancing.
 - **Triangles are cheap; meshes are not.** The density pass took the rigs from
   344k triangles to 1.9M for ten units with the mesh and draw-call counts
-  unchanged. The merge pass then took the *meshes* from ~3,600 to 1,601 with
-  triangles at 2.0M. Spend segments freely — a rounder capsule is nearly free.
-  Adding another *mesh* is what costs. See **Detail without meshes** above.
-- **These numbers need re-measuring on the Mac.** Everything above is a mesh
-  and triangle count, which transfers; the millisecond figures predate the
-  merge and are now pessimistic by roughly a factor of two.
+  unchanged, and cost nothing. The merge pass then took the *meshes* from
+  ~3,600 to 1,601 while triangles went slightly up again, and halved the CPU.
+  Two measurements, one conclusion: spend segments freely, and count meshes.
+  See **Detail without meshes** above.
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 
-`demo/bench.html?units=10` measures this. It must be run on the target
-hardware; a headless container uses a software rasteriser and its frame
-times mean nothing.
+`demo/bench.html?units=10` measures this, and it takes `width` and `height`.
+It must be run on the target hardware; a headless container uses a software
+rasteriser and its frame times mean nothing. Run it at the panel's real
+resolution — `&width=3840&height=2160` — since that is the only setting whose
+GPU figure means anything, and compare the CPU number, which is
+resolution-independent and is the part that transfers between machines.
 
 ## Verifying
 
