@@ -32,8 +32,11 @@ import { at, bevelled, merge, part, surfaceMaterial, swept, turned } from "./kit
 
 const KINDS = {
   troll: {
-    hide: 0x5c6b4a,
-    hideDark: 0x3f4a33,
+    // Lifted off 0x5c6b4a, which measured 1.2:1 against the turf — the same
+    // failure the Tyrannosaurus was committing. Still mossy, but now paler
+    // than the field rather than the same value as it.
+    hide: 0x8a9a63,
+    hideDark: 0x53603c,
     back: 0x9aa87c,
     detail: 0xd8cfb4,
     scale: 1,
@@ -176,16 +179,22 @@ const spineParts = (spec) => {
           { rot: [Math.PI / 2, 0, 0] }
         ),
         spec.back,
-        { pos: [0, 0.36, 0.04], rot: [0.24, 0, 0], ...MEAT }
+        { pos: [0, 0.47, 0.1], rot: [0.24, 0, 0], ...MEAT }
       )
     );
     // Knots of muscle and warts over the back. Free, now that they merge.
+    //
+    // Sitting on the back rather than in it: the torso is a capsule scaled
+    // before it is rotated, so its upper surface is near y = 0.55 and not the
+    // 0.42 its radius suggests. Detail placed against the wrong number is
+    // simply invisible, with nothing to show it is there.
     [
-      [0.2, 0.42, -0.1, 0.1],
-      [-0.24, 0.4, 0.16, 0.085],
-      [0.06, 0.46, 0.26, 0.07],
-      [-0.1, 0.36, -0.24, 0.09],
-      [0.34, 0.24, 0.2, 0.075],
+      [0.2, 0.56, -0.1, 0.1],
+      [-0.24, 0.54, 0.16, 0.085],
+      [0.06, 0.58, 0.26, 0.07],
+      [-0.1, 0.52, -0.24, 0.09],
+      [0.34, 0.44, 0.2, 0.075],
+      [-0.36, 0.42, -0.06, 0.08],
     ].forEach(([x, y, z, r], i) => {
       parts.push(
         part(lump(r, i), i % 2 ? spec.hideDark : spec.detail, {
@@ -196,6 +205,48 @@ const spineParts = (spec) => {
       );
     });
   }
+
+  // A ridge of knobbled vertebrae down the spine. A brute's back is the
+  // largest single surface anything on this board turns upward, and until now
+  // it was blank — this is the one pale line an overhead camera can follow.
+  // Set forward of the mantle rather than under it, so the two do not fight
+  [-0.62, -0.48, -0.34, -0.2, -0.06].forEach((z, i) =>
+    parts.push(
+      part(new THREE.OctahedronGeometry(0.075 - Math.abs(i - 2) * 0.008, 0), spec.detail, {
+        pos: [0, 0.56 - Math.abs(i - 2) * 0.015, z],
+        scale: [0.6, 1, 1.4],
+        ...HORN,
+      })
+    )
+  );
+
+  // Scars across the shoulders, and the rope that holds whatever it is
+  // wearing. Both are swept lines, which is the cheapest way to put something
+  // on a curved surface that follows it.
+  [
+    [[-0.5, 0.4, 0.1], [-0.1, 0.56, -0.02], [0.34, 0.46, -0.16]],
+    [[0.2, 0.5, 0.36], [0.38, 0.52, 0.1], [0.3, 0.4, -0.2]],
+  ].forEach((path) =>
+    parts.push(
+      part(swept(path, 0.022, { segments: 12, sides: 4 }), spec.detail, { ...MEAT })
+    )
+  );
+  parts.push(
+    part(
+      swept(
+        [
+          [-0.46, 0.2, 0.06],
+          [-0.2, 0.46, 0.3],
+          [0.2, 0.46, 0.3],
+          [0.46, 0.2, 0.06],
+        ],
+        0.028,
+        { segments: 16, sides: 5 }
+      ),
+      spec.hideDark,
+      { ...MEAT }
+    )
+  );
 
   if (spec.mantle === "bone") {
     // Ribs showing through, which is the whole point of a skeleton troll

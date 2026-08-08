@@ -175,22 +175,57 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
           // the bottom of a stand carries the banner, the stat bar and the
           // damage track, and figures standing on those make the one thing
           // players actually have to read unreadable.
+          //
+          // A long animal is allowed more depth than that, because the band is
+          // barely three fifths of the card and the fit takes the *smaller* of
+          // the two axes. A Tyrannosaurus is three times longer than it is
+          // wide, so it was being scaled to fit its own nose-to-tail length
+          // into that band and coming out at a seventh of the size its stand
+          // could carry — a Colossal rendering smaller than a spearman.
+          //
+          // `depth` lets a kind overhang, and the placement below sends the
+          // excess forward, off the front edge, rather than back across the
+          // banner. That is also what a big miniature does on a base.
           const stand = unitStand(token.unit);
           const bandDepth = stand.halfDepth * 2 * ART_FIELD_DEPTH;
           const box = new THREE.Box3().setFromObject(made.root);
           const size = box.getSize(new THREE.Vector3());
-          const centre = box.getCenter(new THREE.Vector3());
           const fit = Math.min(
             (stand.halfWidth * 2 * kind.fill) / (size.x || 1),
-            (bandDepth * kind.fill) / (size.z || 1)
+            (bandDepth * (kind.depth ?? kind.fill)) / (size.z || 1)
           );
           made.root.scale.setScalar(fit);
-          // Centre on the band rather than on the stand. A card faces its own
-          // -Z, so the field runs from the front edge back.
-          made.root.position.x = -centre.x * fit;
-          made.root.position.z =
-            -centre.z * fit + stand.halfDepth * (ART_FIELD_DEPTH - 1);
-          made.root.position.y = -box.min.y * fit;
+
+          // Where the rig ends up has to account for where it *goes*, not just
+          // where it starts. A resting bounding box is not the space a unit
+          // occupies once it is animating: a spear block sweeps 39% deeper
+          // than it measures at rest, a Tyrannosaurus 23%, and the difference
+          // is spears and tails drawn across the name banner. So sample the
+          // gaits and place the rig by the box it actually needs.
+          const swept = new THREE.Box3();
+          const probe = new THREE.Box3();
+          ["idle", "march", "attack"].forEach((state) => {
+            for (let i = 0; i < 6; i += 1) {
+              builder.pose(made, i * 0.63, state);
+              made.root.updateMatrixWorld(true);
+              swept.union(probe.setFromObject(made.root));
+            }
+          });
+          const sweptSize = swept.getSize(new THREE.Vector3());
+          const sweptCentre = swept.getCenter(new THREE.Vector3());
+
+          // A card faces its own -Z, so the art field runs from the front edge
+          // back. Centre in the band when the rig stays inside it, and when it
+          // does not, pin its back edge to the back of the band so everything
+          // over-length hangs off the front — which is what a big miniature
+          // does on a base, and keeps the banner clear either way.
+          const bandCentre = stand.halfDepth * (ART_FIELD_DEPTH - 1);
+          const bandBack = stand.halfDepth * (2 * ART_FIELD_DEPTH - 1);
+          const anchor = Math.min(bandCentre, bandBack - sweptSize.z / 2);
+
+          made.root.position.x = -sweptCentre.x;
+          made.root.position.z = anchor - sweptCentre.z;
+          made.root.position.y = -swept.min.y;
 
           built = { ...made, holder, builder };
           stage.built.set(token.id, built);

@@ -5,6 +5,7 @@ import {
   merge,
   part as skinned,
   surfaceMaterial,
+  swept,
   turned,
 } from "./kit.js";
 
@@ -28,10 +29,21 @@ import {
 // merges into eighteen buffers, one per joint that actually moves, where the
 // box version needed fifty meshes to say less.
 
-const HIDE = 0x3f5a2a;
-const HIDE_DARK = 0x2b3d19;
-const BELLY = 0x8d9c5b;
-const CLAW = 0xe8e2cf;
+// The animal used to be 0x3f5a2a on turf of 0x3f6420 — the same colour, near
+// enough, which is the exact failure the guide warns about and the largest
+// creature in the game was committing it. A Colossal that vanishes into the
+// grass is worse than a small one that does, because there is only one of it
+// and no formation to carry the read.
+//
+// So it is countershaded the way a big land predator actually is: pale sand
+// along the flanks, a dark saddle and cross-banding over the back, cream
+// underneath. Against a dark yellow-green field that separates by value first
+// and hue second, which is the order that survives being shrunk.
+const HIDE = 0xa8946a;
+const HIDE_DARK = 0x5b4a2f;
+const BAND = 0x6d5836;
+const BELLY = 0xd8cba6;
+const CLAW = 0xf0e9d6;
 const MAW = 0x6d2730;
 
 const EYE = 0xe8a423;
@@ -67,29 +79,141 @@ const tooth = (size) =>
     8
   );
 
-const trunkParts = () => [
-  skinned(new THREE.CapsuleGeometry(1.15, 1.9, 10, 18), HIDE, {
-    pos: [0, 0, -1.1],
-    rot: [Math.PI / 2, 0, 0],
-    scale: [1, 0.82, 1.05],
-    ...HIDE_S,
-  }),
-  skinned(new THREE.CapsuleGeometry(0.92, 1.6, 10, 18), BELLY, {
-    pos: [0, -0.42, -1.1],
-    rot: [Math.PI / 2, 0, 0],
-    scale: [0.94, 0.8, 0.9],
-    ...HIDE_S,
-  }),
+// The trunk, and where the detail budget goes.
+//
+// This animal is alone on a Colossal stand, which on a 4K panel is roughly
+// two hundred and eighty pixels across — about ten times the linear size of
+// one infantryman, and a hundred times the pixels. It is also the single
+// cheapest unit on the board at seventeen buffers against a spear block's two
+// hundred. So the geometry here is deliberately lavish: everything below
+// merges into the buffers that already exist, and costs nothing measurable.
+const trunkParts = () => {
+  const parts = [
+    skinned(new THREE.CapsuleGeometry(1.15, 1.9, 12, 22), HIDE, {
+      pos: [0, 0, -1.1],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1, 0.82, 1.05],
+      ...HIDE_S,
+    }),
+    skinned(new THREE.CapsuleGeometry(0.92, 1.6, 12, 20), BELLY, {
+      pos: [0, -0.42, -1.1],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [0.94, 0.8, 0.9],
+      ...HIDE_S,
+    }),
+    // The shoulder and hip masses. A theropod is not a tube: it is widest at
+    // the pelvis, narrows through the ribs and swells again at the chest, and
+    // that double bulge is most of what says "muscle" from above.
+    skinned(new THREE.SphereGeometry(1.02, 16, 14), HIDE, {
+      pos: [0, -0.05, 0.35],
+      scale: [1.16, 0.86, 1.05],
+      ...HIDE_S,
+    }),
+    skinned(new THREE.SphereGeometry(0.86, 16, 14), HIDE, {
+      pos: [0, -0.02, -2.1],
+      scale: [1.1, 0.9, 1.0],
+      ...HIDE_S,
+    }),
+  ];
+
   // Osteoderms down the spine — the one pale line an overhead camera can
-  // follow the whole length of the animal
-  ...[-2.4, -1.9, -1.4, -0.9, -0.4, 0.1, 0.6].map((z, i) =>
-    skinned(new THREE.OctahedronGeometry(0.16 + (i % 2) * 0.04, 0), CLAW, {
-      pos: [0, 0.9 - Math.abs(i - 3) * 0.03, z],
-      scale: [0.55, 1, 1.5],
-      ...SCUTE,
-    })
-  ),
-];
+  // follow the whole length of the animal, and the strongest single read on
+  // the model.
+  //
+  // Every one of these used to be *inside* the body. The trunk is a capsule
+  // scaled before it is rotated, so its top surface sits at y = 1.21 rather
+  // than the 0.94 its scale factor suggests, and detail placed by eye against
+  // the wrong number vanishes without any sign that it is there. Anything
+  // meant to sit on a body has to be checked against where the body's surface
+  // actually is.
+  [-2.4, -1.9, -1.4, -0.9, -0.4, 0.1, 0.6].forEach((z, i) => {
+    parts.push(
+      skinned(new THREE.OctahedronGeometry(0.22 + (i % 2) * 0.05, 0), CLAW, {
+        pos: [0, 1.24 - Math.abs(i - 4) * 0.05, z],
+        scale: [0.5, 1.15, 1.6],
+        ...SCUTE,
+      })
+    );
+  });
+
+  // Two rows of smaller scutes down each flank, placed on the surface by
+  // angle rather than by guesswork. Individually they are a pixel; together
+  // they are a pair of dotted lines following the animal's length, and they
+  // stop the flank reading as a balloon.
+  [
+    [35, CLAW, 0.1],
+    [64, HIDE_DARK, 0.085],
+  ].forEach(([deg, colour, r], row) => {
+    const a = (deg * Math.PI) / 180;
+    [-1, 1].forEach((side) =>
+      [-2.3, -1.8, -1.3, -0.8, -0.3, 0.2, 0.7].forEach((z, i) =>
+        parts.push(
+          skinned(new THREE.OctahedronGeometry(r + (i % 2) * 0.015, 0), colour, {
+            pos: [
+              side * 1.15 * Math.sin(a) * 1.02,
+              1.2075 * Math.cos(a) * 1.02,
+              z + row * 0.25,
+            ],
+            scale: [0.45, 1, 1.5],
+            ...SCUTE,
+          })
+        )
+      )
+    );
+  });
+
+  // Cross-bands over the back. Broad, shallow plates in the darker hide,
+  // sitting a hair proud of the flank — from directly above they are the
+  // whole pattern, and a smooth pale body needs them to stop reading as a
+  // bean. Kept inside the capsule's straight section so they do not poke
+  // through where it turns into its end caps.
+  //
+  // Narrower across than the body is, so each band only breaks the surface
+  // over the spine and sinks away down the flank — a saddle rather than a
+  // hoop. Widths and spacing are uneven on purpose: four identical bands
+  // wrapped the whole way round read as a ladder strapped to the animal.
+  [
+    [-1.92, 1.02, 0.22, 0.1],
+    [-1.34, 0.97, 0.16, -0.14],
+    [-0.86, 1.04, 0.25, 0.06],
+    [-0.42, 0.95, 0.15, -0.09],
+    [-0.02, 1.0, 0.2, 0.12],
+  ].forEach(([z, w, d, yaw]) => {
+    parts.push(
+      skinned(new THREE.SphereGeometry(1.0, 20, 14), BAND, {
+        pos: [0, 0, z],
+        rot: [0, yaw, 0],
+        scale: [w, 1.25, d],
+        ...HIDE_S,
+      })
+    );
+  });
+
+  // Skin folds where the leg meets the body, and along the flank behind the
+  // ribs. Swept tubes, laid shallow so they catch the key light as creases
+  // rather than standing proud as pipes.
+  [-1, 1].forEach((side) =>
+    [
+      [[0.2, -0.5, 1.0], [1.02, -0.2, 0.55], [1.12, 0.35, -0.1]],
+      [[0.35, -0.7, -1.9], [1.06, -0.35, -1.6], [1.05, 0.2, -1.1]],
+      [[0.3, -0.6, -0.6], [1.05, -0.3, -0.45], [1.1, 0.25, -0.2]],
+    ].forEach((path) =>
+      parts.push(
+        skinned(
+          swept(
+            path.map(([x, y, z]) => [x * side, y, z]),
+            0.055,
+            { segments: 14, sides: 5 }
+          ),
+          HIDE_DARK,
+          { ...HIDE_S }
+        )
+      )
+    )
+  );
+
+  return parts;
+};
 
 const neckParts = () => [
   skinned(new THREE.CapsuleGeometry(0.68, 0.6, 10, 16), HIDE, {
@@ -106,22 +230,28 @@ const headParts = () => {
     skinned(
       prone(
         [
-          [-0.68, -1.05],
-          [0.68, -1.05],
-          [0.6, -0.2],
-          [0.44, 0.5],
-          [0.3, 0.95],
-          [0, 1.05],
-          [-0.3, 0.95],
-          [-0.44, 0.5],
-          [-0.6, -0.2],
+          [-0.6, -0.95],
+          [0.6, -0.95],
+          [0.54, -0.2],
+          [0.4, 0.46],
+          [0.27, 0.88],
+          [0, 0.98],
+          [-0.27, 0.88],
+          [-0.4, 0.46],
+          [-0.54, -0.2],
         ],
-        0.86,
+        0.8,
         0.05
       ),
       HIDE,
       { pos: [0, 0, -0.72], ...HIDE_S }
     ),
+    // A domed cranium over the back of the skull, so the head is not a slab
+    skinned(new THREE.SphereGeometry(0.5, 14, 12), HIDE, {
+      pos: [0, 0.24, -0.25],
+      scale: [1.05, 0.55, 1.1],
+      ...HIDE_S,
+    }),
     // Brows, which is what makes a skull read as a skull from above
     ...[0.44, -0.44].map((x) =>
       skinned(new THREE.BoxGeometry(0.3, 0.22, 0.5), HIDE_DARK, {
@@ -130,11 +260,44 @@ const headParts = () => {
         ...HIDE_S,
       })
     ),
+    // Lacrimal horns above the eye — small, but they break the brow line and
+    // they are the one place a theropod skull has something pointed on top
+    ...[0.44, -0.44].map((x) =>
+      skinned(
+        turned(
+          [
+            [0.1, 0],
+            [0.07, 0.09],
+            [0, 0.2],
+          ],
+          8
+        ),
+        CLAW,
+        { pos: [x, 0.42, -0.78], rot: [-0.35, 0, x > 0 ? 0.2 : -0.2], ...BONE }
+      )
+    ),
     // The fenestra behind the eye, sunk into the cheek
-    ...[0.6, -0.6].map((x) =>
+    ...[0.56, -0.56].map((x) =>
       skinned(new THREE.SphereGeometry(0.22, 10, 8), HIDE_DARK, {
         pos: [x, 0.02, -0.42],
         scale: [0.4, 1, 1.5],
+        ...HIDE_S,
+      })
+    ),
+    // And the antorbital fenestra ahead of it, which is the hollow that makes
+    // a theropod snout read as bone rather than as a muzzle
+    ...[0.5, -0.5].map((x) =>
+      skinned(new THREE.SphereGeometry(0.17, 10, 8), HIDE_DARK, {
+        pos: [x, 0.06, -1.05],
+        scale: [0.35, 0.9, 1.7],
+        ...HIDE_S,
+      })
+    ),
+    // The jugal boss, low on the cheek
+    ...[0.55, -0.55].map((x) =>
+      skinned(new THREE.SphereGeometry(0.16, 10, 8), HIDE, {
+        pos: [x, -0.2, -0.6],
+        scale: [0.6, 0.8, 1.6],
         ...HIDE_S,
       })
     ),
@@ -147,15 +310,35 @@ const headParts = () => {
     // Nostrils
     ...[0.16, -0.16].map((x) =>
       skinned(new THREE.SphereGeometry(0.08, 8, 7), HIDE_DARK, {
-        pos: [x, 0.14, -1.66],
+        pos: [x, 0.14, -1.6],
         scale: [0.7, 0.8, 1.4],
         ...HIDE_S,
       })
     ),
   ];
-  // Upper tooth row, with a lip over it
+  // A lip running the length of the upper jaw, over the tooth row. It is what
+  // stops the teeth reading as a row of pegs stuck to a plank.
+  [-1, 1].forEach((side) =>
+    parts.push(
+      skinned(
+        swept(
+          [
+            [side * 0.42, -0.1, -0.2],
+            [side * 0.46, -0.16, -0.7],
+            [side * 0.4, -0.18, -1.2],
+            [side * 0.2, -0.16, -1.62],
+          ],
+          0.075,
+          { segments: 16, sides: 6 }
+        ),
+        HIDE_DARK,
+        { ...HIDE_S }
+      )
+    )
+  );
+  // Upper tooth row
   for (let i = 0; i < 5; i += 1) {
-    const z = -0.42 - i * 0.32;
+    const z = -0.42 - i * 0.3;
     const size = 0.14 - i * 0.012;
     [0.32, -0.32].forEach((x) =>
       parts.push(
@@ -201,13 +384,13 @@ const jawParts = () => {
 };
 
 const tailParts = (i) => [
-  skinned(new THREE.CapsuleGeometry(0.86 - i * 0.13, 0.5, 8, 16), HIDE, {
+  skinned(new THREE.CapsuleGeometry(0.88 - i * 0.155, 0.4, 8, 16), HIDE, {
     pos: [0, 0, 0.42],
     rot: [Math.PI / 2, 0, 0],
     ...HIDE_S,
   }),
-  skinned(new THREE.OctahedronGeometry(0.14 - i * 0.018, 0), CLAW, {
-    pos: [0, 0.82 - i * 0.13, 0.36],
+  skinned(new THREE.OctahedronGeometry(0.16 - i * 0.022, 0), CLAW, {
+    pos: [0, 0.84 - i * 0.155, 0.3],
     scale: [0.55, 1, 1.5],
     ...SCUTE,
   }),
@@ -298,6 +481,16 @@ const armParts = () => [
   ),
 ];
 
+// How hard each tail segment is swept at rest, accumulating outward. The
+// wave the poser runs is added on top of these rather than replacing them.
+const TAIL_SWEEP = [0.58, 0.64, 0.68, 0.7, 0.7];
+
+// And the neck counter-curves, which is what makes it an S rather than a
+// comma — the head comes back toward the front of the stand instead of
+// trailing off the side with the tail.
+const NECK_SWEEP = -1.15;
+const HEAD_SWEEP = -0.55;
+
 /**
  * Build the animal. Returns the root object plus the joints an animation
  * needs to touch, so posing is setting rotations rather than rebuilding.
@@ -314,12 +507,14 @@ export const buildTyrannosaur = () => {
 
   // Neck and head, hinged so the head can swing and duck
   const neck = new THREE.Group();
-  neck.position.set(0, 0.3, -1.95);
+  neck.position.set(0, 0.52, -1.8);
+  neck.rotation.y = NECK_SWEEP;
   hips.add(neck);
   hang(neck, merge(neckParts()), material);
 
   const head = new THREE.Group();
-  head.position.set(0, 0.26, -1.02);
+  head.position.set(0, 0.2, -1.0);
+  head.rotation.y = HEAD_SWEEP;
   neck.add(head);
   hang(head, merge(headParts()), material);
 
@@ -330,12 +525,22 @@ export const buildTyrannosaur = () => {
   hang(jaw, merge(jawParts()), material);
 
   // Tail: a chain of groups, each hung off the last, so a wave started at the
-  // hips travels outward on its own
+  // hips travels outward on its own.
+  //
+  // It is also swept hard to one side at rest, and that is a fit decision as
+  // much as an artistic one. Straight out behind, this animal measured three
+  // times longer than it was wide, and the stand fits against *both* axes — so
+  // it was scaled down to squeeze eleven units of nose-to-tail into a band
+  // barely one and a half deep. Curled, the same length becomes width, which
+  // is the axis with room. It is what a sculptor does with a long animal on a
+  // shallow base, and for the same reason.
   const tail = [];
   let attach = hips;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < TAIL_SWEEP.length; i += 1) {
     const seg = new THREE.Group();
-    seg.position.set(0, 0, i === 0 ? 1.0 : 0.86);
+    seg.position.set(0, 0, i === 0 ? 0.85 : 0.66);
+    seg.userData.restY = TAIL_SWEEP[i];
+    seg.rotation.y = TAIL_SWEEP[i];
     attach.add(seg);
     hang(seg, merge(tailParts(i)), material);
     tail.push(seg);
@@ -394,16 +599,27 @@ export const poseTyrannosaur = (rig, time, state = "idle") => {
 
   // The wave travels down the tail rather than swinging it as one piece
   rig.tail.forEach((seg, i) => {
+    // Added to the rest sweep, not replacing it — the curl is the animal's
+    // shape and the wave is what it is doing.
+    //
+    // The amplitude falls off toward the base rather than growing toward the
+    // tip, which is both what a curled tail does — it flicks at the end, it
+    // does not swing as one bar — and what keeps the animal inside the stand
+    // it was fitted to. The fit is measured from a static bounding box, so a
+    // pose that sweeps far outside it puts the tail across the name banner.
+    const reach = 0.08 + i * 0.03;
     seg.rotation.y =
-      Math.sin(t * gait.wave - i * 0.6) * 0.17 * gait.waveGain * (1 + i * 0.2);
-    seg.rotation.x = Math.sin(t * gait.wave * 0.5 - i * 0.4) * 0.05;
+      seg.userData.restY +
+      Math.sin(t * gait.wave - i * 0.6) * reach * gait.waveGain;
+    seg.rotation.x = Math.sin(t * gait.wave * 0.5 - i * 0.4) * 0.04;
   });
 
   // Head and neck counter the tail, which is what keeps the animal balanced
-  rig.neck.rotation.y = -Math.sin(t * gait.wave) * 0.1 * gait.waveGain;
+  rig.neck.rotation.y =
+    NECK_SWEEP - Math.sin(t * gait.wave) * 0.1 * gait.waveGain;
   rig.neck.rotation.x = 0.1 + Math.sin(t * gait.wave * 2) * 0.05 * gait.bob;
   rig.head.rotation.x = -0.12 + Math.sin(t * gait.wave * 2 + 0.7) * 0.07 * gait.bob;
-  rig.head.rotation.y = Math.sin(t * 0.7) * 0.14;
+  rig.head.rotation.y = HEAD_SWEEP + Math.sin(t * 0.7) * 0.14;
 
   const jawOpen =
     state === "attack"
@@ -428,7 +644,15 @@ export const poseTyrannosaur = (rig, time, state = "idle") => {
   rig.hips.rotation.x =
     Math.sin(t * gait.wave * 2) * 0.03 * gait.bob -
     gait.surge * Math.max(Math.sin(t * 5), 0) * 0.16;
-  rig.root.position.z = -gait.surge * Math.max(Math.sin(t * 5), 0) * 0.9;
+  // The lunge moves the hips, not the root.
+  //
+  // `CreatureLayer` owns `root.position` — it is what places the rig inside
+  // the card's art field — so a poser writing to it silently discards that
+  // placement. This one did, every frame, and the animal sat centred on the
+  // stand with its tail across the name banner. It is the same trap as writing
+  // to `root.scale`, which the cavalry rig fell into; the rule is that a poser
+  // touches nothing on the root.
+  rig.hips.position.z = 0.6 - gait.surge * Math.max(Math.sin(t * 5), 0) * 0.9;
 };
 
 /**

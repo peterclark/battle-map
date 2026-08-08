@@ -80,13 +80,82 @@ fits its depth and then occupies a third of the width it was given, which
 reads as a small unit rather than a badly-proportioned one — and that is why
 it is easy to miss.
 
-This has now caught the same mistake twice: the Large saurians, and then every
-war machine. **Build wide and shallow.** Short tails, compact bodies, broad
-axles, teams harnessed close, formations spread across the front rather than
-stacked back through the band. Length is the one thing there is no room for.
+This has now caught the same mistake three times: the Large saurians, then
+every war machine, then the Tyrannosaurus — which was the worst of them by
+far. Straight out nose to tail it measured 3.9 wide by 11.3 deep, so it was
+scaled to squeeze its own length into the shallow axis and came out at **a
+seventh of the size its stand could carry**: a Colossal rendering smaller than
+a spearman, with its tail across the banner.
+
+**Build wide and shallow.** Short tails, compact bodies, broad axles, teams
+harnessed close, formations spread across the front rather than stacked back
+through the band. Length is the one thing there is no room for.
 
 A quick check before sculpting: divide the intended width by the intended
 depth. Under about 2:1 and the unit will come out smaller than it should.
+
+Two levers when an animal is long by nature:
+
+- **Curl it.** Sweep the tail hard to one side and turn the head the other, so
+  the same length becomes width. It is what a sculptor does with a long animal
+  on a shallow base, and it reads as alive rather than as a plank. The
+  Tyrannosaurus went from 3.9 × 11.3 to 5.1 × 5.6 this way, at no cost. Give
+  each joint a **rest** rotation and have the poser add its motion *on top*
+  rather than overwrite it.
+- **`depth` in `roster.js`**, which is `fill` for the front-to-back axis and
+  lets a big creature overhang. `CreatureLayer` sends the excess off the front
+  edge rather than back across the banner. Use it after curling, not instead
+  of it: overhang past about one card depth starts covering the enemy's stand.
+
+## Large units: where the detail belongs
+
+The budget is allocated backwards by default, and it is worth seeing the two
+numbers side by side:
+
+| | meshes | figures | size on a 4K 55" panel |
+|---|---|---|---|
+| a spear block | 200 | 25 | ~30 px each |
+| a Tyrannosaurus | 17 | 1 | ~280 px, alone |
+| a Hill Giant | 13 | 1 | ~280 px, alone |
+
+A Colossal costs about **7% of what a rank of foot costs** and gets roughly a
+hundred times the pixels per creature. It is also the unit most likely to be
+looked at closely. **Spend the geometry here.** On a single large creature,
+detail merged into the buffers that already exist per joint costs nothing
+measurable at all — only a new *articulated* part costs a mesh.
+
+Three traps come with them, and all three were live on this board until the
+large units were gone over deliberately.
+
+**A lone monster has no formation to carry it, so its own colour has to do
+the work.** A rank of twenty reads from its pattern whatever its palette; one
+animal reads only if it separates from the turf. The Tyrannosaurus was
+`0x3f5a2a` on a field of `0x3f6420` — a contrast ratio of **1.13**, which is
+to say invisible, and it was the biggest thing in the game. Measure the
+contrast rather than trusting the eye; the working numbers are that anything
+under about 1.5 against the turf will disappear, and going *darker* than the
+field works as well as going lighter. It is now countershaded — pale sand
+flanks, a dark banded saddle, cream belly — at 2.33.
+
+**Detail sunk inside its own parent is invisible, with nothing to show it is
+there.** This is the one that cost the most time, because it looks like the
+code never ran. `at()` applies scale *before* rotation, so a capsule declared
+with radius 1.15 and `scale: [1, 0.82, 1.05]` has its top surface at y = 1.21,
+not the 0.94 the scale factor suggests. Every osteoderm, cross-band and flank
+scute on the Tyrannosaurus was placed against the wrong number and buried; so
+were the trolls' back plates, the Triceratops' spine plates, the Ancients'
+growth rings and the dragons' dorsal ridge. **Work out where the surface
+actually is, or place detail by angle** — `[r·sin(a), r·cos(a), z]` round the
+body — which is self-correcting and reads better anyway.
+
+**A rig's resting size is not the space it occupies.** `CreatureLayer` now
+samples the three gaits at build time and places each rig by the box it
+actually sweeps, because the gap is large: a spear block sweeps **39% deeper**
+than it measures at rest, a Tyrannosaurus 23%. Before that, the excess was
+drawn straight across the name banner. The lab reports both numbers — the
+`swept by its gaits` line — so check it when a rig is long or its weapons
+swing wide, and prefer motion that grows toward the tip of a chain rather than
+swinging the whole chain.
 
 ## What actually reads from above
 
@@ -334,11 +403,15 @@ size reads best on their own.
      weapons and three palettes in one rig. A second copy of a rig drifts
      from the first the day someone fixes a bug in only one of them.
    - Return the parts the poser needs: `{ root, ... }`.
-   - **Never write to `rig.root.scale` in a poser.** `CreatureLayer` owns it —
-     that scale is what fits the rig to its stand — so a poser that sets it
-     silently discards the fit and the unit renders at modelled size,
-     straddling half the board. Scale a child group instead. The cavalry rig
-     shipped with exactly this bug.
+   - **A poser must not touch anything on `root`** — not `scale`, not
+     `position`, not `rotation`. `CreatureLayer` owns all three: the scale is
+     what fits the rig to its stand, and the position is what places it inside
+     the card's art field rather than over the name banner. A poser that
+     writes either silently discards that placement, every frame, and the
+     symptom looks like a layout bug rather than an animation one. Move a
+     child group instead. Two rigs have shipped with this: the cavalry wrote
+     `root.scale` and straddled half the board, and the Tyrannosaurus wrote
+     `root.position.z` for its lunge and sat with its tail across the banner.
 2. **Add the kind** to `KINDS` in `roster.js`, with a `match` predicate and
    a `fill`. Order matters — named units first, archetypes after. Below 1,
    figures sit inside the printed edge; above 1 they overhang, which is what
