@@ -98,7 +98,7 @@ const KINDS = {
   },
 };
 
-const MEAT = { roughness: 0.9, mottle: 0.14, mottleScale: 7 };
+const MEAT = { roughness: 0.9, mottle: 0.18, mottleScale: 5 };
 const HORN = { metalness: 0.2, roughness: 0.5 };
 const STONE = { roughness: 0.95 };
 
@@ -581,8 +581,8 @@ const GORE = { metalness: 0.13, roughness: 0.24 };
 const GORE_WET = { metalness: 0.2, roughness: 0.15 };
 // Dead flesh is blotchy, and the mottling does more for it than any amount
 // of extra geometry — it is the difference between meat and painted plastic.
-const FLESH = { roughness: 0.82, mottle: 0.2, mottleScale: 30 };
-const FLESH_COARSE = { roughness: 0.84, mottle: 0.18, mottleScale: 9 };
+const FLESH = { roughness: 0.82, mottle: 0.24, mottleScale: 15 };
+const FLESH_COARSE = { roughness: 0.84, mottle: 0.22, mottleScale: 6 };
 
 // A ragged collar of meat where a limb was torn out of somebody and pushed
 // into the heap. Every limb and every head gets one; without it they read as
