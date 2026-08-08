@@ -338,6 +338,30 @@ Both of these hid behind the solid-cylinder bug: while the spokes were buried
 inside a disc there was nothing on a wheel that could show it was turning the
 wrong way, or turning at all.
 
+### Mottle everything
+
+Every surface here used to be one flat colour, and that — not the geometry —
+is the main reason figures read as plastic. Real hide, flesh, stone and timber
+are blotchy, and the eye reads blotchiness as *material* long before it reads
+any shape.
+
+The usual answer is a texture map, and this pipeline cannot easily take one:
+geometries are merged from a dozen generators whose UVs are unrelated, so a
+shared map smears. `skin()` takes `mottle` and `mottleScale` instead, which
+perturb the colour attribute that is already there with two octaves of noise
+sampled from the vertex position. No UVs, no image, no memory, no second
+material, and nothing to draw.
+
+**`mottleScale` has to match the size of the thing.** The noise is sampled in
+model units, so a limb 0.1 across needs a scale near 30 while a torso half a
+unit across wants 9. Set it too low on a small part and the whole part lands
+inside one lobe of the noise and just shifts colour uniformly, which looks
+like nothing at all. Amounts of 0.12–0.2 are plenty; past that it reads as
+camouflage.
+
+Note that it varies **roughness** as well as colour, and on flesh that does
+more work than the colour does — damp patches read as damp.
+
 ### The shape vocabulary
 
 Once merging is on the table, stop reaching for capsules and boxes:

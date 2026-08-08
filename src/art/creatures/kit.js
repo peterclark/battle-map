@@ -58,6 +58,33 @@ export const at = (geometry, { pos, rot, scale } = {}) => {
 
 const scratch = new THREE.Color();
 
+// Mottling: three-dimensional noise, sampled per vertex.
+//
+// Every surface on this board is a single flat colour, and that is the main
+// reason the figures read as plastic however well they are modelled. Real
+// hide, flesh, stone and timber are blotchy, and the eye reads that
+// blotchiness as *material* long before it reads any geometry.
+//
+// The usual fix is a texture map, which this pipeline cannot easily take:
+// geometries are merged from a dozen different generators, so their UVs are
+// unrelated to each other and a shared map would smear. Per-vertex noise has
+// none of that problem. It needs no UVs, no image, no extra memory and no
+// second material — it just perturbs the colour attribute that is already
+// there, and it costs nothing at all to draw.
+//
+// Two octaves of domain-warped sine. Not a true value noise, but at the
+// resolution a figure is actually seen it is indistinguishable, and it is
+// deterministic — the same vertex is always the same colour, so nothing
+// shimmers between frames.
+const wobble = (x, y, z) =>
+  Math.sin(x * 5.1 + Math.sin(z * 3.3) * 1.4) *
+  Math.sin(y * 4.3 + Math.sin(x * 2.7) * 1.1) *
+  Math.sin(z * 5.7 + Math.sin(y * 3.9) * 1.3);
+
+const mottleAt = (x, y, z, scale) =>
+  wobble(x * scale, y * scale, z * scale) * 0.72 +
+  wobble(x * scale * 2.7 + 4.1, y * scale * 2.7, z * scale * 2.7 + 1.9) * 0.28;
+
 /**
  * Give a geometry a colour and a surface, so it can be merged with others
  * that have different ones.
@@ -66,10 +93,15 @@ const scratch = new THREE.Color();
  * material — see `materials.js` for why metalness tops out at 0.72 rather
  * than 1.
  */
-export const skin = (geometry, color, { metalness = 0, roughness = 0.85 } = {}) => {
+export const skin = (
+  geometry,
+  color,
+  { metalness = 0, roughness = 0.85, mottle = 0, mottleScale = 6 } = {}
+) => {
   const count = geometry.attributes.position.count;
   const colors = new Float32Array(count * 3);
   const surfaces = new Float32Array(count * 2);
+  const pos = mottle ? geometry.attributes.position : null;
   // `Color.set` already converts a hex literal out of sRGB and into the
   // renderer's linear working space — the same thing `material.color` does
   // with the same number. Converting again here is a second gamma pass, and
@@ -78,11 +110,26 @@ export const skin = (geometry, color, { metalness = 0, roughness = 0.85 } = {}) 
   // looking, convincingly, like a lighting problem.
   scratch.set(color);
   for (let i = 0; i < count; i += 1) {
-    colors[i * 3] = scratch.r;
-    colors[i * 3 + 1] = scratch.g;
-    colors[i * 3 + 2] = scratch.b;
+    let { r, g, b } = scratch;
+    let rough = roughness;
+    if (pos) {
+      // Sampled in the geometry's own space, which is where it was placed —
+      // so the blotching stays put on the model rather than swimming when a
+      // limb rotates
+      const n = mottleAt(pos.getX(i), pos.getY(i), pos.getZ(i), mottleScale);
+      const k = 1 + n * mottle;
+      r *= k;
+      g *= k;
+      b *= k;
+      // Damp patches read as damp. A little roughness variation does as much
+      // as the colour does, and on flesh it does more.
+      rough = Math.min(Math.max(roughness - n * mottle * 0.45, 0.04), 1);
+    }
+    colors[i * 3] = r;
+    colors[i * 3 + 1] = g;
+    colors[i * 3 + 2] = b;
     surfaces[i * 2] = metalness;
-    surfaces[i * 2 + 1] = roughness;
+    surfaces[i * 2 + 1] = rough;
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("surface", new THREE.BufferAttribute(surfaces, 2));
