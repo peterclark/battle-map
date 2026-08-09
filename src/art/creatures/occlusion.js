@@ -24,6 +24,22 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 // point can actually see. It is called ground truth because its integral
 // matches the analytically correct answer more closely than the older
 // approximations — `SSAOPass` and `SAOPass`, both also in the box.
+//
+// --- what it costs -------------------------------------------------------
+//
+// Two separate bills, and they want different treatment. Measured on the Mac
+// mini, ten units, native 4K:
+//
+//   CPU     3ms -> 5ms. GTAO draws the scene a second time into a normal
+//           buffer before it can shade anything, so this is 1,601 more meshes
+//           submitted. It scales with the board, and it is unavoidable short
+//           of building the normal buffer in the main pass.
+//   GPU     16ms -> 26ms at full resolution, which is off the 60Hz cap. This
+//           is fill-rate: samples per pixel across the whole canvas. It
+//           scales with *resolution* rather than with the board, which is the
+//           opposite of everything else on this project.
+//
+// The second is the one that hurt, and halving the resolution is the fix.
 
 // The radius is measured in *screen space* rather than in world units, and
 // that is not a detail. The same creature is drawn at three wildly different
@@ -31,22 +47,37 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 // something else again in the combat panel — so a world-space radius that
 // suited one would be meaningless in the others. In pixels it is the same
 // effect everywhere.
+//
+// Screen space here means pixels of the *occlusion buffer*, not of the canvas
+// — the shader converts the radius to world units through `1.0 /
+// resolution.x`, and `resolution` is the pass's own size. So halving the
+// buffer silently doubles how far the effect reaches, which is why the radius
+// is scaled to match below. This is worth knowing because it does not look
+// like a resolution bug when it happens: it looks like someone widened the
+// shading.
 const AO = {
   screenSpaceRadius: true,
   radius: 0.9,
   distanceExponent: 1,
   thickness: 1,
   scale: 1,
-  // The first knob to turn if this costs too much. GTAO is fill-rate work —
-  // it takes this many samples for every pixel on the canvas — so its cost
-  // scales with resolution rather than with how many figures are on the
-  // board, which is the opposite of everything else here. It could not be
-  // measured honestly on the build machine: a headless container rasterises
-  // in software, where this pass came back at two seconds a frame and the
-  // number means nothing. `demo/bench.html?units=10&ao=on` on the real panel
-  // is the only measurement worth having.
-  samples: 12,
+  samples: 8,
 };
+
+// Ambient occlusion is computed at half the canvas's resolution and stretched
+// back up.
+//
+// This is not a compromise so much as the standard way to do it: occlusion is
+// a low-frequency signal — broad soft darkening in creases — so it survives
+// being computed coarsely and blurred, which is what the denoise pass does to
+// it anyway. Quartering the pixels quarters the cost of the one part of this
+// that scales with resolution.
+//
+// It needed doing. Measured on the Mac mini at native 4K, the full-resolution
+// version took the frame from 16ms to 26ms — off the 60Hz cap and down to 38
+// frames a second. That is roughly 10ms of GPU for an effect that is meant to
+// be felt rather than seen.
+const RESOLUTION_SCALE = 0.5;
 
 const DENOISE = { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, samples: 8 };
 
@@ -64,8 +95,17 @@ export const makeOcclusion = (renderer, scene, camera, width, height, options = 
     composer.setSize(width, height);
     composer.addPass(new RenderPass(scene, camera));
 
-    const gtao = new GTAOPass(scene, camera, width, height);
-    gtao.updateGtaoMaterial({ ...AO, ...options });
+    // The pass's own buffers are half size while the composer stays full —
+    // the blend samples the smaller AO texture with full-resolution UVs and
+    // the hardware filters it back up
+    const aoWidth = Math.max(1, Math.round(width * RESOLUTION_SCALE));
+    const aoHeight = Math.max(1, Math.round(height * RESOLUTION_SCALE));
+    const gtao = new GTAOPass(scene, camera, aoWidth, aoHeight);
+    gtao.updateGtaoMaterial({
+      ...AO,
+      radius: AO.radius * RESOLUTION_SCALE,
+      ...options,
+    });
     gtao.updatePdMaterial(DENOISE);
     // How hard the occlusion is applied. A touch under full strength: the
     // effect wants to be felt rather than seen, and at 1.0 the deepest
@@ -84,7 +124,10 @@ export const makeOcclusion = (renderer, scene, camera, width, height, options = 
       render: () => composer.render(),
       setSize: (w, h) => {
         composer.setSize(w, h);
-        gtao.setSize(w, h);
+        gtao.setSize(
+          Math.max(1, Math.round(w * RESOLUTION_SCALE)),
+          Math.max(1, Math.round(h * RESOLUTION_SCALE))
+        );
       },
       dispose: () => {
         gtao.dispose?.();
