@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildScene, setTilt } from "../src/art/creatures/trex3d.js";
 import { buildInfantry, poseInfantry } from "../src/art/creatures/infantry3d.js";
 import { tuneRenderer } from "../src/art/creatures/materials.js";
+import { makeOcclusion } from "../src/art/creatures/occlusion.js";
 
 // How much does a board of animated infantry actually cost?
 //
@@ -27,13 +28,17 @@ import { tuneRenderer } from "../src/art/creatures/materials.js";
 // less than it does in a three-quarter view. Run it both ways before
 // deciding.
 //
-// Usage: bench.html?units=10&frames=240&shadows=on&width=1920&height=1080
+// Usage: bench.html?units=10&frames=240&shadows=on&ao=on&width=1920&height=1080
 
 const params = new URLSearchParams(location.search);
 const UNITS = Number(params.get("units") ?? 10);
 const FRAMES = Number(params.get("frames") ?? 240);
 const GAIT = params.get("gait") ?? "march";
 const SHADOWS = (params.get("shadows") ?? "on") !== "off";
+// Ambient occlusion costs a second pass over the geometry — GTAO renders its
+// own normal-and-depth buffer before it can shade anything — so it is
+// measured separately, the same way shadows are.
+const AO = (params.get("ao") ?? "off") !== "off";
 const SHADOW_MAP = Number(params.get("shadowmap") ?? 2048);
 const WIDTH = Number(params.get("width") ?? 1280);
 const HEIGHT = Number(params.get("height") ?? 720);
@@ -97,6 +102,8 @@ if (SHADOWS) {
   key.shadow.camera.updateProjectionMatrix();
 }
 
+const occlusion = AO ? makeOcclusion(renderer, scene, camera, WIDTH, HEIGHT) : null;
+
 let meshes = 0;
 let casters = 0;
 scene.traverse((o) => {
@@ -125,7 +132,8 @@ const step = (now) => {
   blocks.forEach((block) => poseInfantry(block, t, GAIT));
   const poseEnd = performance.now();
 
-  renderer.render(scene, camera);
+  if (occlusion) occlusion.render();
+  else renderer.render(scene, camera);
   const submitEnd = performance.now();
 
   // Discard the first 30 frames: shader compilation and shadow-map warmup
@@ -151,13 +159,21 @@ const step = (now) => {
     // renderer.info counts the main pass only. With shadows on, the light
     // re-draws every caster into the shadow map on top of this — so the
     // submitted total is nearer meshes + casters than the figure below.
-    drawCallsMainPass: info.calls,
+    //
+    // With ambient occlusion on these two are meaningless: the composer's
+    // last pass is a fullscreen quad, so `info.calls` reports 1 rather than
+    // the scene. Read `cpuMsMedian` instead, which is measured rather than
+    // counted.
+    drawCallsMainPass: occlusion ? null : info.calls,
     shadowCasters: SHADOWS ? casters : 0,
-    approxTotalDrawCalls: info.calls + (SHADOWS ? casters : 0),
+    approxTotalDrawCalls: occlusion ? null : info.calls + (SHADOWS ? casters : 0),
     triangles: info.triangles,
     shadows: SHADOWS
       ? { mapSize: SHADOW_MAP, halfExtent: shadowHalfExtent }
       : false,
+    // GTAO draws the scene a second time into a normal buffer, so with it on
+    // the real submitted total is nearer twice the figure above again
+    ambientOcclusion: occlusion ? "gtao" : false,
     // CPU, and the part that transfers to other machines
     poseMsMedian: round(median(samples.pose)),
     submitMsMedian: round(median(samples.submit)),

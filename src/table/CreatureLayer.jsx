@@ -68,13 +68,19 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
     let frame = 0;
 
     const boot = async () => {
-      const [THREE, { buildScene }, { tuneRenderer }, { builderFor }] =
-        await Promise.all([
-          import("three"),
-          import("../art/creatures/trex3d.js"),
-          import("../art/creatures/materials.js"),
-          import("../art/creatures/registry.js"),
-        ]);
+      const [
+        THREE,
+        { buildScene },
+        { tuneRenderer },
+        { builderFor },
+        { makeOcclusion },
+      ] = await Promise.all([
+        import("three"),
+        import("../art/creatures/trex3d.js"),
+        import("../art/creatures/materials.js"),
+        import("../art/creatures/registry.js"),
+        import("../art/creatures/occlusion.js"),
+      ]);
       if (!live) return;
 
       const canvas = canvasRef.current;
@@ -122,6 +128,13 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
       shadowCatcher.receiveShadow = true;
       scene.add(shadowCatcher);
 
+      // Ambient occlusion, over the whole layer. It only ever darkens where
+      // figures meet each other or themselves — the cards underneath are a
+      // separate canvas and are not in this depth buffer at all, so a figure
+      // gets no contact shadow against its own stand. The self-occlusion is
+      // where nearly all of the value is anyway.
+      let occlusion = null;
+
       const stage = {
         THREE,
         renderer,
@@ -139,6 +152,11 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         renderer.setPixelRatio(dpr);
         renderer.setSize(rect.width, rect.height, false);
+        if (!occlusion) {
+          occlusion = makeOcclusion(renderer, scene, camera, rect.width, rect.height);
+        } else {
+          occlusion.setSize(rect.width, rect.height);
+        }
         // Mirror the 2D canvas's fit exactly. It scales by whichever axis runs
         // out first and letterboxes the rest; a camera that merely matched the
         // aspect ratio would agree on wide panels and part company on narrow
@@ -259,7 +277,8 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
           stage.built.delete(id);
         });
 
-        renderer.render(scene, camera);
+        if (occlusion) occlusion.render();
+        else renderer.render(scene, camera);
         if (!prefersStillness()) frame = requestAnimationFrame(step);
       };
 
@@ -267,6 +286,7 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
 
       stage.teardown = () => {
         observer.disconnect();
+        occlusion?.dispose();
         renderer.dispose();
       };
     };

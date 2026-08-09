@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildScene, setTilt } from "../src/art/creatures/trex3d.js";
 import { BUILDERS } from "../src/art/creatures/registry.js";
 import { tuneRenderer } from "../src/art/creatures/materials.js";
+import { makeOcclusion } from "../src/art/creatures/occlusion.js";
 
 // A workbench for one creature at a time.
 //
@@ -33,6 +34,10 @@ let tilted = params.get("tilt") === "on";
 // Most of the detail worth checking — faces, beards, breastplates, shield
 // faces — is on the other side.
 let yaw = Number(params.get("yaw")) || 0;
+// Ambient occlusion, on by default and switchable so it can be judged against
+// itself — the effect is subtle enough that a side-by-side is the only
+// honest way to tell whether it is earning its pass.
+let ao = params.get("ao") !== "off";
 let running = true;
 
 document.getElementById("lab").innerHTML = `
@@ -69,6 +74,7 @@ document.getElementById("lab").innerHTML = `
     <div class="row">
       <button id="tilt">Tilt the camera</button>
       <button id="spin">Turn them round</button>
+      <button id="ao">Occlusion</button>
       <button id="play" aria-pressed="true">Pause</button>
     </div>
     <canvas id="stage" width="900" height="560"></canvas>
@@ -100,6 +106,7 @@ tuneRenderer(renderer);
 // the detail on one figure is worth the triangles it costs.
 const span = Number(params.get("span")) || 9;
 const { scene, camera, key } = buildScene(900, 560, { span });
+const occlusion = makeOcclusion(renderer, scene, camera, 900, 560);
 key.shadow.mapSize.set(2048, 2048);
 
 let current = null;
@@ -178,17 +185,24 @@ const sync = () => {
     sync();
   });
   document.getElementById("tilt").setAttribute("aria-pressed", String(tilted));
+  document.getElementById("ao").setAttribute("aria-pressed", String(ao && Boolean(occlusion)));
   setTilt(camera, tilted ? 34 : 0);
   const url = new URL(location.href);
   url.searchParams.set("kind", kind);
   url.searchParams.set("gait", gait);
   url.searchParams.set("tilt", tilted ? "on" : "off");
   url.searchParams.set("yaw", String(yaw));
+  url.searchParams.set("ao", ao ? "on" : "off");
   history.replaceState(null, "", url);
 };
 
 document.getElementById("tilt").addEventListener("click", () => {
   tilted = !tilted;
+  sync();
+});
+
+document.getElementById("ao").addEventListener("click", () => {
+  ao = !ao;
   sync();
 });
 
@@ -216,7 +230,8 @@ const frame = (now) => {
   if (running) clock += (now - previous) / 1000;
   previous = now;
   if (current) current.builder.pose(current.made, clock, gait);
-  renderer.render(scene, camera);
+  if (ao && occlusion) occlusion.render();
+  else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
@@ -224,6 +239,7 @@ requestAnimationFrame(frame);
 // A handle for driving this page from a browser test
 window.__lab = {
   get kind() { return kind; },
+  get ao() { return ao && Boolean(occlusion); },
   get gait() { return gait; },
   get facts() { return facts; },
   KINDS,

@@ -44,13 +44,19 @@ export default function UnitPortrait({ token, enabled = true, state = "attack" }
     const boot = async () => {
       // Three.js is already resident whenever this renders — portraits only
       // appear with figures switched on — so these resolve from cache
-      const [THREE, { buildScene, setTilt }, { tuneRenderer }, { builderFor }] =
-        await Promise.all([
-          import("three"),
-          import("../art/creatures/trex3d.js"),
-          import("../art/creatures/materials.js"),
-          import("../art/creatures/registry.js"),
-        ]);
+      const [
+        THREE,
+        { buildScene, setTilt },
+        { tuneRenderer },
+        { builderFor },
+        { makeOcclusion },
+      ] = await Promise.all([
+        import("three"),
+        import("../art/creatures/trex3d.js"),
+        import("../art/creatures/materials.js"),
+        import("../art/creatures/registry.js"),
+        import("../art/creatures/occlusion.js"),
+      ]);
       if (!live) return;
 
       const builder = builderFor(kind.kind);
@@ -93,6 +99,11 @@ export default function UnitPortrait({ token, enabled = true, state = "attack" }
       made.root.scale.setScalar(fit);
       made.root.position.set(-centre.x * fit, -box.min.y * fit, -centre.z * fit);
 
+      // Occlusion matters more here than anywhere. This is the one view with
+      // a tilt, so it is the one view where a crease has any depth to read,
+      // and it is the view a player is actually looking at when they care.
+      const occlusion = makeOcclusion(renderer, scene, camera, width, height);
+
       setTilt(camera, PORTRAIT_TILT);
       // Turned a little off square so the unit is seen from its front
       // quarter rather than head-on, which is what gives it depth
@@ -102,12 +113,14 @@ export default function UnitPortrait({ token, enabled = true, state = "attack" }
       const step = (now) => {
         if (!live) return;
         builder.pose(made, (now - start) / 1000, state);
-        renderer.render(scene, camera);
+        if (occlusion) occlusion.render();
+        else renderer.render(scene, camera);
         frame = requestAnimationFrame(step);
       };
       frame = requestAnimationFrame(step);
 
       teardown = () => {
+        occlusion?.dispose();
         renderer.dispose();
         // Portraits come and go with every engagement, and a browser will
         // only hand out so many WebGL contexts before it starts dropping the
