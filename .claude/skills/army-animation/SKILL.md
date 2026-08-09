@@ -516,6 +516,39 @@ Headroom is real but not unlimited. Rules of thumb:
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 
+### The exception: screen passes are the one thing 4K is not free for
+
+"4K is free" holds for everything the rigs do, and stops holding the moment
+anything renders per pixel rather than per mesh. Ambient occlusion is the
+first such thing on this board, and it broke the frame the first time it
+shipped: ten units at native 4K went from 16ms to 26ms, 62fps to 38.
+
+Two bills, and only one is worth attacking.
+
+- **CPU, 3ms → 5ms.** GTAO draws the scene a second time into a normal buffer
+  before it can shade anything — 1,601 more meshes submitted. It scales with
+  the board, like everything else here, and there is no cheap way out of it.
+- **GPU, ~10ms.** Fill-rate. It scales with **resolution**, not with the
+  board, which inverts the rule above and is why the 720p bench never showed
+  it and the panel did.
+
+**Halve the buffer.** Occlusion is a low-frequency signal — broad soft
+darkening in creases — so it survives being computed coarsely and blurred,
+which the denoise pass does to it anyway. Quartering the pixels quarters the
+only cost that scales with them. The pass gets its own half-size buffers while
+the composer stays full and the blend filters back up.
+
+**Then scale the radius with the buffer, or it is not the same effect.**
+`screenSpaceRadius` means pixels *of the occlusion buffer*, not of the canvas:
+the shader converts through `1.0 / resolution.x` against the pass's own size.
+Halving the buffer silently doubles how far the shading reaches. This belongs
+with the three traps above — side by side it does not look like a resolution
+artefact, it looks like someone widened the effect on purpose, which invites
+tuning around it instead of fixing it.
+
+Anything else per-pixel — bloom, depth of field, outlines — will behave the
+same way. Measure it at 3840×2160 or you have not measured it.
+
 `demo/bench.html?units=10` measures this, and it takes `width` and `height`.
 It must be run on the target hardware; a headless container uses a software
 rasteriser and its frame times mean nothing. Run it at the panel's real
