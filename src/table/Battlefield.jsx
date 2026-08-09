@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { find, findLast, forEach } from "lodash";
 import { damageStatus } from "../rules/data/index.js";
-import { inContact } from "../engagement.js";
+import { contactSides, inContact } from "../engagement.js";
 import { CARD_H, CARD_W, damageBoxRects } from "../art/cardFace.js";
 import { cardImage, isDrawable } from "../art/cardImage.js";
 import { hasCreature } from "../art/creatures/roster.js";
@@ -15,6 +15,7 @@ import {
   deploymentZone,
   isDestroyed,
   marchedInches,
+  stillStanding,
   withOneBoxBack,
 } from "./board.js";
 
@@ -159,6 +160,67 @@ const drawMovementAllowance = (ctx, t, token) => {
 const roundedRect = (ctx, x, y, w, h, r) => {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
+};
+
+// Pressure marks: an inward-pointing wedge just outside every side an enemy
+// is holding.
+//
+// Drawn only when there is more than one, because one enemy in contact is the
+// ordinary state of a melee and marking it would put a wedge on half the
+// board. Two or more is the thing a player needs to spot, since it is what
+// turns the Pinching card on and what makes a unit worth rescuing.
+//
+// Outside the stand rather than on it. The card face is already carrying
+// artwork, a banner, a stat bar and a damage track, and the two rules it does
+// own — the amber front edge and the ring around a selected or engaged unit —
+// both mean something else. There is nothing left to overload, so this goes in
+// the margin where the only competition is felt.
+//
+// Which puts it partly over the enemy doing the holding, since two stands in
+// contact leave four tenths of an inch between them at most. That reads
+// correctly — the mark sits in the seam and ties the two together — but it is
+// why these are drawn in a pass of their own after every card is down. Drawn
+// per token they would fall in token order, and a pinned unit that happened to
+// be painted early would have its marks buried under the very units pinning
+// it.
+const PINCH_RED = "#e24b4a";
+
+const drawPressure = (ctx, cardW, cardH, sides) => {
+  // Along the edge it sits on, and out from the card by half as much again
+  const reach = Math.max(Math.min(cardW, cardH) * 0.18, 5);
+  const spread = reach * 0.95;
+  const gap = reach * 0.3;
+
+  ctx.save();
+  ctx.fillStyle = PINCH_RED;
+  ctx.shadowColor = "rgba(0,0,0,0.8)";
+  ctx.shadowBlur = 3;
+
+  forEach(sides, (side) => {
+    ctx.save();
+    // Every wedge is modelled once, pointing along its own -y and sitting
+    // beyond the edge; the frame is then turned to the side it belongs to.
+    //
+    // The rotation is the one that carries local -y onto the outward normal,
+    // which is +PI/2 for the +x edge and not -PI/2 — a rotation by t sends
+    // (0,-1) to (sin t, -cos t), so the sign is the opposite of the one the
+    // hand reaches for. The right edge is +x because `sideFrom` calls a
+    // positive angular offset "right", and both are measured in this frame.
+    if (side === "front") ctx.translate(0, -cardH / 2);
+    if (side === "rear") { ctx.rotate(Math.PI); ctx.translate(0, -cardH / 2); }
+    if (side === "right") { ctx.rotate(Math.PI / 2); ctx.translate(0, -cardW / 2); }
+    if (side === "left") { ctx.rotate(-Math.PI / 2); ctx.translate(0, -cardW / 2); }
+
+    ctx.beginPath();
+    ctx.moveTo(0, -gap);
+    ctx.lineTo(-spread, -gap - reach);
+    ctx.lineTo(spread, -gap - reach);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+
+  ctx.restore();
 };
 
 const drawToken = (
@@ -370,6 +432,19 @@ export default function Battlefield({
       if (attacker && defender) drawEngagementLine(ctx, t, attacker, defender);
     }
 
+    // Who is being held by more than one enemy, and from which sides.
+    //
+    // The dead are excluded on both counts: a destroyed unit standing where it
+    // fell pins nobody, and nothing is gained by marking a corpse as pinned.
+    // That is the same list `resolveEngagement` reasons over, so what a player
+    // sees here and what the Pinching card says cannot disagree.
+    const living = stillStanding(tokensRef.current);
+    const pressure = new Map();
+    forEach(living, (token) => {
+      const sides = contactSides(token, living);
+      if (sides.length > 1) pressure.set(token.id, sides);
+    });
+
     // A card face finishes decoding after the frame that asked for it, so it
     // asks for one more once it can be drawn
     const repaint = () => renderRef.current();
@@ -386,6 +461,21 @@ export default function Battlefield({
         liveOccupant: figures && hasCreature(token.unit),
       })
     );
+
+    // Over the top of every card, so a mark is never buried under the unit
+    // making it
+    forEach(living, (token) => {
+      const sides = pressure.get(token.id);
+      if (!sides) return;
+      enterTokenFrame(ctx, t, token);
+      drawPressure(
+        ctx,
+        token.halfWidth * 2 * t.scale,
+        token.halfDepth * 2 * t.scale,
+        sides
+      );
+      ctx.restore();
+    });
 
     ctx.restore();
   }, [selectedId, engagement, figures, deploying]);

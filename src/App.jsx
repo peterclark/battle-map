@@ -114,9 +114,19 @@ export default function App() {
   const handleOverride = (id, value) =>
     setEngagement((current) => {
       // Tapping a modifier back to exactly what the board already asserted
-      // hands control of it back to the board
-      const boardValue = result?.auto.includes(id);
-      const isBoardValue = typeof value === "boolean" && value === boardValue;
+      // hands control of it back to the board.
+      //
+      // Read the claim rather than the outcome: `result.modifiers` already has
+      // the override folded in, so once a player has touched a modifier it can
+      // no longer say what the table thought. A stacking modifier claims a
+      // count, everything else claims a flag, so compare in whichever currency
+      // the tap arrived in.
+      const claim = result?.asserted?.[id];
+      const boardValue =
+        typeof value === "number"
+          ? (typeof claim === "number" ? claim : claim ? 1 : 0)
+          : Boolean(claim);
+      const isBoardValue = value === boardValue;
       return {
         ...current,
         overrides: isBoardValue
