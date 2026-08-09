@@ -516,27 +516,34 @@ Headroom is real but not unlimited. Rules of thumb:
 - Shadows cost about 1.5ms at real board size. Keep them — they are what
   makes figures sit on the ground rather than float above it.
 
-### The exception: screen passes are the one thing 4K is not free for
+### Screen passes: measured, and then dropped from the board
 
-"4K is free" holds for everything the rigs do, and stops holding the moment
-anything renders per pixel rather than per mesh. Ambient occlusion is the
-first such thing on this board, and it broke the frame the first time it
-shipped: ten units at native 4K went from 16ms to 26ms, 62fps to 38.
+A screen pass looked like the one thing 4K would not be free for, since it
+renders per pixel rather than per mesh. Ambient occlusion was the first one
+tried here, and it broke the frame: ten units at native 4K went 16ms to 26ms,
+62fps to 38.
 
-Two bills, and only one is worth attacking.
+**The resolution theory was wrong, and it is worth knowing why.** Halving the
+occlusion buffer returned 2ms of the 8. Full-res 26ms, half-res 24ms, off
+16ms. So this was never fill-rate work in any meaningful proportion — GTAO
+renders the *entire scene a second time* into a normal-and-depth buffer before
+it shades anything, and 1,601 meshes resubmitted cost the same whatever size
+you rasterise them into. Same reason the CPU went 3ms to 5ms. There is no
+setting on the pass that reaches it.
 
-- **CPU, 3ms → 5ms.** GTAO draws the scene a second time into a normal buffer
-  before it can shade anything — 1,601 more meshes submitted. It scales with
-  the board, like everything else here, and there is no cheap way out of it.
-- **GPU, ~10ms.** Fill-rate. It scales with **resolution**, not with the
-  board, which inverts the rule above and is why the 720p bench never showed
-  it and the panel did.
+**Then check whether the board can even show the effect.** It could not.
+48 inches across a 3840-pixel panel puts a stand's art field at about 256×106
+pixels; rendered side by side at exactly that size, occlusion on and off are
+indistinguishable. From straight overhead the creases it darkens are a pixel
+or two wide, and there is nothing to cast against — the cards are a separate
+canvas and are not in the figures' depth buffer at all.
 
-**Halve the buffer.** Occlusion is a low-frequency signal — broad soft
-darkening in creases — so it survives being computed coarsely and blurred,
-which the denoise pass does to it anyway. Quartering the pixels quarters the
-only cost that scales with them. The pass gets its own half-size buffers while
-the composer stays full and the blend filters back up.
+So: **`UnitPortrait` has it, `CreatureLayer` does not.** One creature tilted
+and filling a panel is the whole case for it here. Expect this to generalise —
+a per-pixel effect judged in the lab at six units across is being judged at
+roughly twenty times the size it will ship at.
+
+Two mechanical traps came out of the exercise and both are worth keeping.
 
 **Resize the pass after `addPass`, not before.** `EffectComposer.addPass`
 calls `pass.setSize(composerWidth, composerHeight)` on whatever it is handed,
@@ -552,7 +559,7 @@ report back what it actually got — `demo/bench.html?ao=on` now prints
 `occlusionResolution` read off the pass — so the next run says which of the
 two it is instead of leaving it to be inferred from a frame time.
 
-**Then scale the radius with the buffer, or it is not the same effect.**
+**Scale the radius with the buffer, or it is not the same effect.**
 `screenSpaceRadius` means pixels *of the occlusion buffer*, not of the canvas:
 the shader converts through `1.0 / resolution.x` against the pass's own size.
 Halving the buffer silently doubles how far the shading reaches. This belongs
@@ -560,8 +567,10 @@ with the three traps above — side by side it does not look like a resolution
 artefact, it looks like someone widened the effect on purpose, which invites
 tuning around it instead of fixing it.
 
-Anything else per-pixel — bloom, depth of field, outlines — will behave the
-same way. Measure it at 3840×2160 or you have not measured it.
+Before reaching for any of this again — bloom, depth of field, outlines —
+answer the two questions in order. **Is the cost per-pixel or per-mesh?** and
+**is the effect visible at stand size?** Measuring only the first is how eight
+milliseconds get spent on something nobody can see.
 
 `demo/bench.html?units=10` measures this, and it takes `width` and `height`.
 It must be run on the target hardware; a headless container uses a software

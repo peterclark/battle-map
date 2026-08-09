@@ -38,6 +38,12 @@ const SHADOWS = (params.get("shadows") ?? "on") !== "off";
 // Ambient occlusion costs a second pass over the geometry — GTAO renders its
 // own normal-and-depth buffer before it can shade anything — so it is
 // measured separately, the same way shadows are.
+//
+// The board itself no longer switches this on; this flag is what established
+// that it shouldn't. It stays because the question comes back every time
+// someone looks at a figure up close and wants more depth in the creases, and
+// the answer is 8ms of a 16.7ms frame for something invisible at stand size.
+// Measure before re-litigating.
 const AO = (params.get("ao") ?? "off") !== "off";
 const SHADOW_MAP = Number(params.get("shadowmap") ?? 2048);
 const WIDTH = Number(params.get("width") ?? 1280);

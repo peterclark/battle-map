@@ -68,19 +68,13 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
     let frame = 0;
 
     const boot = async () => {
-      const [
-        THREE,
-        { buildScene },
-        { tuneRenderer },
-        { builderFor },
-        { makeOcclusion },
-      ] = await Promise.all([
-        import("three"),
-        import("../art/creatures/trex3d.js"),
-        import("../art/creatures/materials.js"),
-        import("../art/creatures/registry.js"),
-        import("../art/creatures/occlusion.js"),
-      ]);
+      const [THREE, { buildScene }, { tuneRenderer }, { builderFor }] =
+        await Promise.all([
+          import("three"),
+          import("../art/creatures/trex3d.js"),
+          import("../art/creatures/materials.js"),
+          import("../art/creatures/registry.js"),
+        ]);
       if (!live) return;
 
       const canvas = canvasRef.current;
@@ -128,12 +122,25 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
       shadowCatcher.receiveShadow = true;
       scene.add(shadowCatcher);
 
-      // Ambient occlusion, over the whole layer. It only ever darkens where
-      // figures meet each other or themselves — the cards underneath are a
-      // separate canvas and are not in this depth buffer at all, so a figure
-      // gets no contact shadow against its own stand. The self-occlusion is
-      // where nearly all of the value is anyway.
-      let occlusion = null;
+      // No ambient occlusion here, and that is a measurement rather than an
+      // oversight. `UnitPortrait` uses it; this layer used to, and gave it up.
+      //
+      // The board is 48 inches across on a 3840-pixel panel, which puts a
+      // stand's art field at about 256 by 106 pixels. Rendered side by side at
+      // exactly that size, occlusion on and off are indistinguishable — the
+      // creases it darkens are a pixel or two wide from straight overhead, and
+      // it has no stand to cast against because the cards are a separate
+      // canvas and are not in this depth buffer at all.
+      //
+      // It cost 8ms of a 16.7ms frame for that: ten units at native 4K went
+      // 62fps to 38. Half-resolution buffers gave 2ms of it back, which is how
+      // we learned the bill is not fill-rate — GTAO draws the whole scene a
+      // second time into a normal buffer before it can shade anything, and
+      // 1,601 meshes resubmitted costs the same however big the buffer is.
+      //
+      // So it goes where it earns its pass. The portrait is one creature at a
+      // tilt filling a panel, which is the only view here where a crease has
+      // any depth to read.
 
       const stage = {
         THREE,
@@ -152,11 +159,6 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         renderer.setPixelRatio(dpr);
         renderer.setSize(rect.width, rect.height, false);
-        if (!occlusion) {
-          occlusion = makeOcclusion(renderer, scene, camera, rect.width, rect.height);
-        } else {
-          occlusion.setSize(rect.width, rect.height);
-        }
         // Mirror the 2D canvas's fit exactly. It scales by whichever axis runs
         // out first and letterboxes the rest; a camera that merely matched the
         // aspect ratio would agree on wide panels and part company on narrow
@@ -277,8 +279,7 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
           stage.built.delete(id);
         });
 
-        if (occlusion) occlusion.render();
-        else renderer.render(scene, camera);
+        renderer.render(scene, camera);
         if (!prefersStillness()) frame = requestAnimationFrame(step);
       };
 
@@ -286,7 +287,6 @@ export default function CreatureLayer({ tokens, engagement, enabled }) {
 
       stage.teardown = () => {
         observer.disconnect();
-        occlusion?.dispose();
         renderer.dispose();
       };
     };

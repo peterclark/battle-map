@@ -25,21 +25,36 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 // matches the analytically correct answer more closely than the older
 // approximations — `SSAOPass` and `SAOPass`, both also in the box.
 //
-// --- what it costs -------------------------------------------------------
+// --- what it costs, and why the board does not use it ----------------------
 //
-// Two separate bills, and they want different treatment. Measured on the Mac
-// mini, ten units, native 4K:
+// Measured on the Mac mini, ten units, native 4K. Frame time, against a
+// 16.7ms budget:
 //
-//   CPU     3ms -> 5ms. GTAO draws the scene a second time into a normal
-//           buffer before it can shade anything, so this is 1,601 more meshes
-//           submitted. It scales with the board, and it is unavoidable short
-//           of building the normal buffer in the main pass.
-//   GPU     16ms -> 26ms at full resolution, which is off the 60Hz cap. This
-//           is fill-rate: samples per pixel across the whole canvas. It
-//           scales with *resolution* rather than with the board, which is the
-//           opposite of everything else on this project.
+//   no occlusion              16ms   62fps
+//   full-resolution GTAO      26ms   38fps
+//   half-resolution GTAO      24ms   42fps
 //
-// The second is the one that hurt, and halving the resolution is the fix.
+// The middle line was the reason for the third, on the theory that this is
+// fill-rate work — samples per pixel — and would therefore quarter along with
+// the pixels. It did not. Quartering the buffer returned 2ms of 8, so
+// **fill-rate was never the bill**.
+//
+// The bill is the prepass. GTAO renders the entire scene a second time into a
+// normal-and-depth buffer before it can shade anything, and 1,601 meshes
+// resubmitted costs the same whatever size you rasterise them into. That also
+// shows up on the CPU side, 3ms to 5ms, for the same reason. Short of writing
+// normals during the main pass there is no way around it, and there is no
+// knob on this pass that touches it.
+//
+// So the effect goes where it earns 8ms and nowhere else. `UnitPortrait` uses
+// it: one creature, tilted, filling a panel. `CreatureLayer` does not, and
+// that decision has its own note there — from straight overhead a stand is
+// 256 pixels wide on the real panel, the creases are a pixel or two across,
+// and occlusion on and off are indistinguishable side by side.
+//
+// The half-resolution buffers stay regardless. They cost nothing to keep, the
+// 2ms is real, and the portrait is small enough that none of this is load
+// bearing there anyway.
 
 // The radius is measured in *screen space* rather than in world units, and
 // that is not a detail. The same creature is drawn at three wildly different
@@ -70,13 +85,11 @@ const AO = {
 // This is not a compromise so much as the standard way to do it: occlusion is
 // a low-frequency signal — broad soft darkening in creases — so it survives
 // being computed coarsely and blurred, which is what the denoise pass does to
-// it anyway. Quartering the pixels quarters the cost of the one part of this
-// that scales with resolution.
+// it anyway. Rendered side by side against the full-resolution version, with
+// the radius corrected as below, the difference is not findable.
 //
-// It needed doing. Measured on the Mac mini at native 4K, the full-resolution
-// version took the frame from 16ms to 26ms — off the 60Hz cap and down to 38
-// frames a second. That is roughly 10ms of GPU for an effect that is meant to
-// be felt rather than seen.
+// It buys 2ms of the 8 at 4K. See the note above for where the other six went
+// and why no setting here can reach them.
 const RESOLUTION_SCALE = 0.5;
 
 const DENOISE = { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, samples: 8 };
