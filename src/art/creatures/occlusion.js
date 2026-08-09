@@ -81,6 +81,12 @@ const RESOLUTION_SCALE = 0.5;
 
 const DENOISE = { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, samples: 8 };
 
+const resizeAo = (gtao, width, height) =>
+  gtao.setSize(
+    Math.max(1, Math.round(width * RESOLUTION_SCALE)),
+    Math.max(1, Math.round(height * RESOLUTION_SCALE))
+  );
+
 /**
  * A composer that renders the scene and then multiplies ambient occlusion
  * into it.
@@ -95,12 +101,7 @@ export const makeOcclusion = (renderer, scene, camera, width, height, options = 
     composer.setSize(width, height);
     composer.addPass(new RenderPass(scene, camera));
 
-    // The pass's own buffers are half size while the composer stays full —
-    // the blend samples the smaller AO texture with full-resolution UVs and
-    // the hardware filters it back up
-    const aoWidth = Math.max(1, Math.round(width * RESOLUTION_SCALE));
-    const aoHeight = Math.max(1, Math.round(height * RESOLUTION_SCALE));
-    const gtao = new GTAOPass(scene, camera, aoWidth, aoHeight);
+    const gtao = new GTAOPass(scene, camera, width, height);
     gtao.updateGtaoMaterial({
       ...AO,
       radius: AO.radius * RESOLUTION_SCALE,
@@ -113,6 +114,17 @@ export const makeOcclusion = (renderer, scene, camera, width, height, options = 
     gtao.blendIntensity = options.intensity ?? 0.9;
     composer.addPass(gtao);
 
+    // Only now. `EffectComposer.addPass` resizes the pass it is handed to the
+    // composer's own size, so a pass constructed at half resolution is put
+    // back to full the instant it is added — silently, and with no visible
+    // difference beyond the frame time. The first attempt at this shipped
+    // that way and measured exactly as expensive as no fix at all.
+    //
+    // The pass's buffers are half size while the composer stays full: the
+    // blend samples the smaller AO texture with full-resolution UVs and the
+    // hardware filters it back up.
+    resizeAo(gtao, width, height);
+
     // Tone mapping and the sRGB conversion happen here rather than in each
     // material, because the renderer skips both when drawing into a render
     // target. Without this pass the whole board comes back flat and dark.
@@ -122,12 +134,14 @@ export const makeOcclusion = (renderer, scene, camera, width, height, options = 
       composer,
       gtao,
       render: () => composer.render(),
+      // What the occlusion buffers actually came out as, so a benchmark can
+      // report it rather than trust that the setting took. See above for why
+      // that distinction earned its own accessor.
+      resolution: () => [gtao.width, gtao.height],
       setSize: (w, h) => {
+        // Same order, same reason: the composer resizes every pass it holds.
         composer.setSize(w, h);
-        gtao.setSize(
-          Math.max(1, Math.round(w * RESOLUTION_SCALE)),
-          Math.max(1, Math.round(h * RESOLUTION_SCALE))
-        );
+        resizeAo(gtao, w, h);
       },
       dispose: () => {
         gtao.dispose?.();

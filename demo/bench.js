@@ -174,6 +174,12 @@ const step = (now) => {
     // GTAO draws the scene a second time into a normal buffer, so with it on
     // the real submitted total is nearer twice the figure above again
     ambientOcclusion: occlusion ? "gtao" : false,
+    // Read back from the pass rather than assumed, because assuming it cost a
+    // whole measurement once: EffectComposer resizes any pass added to it, so
+    // occlusion asked for at half resolution silently ran at full, and the
+    // only symptom was a frame time that refused to improve. If this does not
+    // say half of `resolution`, the run is not measuring what it claims to.
+    occlusionResolution: occlusion ? occlusion.resolution().join("x") : null,
     // CPU, and the part that transfers to other machines
     poseMsMedian: round(median(samples.pose)),
     submitMsMedian: round(median(samples.submit)),

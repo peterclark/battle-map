@@ -538,6 +538,20 @@ which the denoise pass does to it anyway. Quartering the pixels quarters the
 only cost that scales with them. The pass gets its own half-size buffers while
 the composer stays full and the blend filters back up.
 
+**Resize the pass after `addPass`, not before.** `EffectComposer.addPass`
+calls `pass.setSize(composerWidth, composerHeight)` on whatever it is handed,
+so a pass *constructed* at half resolution is put straight back to full the
+instant it joins the chain. Nothing warns, nothing looks wrong, and the only
+symptom is a frame time that refuses to improve — which reads as "the fix
+didn't help" rather than "the fix never ran", and the difference is a whole
+measurement round on the target machine. Applies to `insertPass` too.
+
+The general lesson is bigger than the API: **a knob that silently doesn't
+apply is indistinguishable from a knob that doesn't work.** Have the thing
+report back what it actually got — `demo/bench.html?ao=on` now prints
+`occlusionResolution` read off the pass — so the next run says which of the
+two it is instead of leaving it to be inferred from a frame time.
+
 **Then scale the radius with the buffer, or it is not the same effect.**
 `screenSpaceRadius` means pixels *of the occlusion buffer*, not of the canvas:
 the shader converts through `1.0 / resolution.x` against the pass's own size.
