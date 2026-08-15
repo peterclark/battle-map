@@ -23,7 +23,7 @@ console.error = ((original) => (...args) => {
 // One mesh holding a matte sphere and a polished metal box
 const mesh = meshOf(
   [
-    part(new THREE.SphereGeometry(0.5, 24, 18), 0xcfc6ad, { pos: [-0.7, 0, 0] }),
+    part(new THREE.SphereGeometry(0.5, 24, 18), 0xcfc6ad, { pos: [-0.7, 0, 0], mottle: 0.2, mottleScale: 9 }),
     part(new THREE.BoxGeometry(0.8, 0.8, 0.8), 0xc3cad2, {
       pos: [0.7, 0, 0],
       metalness: 0.72,

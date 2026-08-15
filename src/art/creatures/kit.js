@@ -65,11 +65,20 @@ const scratch = new THREE.Color();
  * `metalness` and `roughness` follow the same meanings they have on the
  * material — see `materials.js` for why metalness tops out at 0.72 rather
  * than 1.
+ *
+ * `mottle` is how blotchy the surface is and `mottleScale` how fine the
+ * blotches are. Both are written into a `grain` attribute and evaluated *per
+ * pixel* by the shader — see the note above `patch()` for why that matters.
  */
-export const skin = (geometry, color, { metalness = 0, roughness = 0.85 } = {}) => {
+export const skin = (
+  geometry,
+  color,
+  { metalness = 0, roughness = 0.85, mottle = 0, mottleScale = 6 } = {}
+) => {
   const count = geometry.attributes.position.count;
   const colors = new Float32Array(count * 3);
   const surfaces = new Float32Array(count * 2);
+  const grain = new Float32Array(count * 2);
   // `Color.set` already converts a hex literal out of sRGB and into the
   // renderer's linear working space — the same thing `material.color` does
   // with the same number. Converting again here is a second gamma pass, and
@@ -83,9 +92,12 @@ export const skin = (geometry, color, { metalness = 0, roughness = 0.85 } = {}) 
     colors[i * 3 + 2] = scratch.b;
     surfaces[i * 2] = metalness;
     surfaces[i * 2 + 1] = roughness;
+    grain[i * 2] = mottle;
+    grain[i * 2 + 1] = mottleScale;
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("surface", new THREE.BufferAttribute(surfaces, 2));
+  geometry.setAttribute("grain", new THREE.BufferAttribute(grain, 2));
   return geometry;
 };
 
@@ -128,9 +140,23 @@ export const attach = (parent, parts, material, position) => {
 
 // --- the material ----------------------------------------------------------
 
-// MeshStandardMaterial reads metalness and roughness from uniforms. These two
-// injections make it read them from a vertex attribute instead, which is what
-// lets one merged mesh hold both bone and steel.
+// MeshStandardMaterial reads metalness and roughness from uniforms. These
+// injections make it read them from vertex attributes instead — which is what
+// lets one merged mesh hold both bone and steel — and then compute the
+// surface blotching per *pixel*.
+//
+// That last part is the whole reason this is worth the excursion. The first
+// version varied colour per vertex on the CPU, and the vertex counts here are
+// tiny: a head is 195 vertices, an arm 442. 195 samples across a whole head
+// is a fourteen-pixel texture; it can shift a part's overall tone and do
+// nothing else. The same noise evaluated per fragment, on a creature drawn at
+// 280 px, gets on the order of 78,000 samples. Four hundred times finer, for
+// no memory and no extra draw calls.
+//
+// It also sidesteps the reason this pipeline cannot take an ordinary texture
+// map at all: geometries are merged from a dozen generators whose UVs are
+// unrelated to each other, so any shared map smears. Noise taken from
+// object-space position needs no UVs.
 //
 // This is deliberately the smallest possible change to the stock shader: one
 // attribute, one varying, two assignments after the stock chunks have run.
@@ -146,26 +172,59 @@ const patch = (shader) => {
       "#include <common>",
       `#include <common>
 attribute vec2 surface;
-varying vec2 vSurface;`
+attribute vec2 grain;
+varying vec2 vSurface;
+varying vec2 vGrain;
+varying vec3 vGrainPos;`
     )
     .replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
-vSurface = surface;`
+vSurface = surface;
+vGrain = grain;
+// Object space, which for a merged rig is the space its geometry was baked
+// in — so the pattern is fixed to the model and does not swim when a limb
+// rotates or the unit turns on the board.
+vGrainPos = position;`
     );
 
   shader.fragmentShader = shader.fragmentShader
     .replace(
       "#include <common>",
       `#include <common>
-varying vec2 vSurface;`
+varying vec2 vSurface;
+varying vec2 vGrain;
+varying vec3 vGrainPos;
+
+// Domain-warped sine, three octaves. Not a true value noise, but it is
+// continuous, costs no texture lookup, and has no tiling to give it away.
+float bmWobble(vec3 p) {
+  return sin(p.x * 5.1 + sin(p.z * 3.3) * 1.4)
+       * sin(p.y * 4.3 + sin(p.x * 2.7) * 1.1)
+       * sin(p.z * 5.7 + sin(p.y * 3.9) * 1.3);
+}
+float bmGrain(vec3 p) {
+  return bmWobble(p) * 0.62
+       + bmWobble(p * 2.7 + 4.1) * 0.26
+       + bmWobble(p * 6.3 + 1.3) * 0.12;
+}`
+    )
+    // After the stock chunk has applied the vertex colour, so the blotching
+    // modulates the tint rather than being averaged into it
+    .replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+float bmN = vGrain.x > 0.0 ? bmGrain(vGrainPos * vGrain.y) : 0.0;
+diffuseColor.rgb *= 1.0 + bmN * vGrain.x;`
     )
     // Both stock chunks declare their factor and then modify it from a map.
     // Assigning afterwards overrides the uniform without disturbing either.
     .replace(
       "#include <roughnessmap_fragment>",
       `#include <roughnessmap_fragment>
-roughnessFactor = vSurface.y;`
+// Damp patches read as damp. On flesh the roughness variation carries more
+// than the colour does.
+roughnessFactor = clamp(vSurface.y - bmN * vGrain.x * 0.5, 0.04, 1.0);`
     )
     .replace(
       "#include <metalnessmap_fragment>",
@@ -196,7 +255,7 @@ export const surfaceMaterial = () => {
   // Two materials with the same program need the same cache key, and two with
   // different injected source must not share one. This material is a
   // singleton with a fixed patch, so a constant is both correct and cheap.
-  shared.customProgramCacheKey = () => "surface";
+  shared.customProgramCacheKey = () => "surface-grain";
   return shared;
 };
 

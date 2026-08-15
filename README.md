@@ -28,6 +28,12 @@ already asserted, each one labelled with the board fact behind it:
 - **Cavalry / Large / Colossal Target** — from the defender's keywords
 - **Attack my Flank** / **Attack my Rear** — from *other* enemies in contact
   with the attacker, which only something seeing the whole board can spot
+- **Pinching**, and how many times over — from other enemies in contact with
+  the *defender*. A stand has four sides and only one enemy fits on each, so
+  counting bodies counts sides: held by three units and it is pinched on three
+  of them, and the card stacks twice. Any unit caught by more than one enemy
+  gets a red wedge on each side it is being held from, so the pinch is visible
+  on the table before anyone declares an attack
 - **Foe Damaged**, **Foe Routing**
 
 A unit's own card rules fire off those assertions the same way they do in

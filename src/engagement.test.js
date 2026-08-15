@@ -8,6 +8,7 @@ import {
   preferredMode,
   rangeBand,
   resolveEngagement,
+  sideFrom,
 } from "./engagement.js";
 
 // Facings are radians, and the board's y axis runs down the screen, so a
@@ -429,5 +430,163 @@ describe("resolveEngagement — attack legality", () => {
   it("falls back to melee for a unit that cannot shoot", () => {
     const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0 });
     expect(preferredMode(attacker, { ...attacker, x: 10 })).toBe("melee");
+  });
+});
+
+describe("pinching", () => {
+  // A defender held front and back, with the attacker on its front edge and a
+  // second unit behind it. One enemy to a side, so two enemies is two sides.
+  const pincer = (extra = []) => {
+    const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, facing: EAST });
+    const defender = token("orcArmy/orcSpearmen", {
+      x: CONTACT_X,
+      y: 0,
+      facing: WEST,
+      side: "defender",
+    });
+    // Behind the defender, which faces west — so this one is on its rear edge
+    const behind = token("orcArmy/goblinRaiders", {
+      x: CONTACT_X * 2,
+      y: 0,
+      facing: WEST,
+    });
+    return { attacker, defender, others: [attacker, defender, behind, ...extra] };
+  };
+
+  it("counts sides rather than reading a card the players tapped", () => {
+    const { attacker, defender, others } = pincer();
+    const result = resolveEngagement(attacker, defender, { mode: "melee", others });
+
+    expect(result.auto).toContain("pinching");
+    expect(result.modifiers.pinching.count).toBe(1);
+    // The reason names the unit doing the holding, so an asserted modifier is
+    // never a black box
+    expect(result.reasons.pinching).toContain("held by");
+    expect(result.reasons.pinching).toContain(
+      UNITS_BY_UID["orcArmy/goblinRaiders"].name
+    );
+  });
+
+  it("leaves the card off when the attacker is the only one in contact", () => {
+    const attacker = token("orcArmy/orcSwordsmen", { x: 0, y: 0, facing: EAST });
+    const defender = token("orcArmy/orcSpearmen", {
+      x: CONTACT_X,
+      y: 0,
+      facing: WEST,
+      side: "defender",
+    });
+
+    const result = resolveEngagement(attacker, defender, {
+      mode: "melee",
+      others: [attacker, defender],
+    });
+
+    expect(result.auto).not.toContain("pinching");
+    expect(result.modifiers.pinching.on).toBe(false);
+    expect(result.modifiers.pinching.count).toBe(0);
+  });
+
+  it("stacks once per extra side, and counts only what is touching", () => {
+    // Every side of the defender occupied — attacker in front, one behind, one
+    // on each flank — plus a fifth unit sitting a stand's width beyond the
+    // left-hand one, close enough to look involved and too far to be.
+    const { attacker, defender, others } = pincer([
+      token("orcArmy/goblinRaiders", { x: CONTACT_X, y: CONTACT_Y, facing: WEST }),
+      token("orcArmy/goblinRaiders", { x: CONTACT_X, y: -CONTACT_Y, facing: WEST }),
+      token("orcArmy/goblinRaiders", { x: CONTACT_X, y: CONTACT_Y * 2, facing: WEST }),
+    ]);
+
+    const result = resolveEngagement(attacker, defender, { mode: "melee", others });
+
+    // Three, not four: the outlier is out of contact
+    expect(result.pinchers).toHaveLength(3);
+    expect(result.modifiers.pinching.count).toBe(3);
+    expect(result.reasons.pinching).toContain("4 sides");
+  });
+
+  it("clamps a player's count to what the card can stack to", () => {
+    const { attacker, defender, others } = pincer();
+
+    const result = resolveEngagement(attacker, defender, {
+      mode: "melee",
+      others,
+      overrides: { pinching: 9 },
+    });
+
+    // Overrides win over the board, but not over the printed rules
+    expect(result.modifiers.pinching.count).toBe(3);
+  });
+
+  it("ignores a pincer that has been destroyed", () => {
+    const { attacker, defender, others } = pincer();
+    const dead = others.map((t) =>
+      t === others[2] ? { ...t, marked: damageBoxes(t.unit) } : t
+    );
+
+    const result = resolveEngagement(attacker, defender, {
+      mode: "melee",
+      others: stillStanding(dead),
+    });
+
+    expect(result.auto).not.toContain("pinching");
+  });
+
+  it("is a melee modifier and stays off a shot", () => {
+    const attacker = token("orcArmy/goblinBowmen", { x: 0, y: 0, facing: EAST });
+    const defender = token("orcArmy/orcSpearmen", {
+      x: 10,
+      y: 0,
+      facing: WEST,
+      side: "defender",
+    });
+    const behind = token("orcArmy/goblinRaiders", {
+      x: 10 + CONTACT_X,
+      y: 0,
+      facing: WEST,
+    });
+
+    const result = resolveEngagement(attacker, defender, {
+      mode: "ranged",
+      others: [attacker, defender, behind],
+    });
+
+    expect(result.auto).not.toContain("pinching");
+  });
+
+  it("hands the card back to the board when a player taps to agree with it", () => {
+    const { attacker, defender, others } = pincer();
+    const board = resolveEngagement(attacker, defender, { mode: "melee", others });
+    // The board's claim is readable even once a player has overridden it,
+    // which is what lets App tell "agrees with the table" from "insists"
+    const overridden = resolveEngagement(attacker, defender, {
+      mode: "melee",
+      others,
+      overrides: { pinching: 3 },
+    });
+
+    expect(board.asserted.pinching).toBe(1);
+    expect(overridden.asserted.pinching).toBe(1);
+    expect(overridden.modifiers.pinching.count).toBe(3);
+    expect(overridden.auto).not.toContain("pinching");
+  });
+});
+
+describe("sideFrom", () => {
+  const target = token("orcArmy/orcSpearmen", { x: 0, y: 0, facing: EAST });
+
+  it("names the edge an enemy is standing on", () => {
+    expect(sideFrom(target, { x: 5, y: 0 })).toBe("front");
+    expect(sideFrom(target, { x: -5, y: 0 })).toBe("rear");
+    // y runs down the screen, so +y is clockwise of a unit facing east —
+    // its own right
+    expect(sideFrom(target, { x: 0, y: 5 })).toBe("right");
+    expect(sideFrom(target, { x: 0, y: -5 })).toBe("left");
+  });
+
+  it("splits the flanks that arcFrom merges", () => {
+    const left = { x: 0, y: -5 };
+    const right = { x: 0, y: 5 };
+    expect(arcFrom(target, left)).toBe(arcFrom(target, right));
+    expect(sideFrom(target, left)).not.toBe(sideFrom(target, right));
   });
 });

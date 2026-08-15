@@ -80,6 +80,45 @@ export const arcFrom = (target, origin) => {
   return "flank";
 };
 
+// Which *edge* of a stand an enemy is on, rather than which arc. The arcs
+// merge both flanks into one because the modifier cards treat them alike; a
+// pinch does not, because two enemies on opposite flanks are on two sides and
+// the board has to be able to draw them separately.
+//
+// The frame runs the same way the canvas draws it: +x across the front edge,
+// y down the screen. A positive angular offset is therefore clockwise on
+// screen, which for a unit facing up the board is its own right.
+export const sideFrom = (target, origin) => {
+  const bearing = Math.atan2(origin.y - target.y, origin.x - target.x);
+  const offset = Math.atan2(
+    Math.sin(bearing - target.facing),
+    Math.cos(bearing - target.facing)
+  );
+  const magnitude = Math.abs(offset);
+  if (magnitude <= ARC_HALF_WIDTH) return "front";
+  if (magnitude >= Math.PI - ARC_HALF_WIDTH) return "rear";
+  return offset > 0 ? "right" : "left";
+};
+
+/**
+ * Every enemy in base contact with a unit.
+ *
+ * A stand has four sides and the rules allow one enemy on each, so the length
+ * of this list is both a count of bodies and a count of sides — which is what
+ * lets the Pinching modifier be derived from it directly. Pass only the
+ * living: a destroyed unit standing where it fell pins nobody.
+ */
+export const engagedBy = (token, others) =>
+  filter(
+    others,
+    (other) =>
+      other !== token && other.side !== token.side && inContact(token, other)
+  );
+
+// The same list as the sides it occupies, for drawing.
+export const contactSides = (token, others) =>
+  map(engagedBy(token, others), (other) => sideFrom(token, other));
+
 // Range bands as the modifier cards name them: 7–14" is Long Range, 15" and
 // out is Extreme Range. Anything closer is unmodified short range.
 export const rangeBand = (inches) => {
@@ -126,6 +165,21 @@ const autoRules = [
     id: "attackingToMyRear",
     reason: (ctx) => `${ctx.rearThreats[0]?.unit.name} is to the rear`,
     when: (ctx) => ctx.mode === "melee" && ctx.rearThreats.length > 0,
+  },
+  // The defender's exposure, which is the mirror of the two above: enemies
+  // other than this attacker, in contact with the unit being attacked.
+  //
+  // This one is a count rather than a flag. One enemy per side, so a defender
+  // held by three units is pinched on three sides and the card stacks twice —
+  // hence `pinchers.length` rather than `true`, and the clamp to the card's
+  // own `maxCount` lives in `buildModifierState`.
+  {
+    id: "pinching",
+    reason: (ctx) =>
+      ctx.pinchers.length === 1
+        ? `${ctx.defender.unit.name} is also held by ${ctx.pinchers[0].unit.name}`
+        : `${ctx.defender.unit.name} is engaged on ${ctx.pinchers.length + 1} sides`,
+    when: (ctx) => (ctx.mode === "melee" ? ctx.pinchers.length : 0),
   },
   {
     id: "chargingFourOrMoreDice",
@@ -210,18 +264,26 @@ const withExclusionsResolved = (state) => {
 const buildModifierState = (ctx, overrides) => {
   const asserted = {};
   const reasons = {};
+  // A rule may claim a modifier outright or claim it a number of times over.
+  // Anything falsy — `false` or a count of zero — is no claim at all.
   forEach(autoRules, ({ id, when, reason }) => {
-    if (when(ctx)) {
-      asserted[id] = true;
-      reasons[id] = reason(ctx);
-    }
+    const claim = when(ctx);
+    if (!claim) return;
+    const max = MODIFIERS[id]?.maxCount;
+    asserted[id] = max ? Math.min(Number(claim) || 1, max) : true;
+    reasons[id] = reason(ctx);
   });
 
   let state = reduce(
     MODIFIERS,
     (acc, mod, id) => {
-      const isOn = id === "reset" ? mod.on : Boolean(asserted[id]);
-      acc[id] = { ...mod, on: isOn };
+      const claim = asserted[id];
+      const isOn = id === "reset" ? mod.on : Boolean(claim);
+      acc[id] = {
+        ...mod,
+        on: isOn,
+        ...(mod.maxCount ? { count: isOn ? Number(claim) : 0 } : {}),
+      };
       return acc;
     },
     {}
@@ -230,10 +292,13 @@ const buildModifierState = (ctx, overrides) => {
   forEach(overrides, (value, id) => {
     if (!state[id]) return;
     const on = typeof value === "number" ? value > 0 : Boolean(value);
+    const count = typeof value === "number" ? value : on ? 1 : 0;
     state[id] = {
       ...state[id],
       on,
-      ...(state[id].maxCount ? { count: typeof value === "number" ? value : on ? 1 : 0 } : {}),
+      // Clamped to what the card can actually stack to. Overrides win over the
+      // board, but not over the printed rules.
+      ...(state[id].maxCount ? { count: Math.min(count, state[id].maxCount) } : {}),
     };
   });
 
@@ -245,7 +310,10 @@ const buildModifierState = (ctx, overrides) => {
     Object.keys(asserted),
     (id) => state[id]?.on && !(id in (overrides ?? {}))
   );
-  return { modifiers: state, auto, reasons };
+  // What the board claimed, kept separate from what came out. An override
+  // hides the claim from `modifiers`, and the panel still needs it to know
+  // when a player has tapped their way back to agreeing with the table.
+  return { modifiers: state, auto, reasons, asserted };
 };
 
 // Label each non-zero contribution so the panel can show its working, the
@@ -297,15 +365,18 @@ export const resolveEngagement = (
   // Enemies of the attacker, in contact with it, that aren't the unit it is
   // attacking — these are what expose its own flank and rear.
   const threats = filter(
-    others,
-    (other) =>
-      other !== attacker &&
-      other !== defender &&
-      other.side !== attacker.side &&
-      inContact(attacker, other)
+    engagedBy(attacker, others),
+    (other) => other !== defender
   );
   const threatArc = (want) =>
     filter(threats, (threat) => arcFrom(attacker, threat) === want);
+
+  // And the same question asked of the defender: everyone else holding it in
+  // place while this attacker swings. That is the pinch.
+  const pinchers = filter(
+    engagedBy(defender, others),
+    (other) => other !== attacker
+  );
 
   const ctx = {
     mode,
@@ -318,9 +389,10 @@ export const resolveEngagement = (
     attackerStatus: damageStatus(attacker.unit, attacker.marked ?? 0),
     flankThreats: threatArc("flank"),
     rearThreats: threatArc("rear"),
+    pinchers,
   };
 
-  const { modifiers, auto, reasons } = buildModifierState(ctx, overrides);
+  const { modifiers, auto, reasons, asserted } = buildModifierState(ctx, overrides);
 
   // A Frightened unit and some special attacks refuse Command Cards outright
   const ccLocked = modifiers.frightened.on || Boolean(profile.noCommandCards);
@@ -369,8 +441,10 @@ export const resolveEngagement = (
     modifiers,
     auto,
     reasons,
+    asserted,
     abilities,
     threats,
+    pinchers,
     breakdown: {
       dice: [
         { label: "Attack Dice", code: "BASE", amount: profile.dice, base: true },

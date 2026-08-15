@@ -98,7 +98,7 @@ const KINDS = {
   },
 };
 
-const MEAT = { roughness: 0.9 };
+const MEAT = { roughness: 0.9, mottle: 0.18, mottleScale: 5 };
 const HORN = { metalness: 0.2, roughness: 0.5 };
 const STONE = { roughness: 0.95 };
 
@@ -555,42 +555,250 @@ const makeBrute = (spec, buffers, material) => {
 const ABOMINATION = {
   core: 0x4a3f3a,
   coreDark: 0x322a27,
-  flesh: 0xb9a894,
-  fleshDark: 0x8a7a68,
+  // Spread wide on purpose. Twelve bodies within a few percent of each other
+  // merge into one pale blob however well each is modelled — what makes a
+  // pile of corpses read is the contrast between them and the dark in the
+  // gaps, not the anatomy of any one.
+  flesh: 0xc9b9a2,
+  fleshDark: 0x7d6a5c,
+  fleshLivid: 0xa88f7e,
+  fleshDrained: 0xd8ccb6,
+  fleshBruised: 0x5e4a46,
   bone: 0xd8cebb,
+  // Wet, and it has to read wet. Blood at the same roughness as skin is a
+  // brown patch; the whole effect is the specular, so these go on the surface
+  // tier that catches the key light hardest.
+  blood: 0x6b1712,
+  bloodDark: 0x3d0d0a,
+  bloodFresh: 0x8f2018,
+  maw: 0x2a0f0e,
 };
 
-// The heap: overlapping lumps, deliberately lopsided. A symmetrical blob
-// would read as a boulder.
-//
-// It is also spread far wider than it is deep, which is both what a mass
-// dragging itself along would do and what the stand demands — a rig built
-// square fits the shallow axis and then wastes two thirds of the width it
-// was given. The first pass was 1.74 by 1.58 and came out a third too small.
-const massParts = () => {
-  const parts = [
-    [0, 0, 0, 1],
-    [0.78, -0.1, 0.12, 0.82],
-    [-0.72, -0.06, -0.14, 0.76],
-    [0.24, 0.22, -0.24, 0.66],
-    [-0.3, -0.18, 0.28, 0.7],
-    [1.18, -0.16, -0.06, 0.6],
-    [-1.12, -0.14, 0.08, 0.62],
-  ].map(([x, y, z, r], i) =>
-    part(lump(0.62, i), i % 2 ? ABOMINATION.core : ABOMINATION.coreDark, {
-      pos: [x, y, z],
-      scale: [r, r * 0.82, r],
-      ...MEAT,
+// Wet, but not lacquered. At 0.24/0.15 a broad pool caught the key light as
+// one flat white blaze and read as plastic sheeting; blood is glossy in
+// streaks and dull in the middle of a pool.
+const GORE = { metalness: 0.13, roughness: 0.24 };
+const GORE_WET = { metalness: 0.2, roughness: 0.15 };
+// Dead flesh is blotchy, and the mottling does more for it than any amount
+// of extra geometry — it is the difference between meat and painted plastic.
+const FLESH = { roughness: 0.82, mottle: 0.24, mottleScale: 15 };
+const FLESH_COARSE = { roughness: 0.84, mottle: 0.22, mottleScale: 6 };
+
+// A ragged collar of meat where a limb was torn out of somebody and pushed
+// into the heap. Every limb and every head gets one; without it they read as
+// dolls' parts pegged into a ball.
+const tornStump = (radius, colour) => {
+  const parts = [];
+  const points = 9;
+  for (let i = 0; i < points; i += 1) {
+    const a = (i / points) * Math.PI * 2;
+    const r = radius * (0.86 + ((i * 5) % 4) * 0.09);
+    parts.push(
+      part(new THREE.SphereGeometry(radius * 0.34, 7, 6), colour, {
+        pos: [Math.cos(a) * r, Math.sin(a) * r, ((i * 3) % 4) * 0.012],
+        scale: [1, 1, 0.55],
+        ...FLESH,
+      })
+    );
+  }
+  // The bone that was in it, and the blood that came out
+  parts.push(
+    part(new THREE.CylinderGeometry(radius * 0.3, radius * 0.34, 0.07, 8), ABOMINATION.bone, {
+      pos: [0, 0, -0.02],
+      rot: [Math.PI / 2, 0, 0],
+      ...HORN,
+    }),
+    part(new THREE.SphereGeometry(radius * 0.8, 10, 8), ABOMINATION.bloodFresh, {
+      pos: [0, 0, 0.015],
+      scale: [1.1, 1.1, 0.22],
+      ...GORE,
     })
   );
+  return parts;
+};
 
-  // Ribcages surfacing out of the mass. Pale, curved, unmistakably human, and
-  // the one detail that says this is made of people rather than of mud.
+// Blood run down a surface.
+//
+// Thin, and flattened *against* what it is running over. The first pass used
+// a fat tube with a ball on the end and the whole model sprouted red
+// lollipops — blood is a film with a specular, not a sausage. What sells it
+// is the roughness, not the volume.
+const runnel = (from, to, width, colour = ABOMINATION.blood) => {
+  const mid = [
+    (from[0] + to[0]) / 2,
+    (from[1] + to[1]) / 2 - 0.008,
+    (from[2] + to[2]) / 2,
+  ];
+  return [
+    part(swept([from, mid, to], width * 0.42, { segments: 10, sides: 5 }), colour, {
+      ...GORE_WET,
+    }),
+    // The drop gathering at the bottom of the run: a teardrop lying on the
+    // surface rather than a bead sitting on it
+    part(new THREE.SphereGeometry(width * 0.95, 8, 6), colour, {
+      pos: to,
+      scale: [1, 1.7, 0.45],
+      ...GORE_WET,
+    }),
+  ];
+};
+
+// A patch of it, pooled and spreading — flat enough to be a stain
+const gorePatch = (pos, radius, colour = ABOMINATION.blood) =>
+  part(new THREE.SphereGeometry(radius, 10, 8), colour, {
+    pos,
+    scale: [1, 0.22, 1.35],
+    ...GORE,
+  });
+
+// The heap.
+//
+// The first version of this was a boulder with parts glued to it: seven big
+// spheres in a near-black rot, and the arms and heads stuck on the outside.
+// From above it read as exactly that — dark spheres with some pale bits — and
+// the direction for this unit is the opposite. It is *made of people*, so the
+// people have to be the mass. Nothing here is a lump of anything; the surface
+// is torsos, backs, shoulders, hips and ribcages jammed together at every
+// angle, and the dark is only what shows in the gaps between them.
+//
+// That also fixes the contrast. A near-black mass on dark turf is the failure
+// the guide warns about; a heap of dead flesh is pale and reads instantly.
+//
+// It is spread far wider than it is deep, which is both what a mass dragging
+// itself along would do and what the stand demands — a rig built square fits
+// the shallow axis and then wastes two thirds of the width it was given.
+const CORPSE_TONES = [
+  ABOMINATION.flesh,
+  ABOMINATION.fleshLivid,
+  ABOMINATION.fleshDrained,
+  ABOMINATION.fleshDark,
+  ABOMINATION.fleshBruised,
+];
+
+// One body in the pile: a ribcage tapering to a waist, with a shoulder mass
+// and a hip mass on it. Half-buried, so only the part above the surface is
+// worth building.
+const corpse = (tone, roll) => [
+  part(new THREE.CapsuleGeometry(0.2, 0.34, 10, 14), tone, {
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1.25, 0.92, 1],
+    ...FLESH_COARSE,
+  }),
+  // Shoulders, the widest part of a back
+  part(new THREE.SphereGeometry(0.19, 12, 10), tone, {
+    pos: [0, 0.02, -0.24],
+    scale: [1.45, 0.78, 0.9],
+    ...FLESH_COARSE,
+  }),
+  // Hips
+  part(new THREE.SphereGeometry(0.17, 12, 10), tone, {
+    pos: [0, -0.01, 0.26],
+    scale: [1.2, 0.8, 0.95],
+    ...FLESH_COARSE,
+  }),
+  // The spine down the back, which is what says this is a body seen from
+  // behind rather than a sack
+  ...[-0.2, -0.08, 0.04, 0.16, 0.28].map((z, i) =>
+    part(new THREE.SphereGeometry(0.035 - Math.abs(i - 2) * 0.004, 7, 6), ABOMINATION.bone, {
+      pos: [0, 0.17 - Math.abs(i - 2) * 0.012, z],
+      scale: [0.7, 0.8, 1.3],
+      ...HORN,
+    })
+  ),
+  // Shoulder blades, standing off the back
+  ...[0.085, -0.085].map((x) =>
+    part(new THREE.SphereGeometry(0.075, 8, 7), tone, {
+      pos: [x, 0.145, -0.15],
+      scale: [1, 0.42, 1.25],
+      ...FLESH,
+    })
+  ),
+  // The furrow down the spine and the cleft at the hips. Both are shadow
+  // rather than form, and shadow is what separates one body from the next.
+  part(
+    swept(
+      [
+        [0, 0.15, -0.26],
+        [0, 0.175, -0.08],
+        [0, 0.165, 0.1],
+        [0, 0.13, 0.3],
+      ],
+      0.026,
+      { segments: 14, sides: 5 }
+    ),
+    ABOMINATION.coreDark,
+    { ...MEAT }
+  ),
+  // An arm folded under, showing at the flank
+  part(new THREE.CapsuleGeometry(0.05, 0.2, 8, 10), tone, {
+    pos: [roll > 0 ? 0.2 : -0.2, 0.02, -0.02],
+    rot: [Math.PI / 2.2, 0, roll > 0 ? -0.4 : 0.4],
+    ...FLESH,
+  }),
+];
+
+const massParts = () => {
+  const parts = [];
+
+  // The bodies. Position, tone, scale, and the two angles they are lying at.
   [
-    [0.5, 0.3, 0.1, 0.5, -0.3],
-    [-0.6, 0.26, -0.06, 0.42, 0.5],
-    [0.06, 0.36, 0.34, 0.36, 0.1],
-  ].forEach(([x, y, z, s, yaw]) => {
+    [0.0, 0.14, -0.08, 0.95, 0.2, -0.35],
+    [0.56, 0.04, 0.16, 0.85, -0.5, 0.25],
+    [-0.54, 0.08, -0.14, 0.88, 0.9, 0.4],
+    [0.2, 0.3, 0.26, 0.74, 2.3, -0.2],
+    [-0.24, 0.26, 0.22, 0.7, -1.9, 0.3],
+    [0.98, -0.02, -0.1, 0.76, 0.6, -0.45],
+    [-0.94, 0.0, 0.12, 0.8, -0.8, 0.35],
+    [0.42, 0.3, -0.28, 0.66, 1.4, 0.5],
+    [-0.42, 0.28, -0.26, 0.64, -1.2, -0.4],
+    [1.34, -0.08, 0.06, 0.6, 1.1, 0.3],
+    [-1.3, -0.06, -0.04, 0.62, -1.5, -0.25],
+    [0.02, 0.34, 0.38, 0.58, 0.1, 0.6],
+    [0.72, 0.26, -0.1, 0.6, -2.4, 0.2],
+    [-0.7, 0.24, 0.08, 0.58, 2.1, -0.3],
+    [0.26, 0.02, -0.34, 0.66, 0.7, 0.15],
+    [-0.28, 0.04, 0.36, 0.62, -0.4, -0.2],
+  ].forEach(([x, y, z, sc, yaw, pitch], i) => {
+    corpse(CORPSE_TONES[i % CORPSE_TONES.length], i % 2 ? 1 : -1).forEach((g) =>
+      parts.push(
+        at(g, { scale: [sc, sc, sc], rot: [pitch, yaw, 0], pos: [x, y, z] })
+      )
+    );
+  });
+
+  // The dark between them. Only in the gaps — this is what the whole mass
+  // used to be, and it belongs underneath rather than on the surface.
+  //
+  // Shadow between the bodies cannot be *added*: a tube of dark laid along a
+  // seam sits proud of the surface and reads as a log across the pile, which
+  // is what the first attempt did. Separation has to come from tone and from
+  // real gaps with the dark underneath showing through them.
+  [
+    [0.32, -0.08, 0.02, 0.42],
+    [-0.34, -0.1, -0.04, 0.4],
+    [0.86, -0.14, 0.1, 0.34],
+    [-0.84, -0.12, 0.06, 0.36],
+    [0.0, -0.06, 0.28, 0.34],
+    [1.24, -0.18, -0.02, 0.3],
+    [-1.2, -0.16, 0.0, 0.32],
+  ].forEach(([x, y, z, r], i) =>
+    parts.push(
+      part(lump(r, i), i % 2 ? ABOMINATION.core : ABOMINATION.coreDark, {
+        pos: [x, y, z],
+        scale: [1, 0.78, 1],
+        ...MEAT,
+      })
+    )
+  );
+
+  // Ribcages surfacing out of it. Pale, curved, unmistakably human, and the
+  // one detail that carries at any size.
+  [
+    [0.5, 0.34, 0.14, 0.5, -0.3],
+    [-0.62, 0.3, -0.08, 0.42, 0.5],
+    [0.1, 0.42, 0.34, 0.36, 0.1],
+    [1.1, 0.2, -0.14, 0.32, 1.2],
+  ].forEach(([x, y, z, sc, yaw]) => {
     [0, 1, 2].forEach((i) =>
       parts.push(
         part(
@@ -607,9 +815,9 @@ const massParts = () => {
           ),
           ABOMINATION.bone,
           {
-            pos: [x, y, z + (i - 1) * 0.13 * s],
+            pos: [x, y, z + (i - 1) * 0.13 * sc],
             rot: [0, yaw, 0],
-            scale: [s, s, s],
+            scale: [sc, sc, sc],
             ...HORN,
           }
         )
@@ -617,72 +825,396 @@ const massParts = () => {
     );
   });
 
+  // Pools and runnels over it, so the whole thing looks freshly made
+  [
+    [[0.2, 0.5, -0.2], [0.32, 0.06, 0.02]],
+    [[-0.42, 0.44, 0.1], [-0.56, 0.0, 0.24]],
+    [[0.86, 0.32, -0.1], [1.02, -0.06, -0.04]],
+    [[-0.9, 0.36, 0.06], [-1.1, -0.02, 0.14]],
+    [[0.02, 0.52, 0.3], [0.1, 0.14, 0.44]],
+  ].forEach(([from, to]) => parts.push(...runnel(from, to, 0.03)));
+  [
+    [[0.3, 0.46, -0.12], 0.085],
+    [[-0.48, 0.4, 0.16], 0.075],
+    [[0.9, 0.28, 0.04], 0.065],
+    [[-0.86, 0.32, -0.1], 0.06],
+    [[0.08, 0.5, 0.22], 0.08],
+    [[-0.16, 0.44, -0.3], 0.065],
+    [[0.6, 0.4, 0.2], 0.055],
+    [[-0.72, 0.3, -0.24], 0.05],
+  ].forEach(([pos, r], i) =>
+    parts.push(gorePatch(pos, r, i % 2 ? ABOMINATION.blood : ABOMINATION.bloodDark))
+  );
+
   return parts;
 };
 
-const limbUpperParts = () => [
-  part(new THREE.CapsuleGeometry(0.1, 0.34, 8, 12), ABOMINATION.flesh, {
-    pos: [0, 0, -0.26],
-    rot: [Math.PI / 2, 0, 0],
-    ...MEAT,
+// --- limbs ------------------------------------------------------------------
+//
+// Two kinds, alternating round the mass, and they are meant to be told apart:
+// arms end in a hand with fingers and a thumb, legs are thicker, carry a knee
+// and end in a foot with toes. Fourteen identical capsules read as a sea
+// anemone. Fourteen recognisably *human* arms and legs read as what this
+// thing is made of, which is the whole point of the unit.
+
+const armUpper = () => [
+  // The stump it was torn from, facing back into the mass
+  ...tornStump(0.075, ABOMINATION.fleshLivid),
+  // Deltoid, then the upper arm tapering to the elbow
+  part(new THREE.SphereGeometry(0.072, 10, 8), ABOMINATION.flesh, {
+    pos: [0, 0.01, -0.08],
+    scale: [1, 1.05, 1.15],
+    ...FLESH,
   }),
+  part(new THREE.CapsuleGeometry(0.055, 0.34, 8, 12), ABOMINATION.flesh, {
+    pos: [0, 0, -0.3],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1.08, 1, 1],
+    ...FLESH,
+  }),
+  ...runnel([0.04, -0.045, -0.12], [0.012, -0.058, -0.42], 0.02),
 ];
 
-const limbLowerParts = () => [
-  part(new THREE.CapsuleGeometry(0.085, 0.32, 8, 12), ABOMINATION.fleshDark, {
-    pos: [0, 0, -0.24],
-    rot: [Math.PI / 2, 0, 0],
-    ...MEAT,
-  }),
-  part(new THREE.SphereGeometry(0.12, 10, 8), ABOMINATION.flesh, {
-    pos: [0, 0, -0.46],
-    ...MEAT,
-  }),
-  // Fingers. On a hand this size they are two pixels each, but a grasping
-  // hand and a ball are different silhouettes and the difference carries.
-  ...[-0.06, -0.02, 0.02, 0.06].map((x, i) =>
-    part(new THREE.CapsuleGeometry(0.022, 0.08, 5, 7), ABOMINATION.flesh, {
-      pos: [x, 0.02 + (i % 2) * 0.02, -0.57],
-      rot: [Math.PI / 2 - 0.4, 0, 0],
-      ...MEAT,
-    })
-  ),
-];
-
-// The faces in the heap. Half of them still have skin.
-const spareHeadParts = (index) => {
-  const skull = index % 3 === 0;
-  return [
-    part(new THREE.SphereGeometry(0.17, 12, 10), skull ? ABOMINATION.bone : ABOMINATION.flesh, {
-      scale: [1, 0.94, 1.06],
-      ...(skull ? HORN : MEAT),
+const armLower = () => {
+  const parts = [
+    // Elbow, then a forearm that flattens toward the wrist the way one does
+    part(new THREE.SphereGeometry(0.055, 10, 8), ABOMINATION.fleshDark, {
+      pos: [0, 0, -0.02],
+      ...FLESH,
     }),
-    // A jaw, hanging open
+    part(new THREE.CapsuleGeometry(0.045, 0.28, 8, 12), ABOMINATION.flesh, {
+      pos: [0, 0, -0.22],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1.15, 1, 1],
+      ...FLESH,
+    }),
+    part(new THREE.SphereGeometry(0.04, 8, 7), ABOMINATION.fleshDark, {
+      pos: [0, 0, -0.38],
+      scale: [1.2, 0.8, 1],
+      ...FLESH,
+    }),
+    // The palm: a flat slab, not a ball
     part(
       at(
         bevelled(
           [
-            [-0.09, -0.06],
-            [0.09, -0.06],
-            [0.1, 0.04],
-            [-0.1, 0.04],
+            [-0.062, -0.07],
+            [0.062, -0.07],
+            [0.07, 0.04],
+            [0.04, 0.085],
+            [-0.04, 0.085],
+            [-0.07, 0.04],
           ],
-          0.16,
+          0.05,
+          0.008
+        ),
+        { rot: [-Math.PI / 2, 0, 0] }
+      ),
+      ABOMINATION.flesh,
+      { pos: [0, 0, -0.47], ...FLESH }
+    ),
+  ];
+
+  // Four fingers, each in two joints so they curl rather than point, and a
+  // thumb set across them. A grasping hand and a mitten are different
+  // silhouettes, and this thing is doing nothing but grasping.
+  [-0.048, -0.016, 0.016, 0.048].forEach((x, i) => {
+    const curl = 0.5 + (i % 2) * 0.25;
+    const reach = 0.075 - Math.abs(i - 1.5) * 0.008;
+    parts.push(
+      part(new THREE.CapsuleGeometry(0.019, reach, 5, 7), ABOMINATION.flesh, {
+        pos: [x, 0.012, -0.545],
+        rot: [Math.PI / 2 - curl * 0.3, 0, 0],
+        ...FLESH,
+      }),
+      part(new THREE.CapsuleGeometry(0.016, reach * 0.8, 5, 7), ABOMINATION.flesh, {
+        pos: [x, 0.012 + reach * 0.4, -0.585],
+        rot: [Math.PI / 2 - curl, 0, 0],
+        ...FLESH,
+      }),
+      // A nail, which is two pixels and still the thing that says *hand*
+      part(new THREE.SphereGeometry(0.014, 6, 5), ABOMINATION.bone, {
+        pos: [x, 0.012 + reach * 0.75, -0.6],
+        scale: [1, 0.5, 1.2],
+        ...HORN,
+      })
+    );
+  });
+  parts.push(
+    part(new THREE.CapsuleGeometry(0.022, 0.06, 5, 7), ABOMINATION.flesh, {
+      pos: [-0.072, -0.012, -0.5],
+      rot: [Math.PI / 2.4, 0, 0.7],
+      ...FLESH,
+    }),
+    part(new THREE.CapsuleGeometry(0.019, 0.05, 5, 7), ABOMINATION.flesh, {
+      pos: [-0.088, 0.01, -0.55],
+      rot: [Math.PI / 3, 0, 1.0],
+      ...FLESH,
+    })
+  );
+  parts.push(...runnel([0.0, -0.048, -0.3], [-0.018, -0.058, -0.46], 0.018, ABOMINATION.bloodFresh));
+  return parts;
+};
+
+const legUpper = () => [
+  ...tornStump(0.095, ABOMINATION.fleshLivid),
+  // A thigh, which is the heaviest thing on a body and should look it
+  part(new THREE.CapsuleGeometry(0.082, 0.32, 8, 12), ABOMINATION.flesh, {
+    pos: [0, 0, -0.28],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1.05, 1.12, 1],
+    ...FLESH,
+  }),
+  part(new THREE.SphereGeometry(0.065, 10, 8), ABOMINATION.flesh, {
+    pos: [0, 0.04, -0.2],
+    scale: [1, 0.9, 1.6],
+    ...FLESH,
+  }),
+  ...runnel([0.07, -0.07, -0.1], [0.035, -0.09, -0.44], 0.026),
+];
+
+const legLower = () => {
+  const parts = [
+    // Kneecap, calf, ankle
+    part(new THREE.SphereGeometry(0.066, 10, 8), ABOMINATION.fleshDark, {
+      pos: [0, 0.01, -0.02],
+      scale: [1, 1, 1.15],
+      ...FLESH,
+    }),
+    part(new THREE.CapsuleGeometry(0.055, 0.26, 8, 12), ABOMINATION.flesh, {
+      pos: [0, 0.02, -0.2],
+      rot: [Math.PI / 2, 0, 0],
+      ...FLESH,
+    }),
+    part(new THREE.SphereGeometry(0.062, 10, 8), ABOMINATION.flesh, {
+      pos: [0, 0.05, -0.16],
+      scale: [0.9, 1, 0.9],
+      ...FLESH,
+    }),
+    part(new THREE.SphereGeometry(0.04, 8, 7), ABOMINATION.fleshDark, {
+      pos: [0, 0, -0.36],
+      ...FLESH,
+    }),
+    // A foot, cut as a profile so it has a heel and a sole
+    part(
+      at(
+        bevelled(
+          [
+            [-0.062, -0.05],
+            [0.062, -0.05],
+            [0.07, 0.09],
+            [0.03, 0.15],
+            [-0.03, 0.15],
+            [-0.07, 0.09],
+          ],
+          0.06,
           0.01
         ),
-        { rot: [Math.PI / 2, 0, 0] }
+        { rot: [-Math.PI / 2, 0, 0] }
       ),
-      skull ? ABOMINATION.bone : ABOMINATION.fleshDark,
-      { pos: [0, -0.14, -0.06], rot: [0.35, 0, 0], ...(skull ? HORN : MEAT) }
+      ABOMINATION.flesh,
+      { pos: [0, -0.03, -0.44], rot: [0.5, 0, 0], ...FLESH }
     ),
-    // Eye sockets, dark and sunken
-    ...[0.06, -0.06].map((x) =>
-      part(new THREE.SphereGeometry(0.04, 8, 7), ABOMINATION.coreDark, {
-        pos: [x, 0.02, -0.14],
+  ];
+  // Five toes
+  [-0.048, -0.024, 0, 0.024, 0.048].forEach((x, i) =>
+    parts.push(
+      part(new THREE.CapsuleGeometry(0.017 - Math.abs(i - 2) * 0.002, 0.03, 5, 6), ABOMINATION.flesh, {
+        pos: [x, -0.06, -0.53],
+        rot: [Math.PI / 2.2, 0, 0],
+        ...FLESH,
+      })
+    )
+  );
+  parts.push(...runnel([0.0, -0.055, -0.22], [-0.028, -0.072, -0.4], 0.022, ABOMINATION.bloodFresh));
+  return parts;
+};
+
+// --- the faces --------------------------------------------------------------
+//
+// A human head is not a sphere with features drawn on it, which is what these
+// were and why they read as balls. Four proportions do almost all of the
+// work, and none of them is detail:
+//
+//   It is *taller than it is wide* and *longer than it is tall*.
+//   The back of it overhangs the neck; the front is a flat plane, not a curve.
+//   The face occupies the lower half — the cranium above the brow is a third
+//   of the whole and has nothing on it.
+//   It narrows to a chin.
+//
+// Built to those, a head reads as human at sizes where none of the features
+// are resolvable at all. The screaming is on top of that: an open mouth is a
+// dark cavity with teeth round it and a jaw swung off a hinge, not a plate.
+const spareHeadParts = (index) => {
+  const skull = index % 3 === 0;
+  const skin = skull ? ABOMINATION.bone : CORPSE_TONES[index % CORPSE_TONES.length];
+  const surf = skull ? HORN : FLESH;
+
+  const parts = [
+    // The cranium: an ovoid, overhanging at the back, flattened at the temples
+    part(new THREE.SphereGeometry(0.115, 14, 12), skin, {
+      pos: [0, 0.03, 0.012],
+      scale: [0.88, 1.06, 1.12],
+      ...surf,
+    }),
+    // The face plane below the brow — flat, not a continuation of the ball
+    part(
+      at(
+        bevelled(
+          [
+            [-0.082, -0.09],
+            [0.082, -0.09],
+            [0.088, 0.03],
+            [0.07, 0.075],
+            [-0.07, 0.075],
+            [-0.088, 0.03],
+          ],
+          0.1,
+          0.008
+        ),
+        { rot: [-Math.PI / 2, 0, 0] }
+      ),
+      skin,
+      { pos: [0, -0.028, -0.055], rot: [0.12, 0, 0], ...surf }
+    ),
+    // Brow ridge, and the flat forehead above it
+    part(new THREE.SphereGeometry(0.075, 10, 8), skin, {
+      pos: [0, 0.052, -0.088],
+      scale: [1.15, 0.42, 0.55],
+      ...surf,
+    }),
+    // Cheekbones, set wide and high
+    ...[0.072, -0.072].map((x) =>
+      part(new THREE.SphereGeometry(0.042, 8, 7), skin, {
+        pos: [x, -0.018, -0.075],
+        scale: [0.9, 0.75, 1.1],
+        ...surf,
+      })
+    ),
+    // The jaw hinge and the angle of the mandible under the ear — the corner
+    // that makes a head look like a head from directly above
+    ...[0.082, -0.082].map((x) =>
+      part(new THREE.SphereGeometry(0.045, 8, 7), skin, {
+        pos: [x, -0.055, 0.005],
+        scale: [0.8, 0.9, 1.0],
+        ...surf,
+      })
+    ),
+    // Nose: a bridge and a tip, not a hole
+    part(new THREE.CapsuleGeometry(0.017, 0.05, 5, 7), skin, {
+      pos: [0, -0.008, -0.108],
+      rot: [0.35, 0, 0],
+      scale: [1.1, 1, 1],
+      ...surf,
+    }),
+    ...[0.018, -0.018].map((x) =>
+      part(new THREE.SphereGeometry(0.011, 6, 5), ABOMINATION.coreDark, {
+        pos: [x, -0.042, -0.115],
         ...MEAT,
       })
     ),
+    // Eye sockets: sunk hollows with the eye inside, rather than dots on the
+    // surface. The socket is what reads; the eye only catches a highlight.
+    ...[0.048, -0.048].map((x) =>
+      part(new THREE.SphereGeometry(0.036, 10, 8), ABOMINATION.coreDark, {
+        pos: [x, 0.012, -0.088],
+        scale: [1.05, 0.95, 0.9],
+        ...MEAT,
+      })
+    ),
+    // The mouth cavity, sunk into the face plane
+    part(new THREE.SphereGeometry(0.042, 10, 8), ABOMINATION.maw, {
+      pos: [0, -0.078, -0.072],
+      scale: [1.0, 1.2, 0.85],
+      ...MEAT,
+    }),
+    // Upper teeth
+    ...[-0.03, -0.01, 0.01, 0.03].map((x) =>
+      part(new THREE.ConeGeometry(0.0095, 0.026, 5), ABOMINATION.bone, {
+        pos: [x, -0.062, -0.098],
+        rot: [Math.PI - 0.2, 0, 0],
+        ...HORN,
+      })
+    ),
+    // The neck it was torn off, under the back of the skull
+    part(new THREE.CylinderGeometry(0.05, 0.058, 0.05, 10), skin, {
+      pos: [0, -0.055, 0.075],
+      rot: [0.4, 0, 0],
+      ...surf,
+    }),
+    ...tornStump(0.056, ABOMINATION.fleshLivid).map((g) =>
+      at(g, { rot: [Math.PI / 2 - 0.4, 0, 0], pos: [0, -0.075, 0.09] })
+    ),
   ];
+
+  if (!skull) {
+    // An eye rolled up in the socket. One highlight each, and it is enough.
+    parts.push(
+      ...[0.048, -0.048].map((x) =>
+        part(new THREE.SphereGeometry(0.021, 8, 7), 0xd9d2c4, {
+          pos: [x, 0.02, -0.1],
+          ...FLESH,
+        })
+      ),
+      // Hair, matted flat to the back of the skull
+      part(new THREE.SphereGeometry(0.108, 10, 8), 0x35292a, {
+        pos: [0, 0.048, 0.035],
+        scale: [0.92, 0.95, 1.05],
+        ...MEAT,
+      })
+    );
+  }
+
+  // Blood from the mouth and one socket, down the chin and the cheek
+  parts.push(
+    ...runnel([0.0, -0.098, -0.078], [0.014, -0.15, -0.045], 0.019, ABOMINATION.bloodFresh),
+    ...runnel([-0.04, -0.012, -0.098], [-0.05, -0.082, -0.062], 0.014, ABOMINATION.blood)
+  );
+
+  return parts;
+};
+
+// The lower jaw, hung on its own hinge so every face in the heap screams at
+// its own moment rather than the whole thing gaping in unison.
+const spareJawParts = (index) => {
+  const skull = index % 3 === 0;
+  const skin = skull ? ABOMINATION.bone : CORPSE_TONES[index % CORPSE_TONES.length];
+  const surf = skull ? HORN : FLESH;
+  return [
+    part(
+      at(
+        bevelled(
+          [
+            [-0.075, -0.055],
+            [0.075, -0.055],
+            [0.082, 0.055],
+            [0.05, 0.095],
+            [-0.05, 0.095],
+            [-0.082, 0.055],
+          ],
+          0.055,
+          0.008
+        ),
+        { rot: [-Math.PI / 2, 0, 0] }
+      ),
+      skin,
+      { pos: [0, -0.03, -0.09], ...surf }
+    ),
+    ...[-0.028, -0.0095, 0.0095, 0.028].map((x) =>
+      part(new THREE.ConeGeometry(0.0085, 0.022, 5), ABOMINATION.bone, {
+        pos: [x, 0.006, -0.082],
+        ...HORN,
+      })
+    ),
+    // The tongue, because a scream that is all teeth reads as a skull
+    !skull &&
+      part(new THREE.CapsuleGeometry(0.016, 0.034, 6, 8), ABOMINATION.bloodFresh, {
+        pos: [0, -0.002, -0.048],
+        rot: [Math.PI / 2.1, 0, 0],
+        scale: [1.2, 1, 1],
+        ...GORE,
+      }),
+  ].filter(Boolean);
 };
 
 const makeAbomination = (material) => {
@@ -694,9 +1226,12 @@ const makeAbomination = (material) => {
   hang(mass, merge(massParts()), material);
 
   // Limbs, all round the mass and pointing every way. Some reach the ground
-  // and take weight; the rest paw at the air.
-  const upper = merge(limbUpperParts());
-  const lower = merge(limbLowerParts());
+  // and take weight; the rest paw at the air. Arms and legs alternate, and
+  // each kind is one pair of buffers shared by every limb of that kind.
+  const buffers = {
+    arm: [merge(armUpper()), merge(armLower())],
+    leg: [merge(legUpper()), merge(legLower())],
+  };
   const limbs = [];
   const COUNT = 14;
   for (let i = 0; i < COUNT; i += 1) {
@@ -712,22 +1247,26 @@ const makeAbomination = (material) => {
       Math.sin(a) * out * 0.72
     );
     socket.rotation.y = -a + Math.PI / 2;
-    // Lower limbs splay down and out to carry it; upper ones reach
+    // Lower limbs splay down and out to carry it; upper ones reach.
+    // The ones taking weight are legs, which is both anatomically right and
+    // the reason to have two kinds at all.
     const down = i % 3 === 0;
+    const kind = down || i % 4 === 1 ? "leg" : "arm";
     socket.rotation.x = down ? 1.1 : 0.15 + (i % 4) * 0.12;
+    socket.rotation.z = ((i * 5) % 7) * 0.06 - 0.18;
     mass.add(socket);
-    hang(socket, upper, material);
+    hang(socket, buffers[kind][0], material);
 
     const joint = new THREE.Group();
-    joint.position.z = -0.52;
+    joint.position.z = kind === "leg" ? -0.5 : -0.52;
     socket.add(joint);
     joint.rotation.x = down ? 0.5 : -0.4;
-    hang(joint, lower, material);
+    hang(joint, buffers[kind][1], material);
 
-    limbs.push({ socket, joint, down, phase: i * 1.31 });
+    limbs.push({ socket, joint, down, kind, phase: i * 1.31 });
   }
 
-  // Faces in the heap, looking outward
+  // Faces in the heap, looking outward, each with its jaw on its own hinge
   const heads = [];
   for (let i = 0; i < 7; i += 1) {
     const a = i * 1.257 + 0.4;
@@ -737,9 +1276,32 @@ const makeAbomination = (material) => {
       0.24 + ((i * 3) % 4) * 0.1,
       Math.sin(a) * 0.34
     );
+    // Tipped back, the way a head does when it is screaming
+    // Tipped hard back. A face on the flank of the heap looking outward is a
+    // face an overhead camera never sees; thrown back, the open mouth points
+    // straight up at it, which is the whole read.
+    //
+    // The sign matters and is easy to get backwards: a face looks down its
+    // own -Z, so a *positive* rotation about X lifts it. Negative buries it in
+    // the heap, which is where these were.
+    head.rotation.x = 0.95 + ((i * 3) % 4) * 0.08;
+    head.rotation.z = (((i * 5) % 5) - 2) * 0.12;
+    head.scale.setScalar(0.86 + ((i * 3) % 4) * 0.1);
     mass.add(head);
     hang(head, merge(spareHeadParts(i)), material);
-    heads.push({ head, phase: i * 2.03 });
+
+    const jaw = new THREE.Group();
+    jaw.position.set(0, -0.05, -0.012);
+    head.add(jaw);
+    hang(jaw, merge(spareJawParts(i)), material);
+
+    heads.push({
+      head,
+      jaw,
+      phase: i * 2.03,
+      gape: 0.34 + (i % 3) * 0.09,
+      tilt: head.rotation.x,
+    });
   }
 
   return { group, mass, limbs, heads };
@@ -780,12 +1342,16 @@ export const poseAbomination = (rig, time, state = "idle") => {
   mass.rotation.z = Math.sin(t * 0.7) * 0.09 * gait.roll;
   mass.rotation.x = Math.sin(t * 0.9 + 1) * 0.05 * gait.heave;
 
-  limbs.forEach(({ socket, joint, down, phase }) => {
+  limbs.forEach(({ socket, joint, down, kind, phase }) => {
     const own = t + phase;
     if (down) {
       // Weight-bearing: pushes back, lifts, reaches forward again
       socket.rotation.x = 1.1 + Math.sin(own * 1.4) * 0.3 * gait.heave;
       joint.rotation.x = 0.5 + Math.max(Math.sin(own * 1.4 - 0.8), 0) * 0.5;
+    } else if (kind === "leg") {
+      // A leg that is not carrying anything kicks rather than gropes
+      socket.rotation.x = 0.15 + Math.sin(own * 0.8) * 0.3 * gait.reach;
+      joint.rotation.x = -0.4 - Math.max(Math.sin(own * 1.9), 0) * 0.7 * gait.reach;
     } else {
       // Grasping at nothing
       socket.rotation.x = 0.15 + Math.sin(own) * 0.45 * gait.reach;
@@ -794,9 +1360,12 @@ export const poseAbomination = (rig, time, state = "idle") => {
     }
   });
 
-  heads.forEach(({ head, phase }) => {
+  heads.forEach(({ head, jaw, phase, gape, tilt }) => {
     head.rotation.y = Math.sin(time * 0.6 + phase) * 0.5;
-    head.rotation.x = Math.sin(time * 0.45 + phase * 1.3) * 0.25;
+    head.rotation.x = tilt + Math.sin(time * 0.45 + phase * 1.3) * 0.18;
+    // Each face screams on its own clock. Anything synchronised would imply
+    // one animal underneath, and the whole point is that there is not one.
+    jaw.rotation.x = gape * (0.55 + 0.45 * Math.abs(Math.sin(time * 1.7 + phase)));
   });
 };
 
