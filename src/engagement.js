@@ -477,3 +477,30 @@ export const hasAnyAttack = (unit) => Boolean(unit.melee || unit.ranged);
 
 export const anyThreatened = (token, others) =>
   some(others, (other) => other.side !== token.side && inContact(token, other));
+
+/**
+ * How far a unit can shoot from where it now stands, or `null` if it cannot
+ * shoot at all.
+ *
+ * Three ways to get nothing back, and they are different situations that
+ * happen to want the same answer on the table:
+ *
+ *   - no ranged profile. Most of the board: swordsmen, cavalry, monsters.
+ *   - a ranged profile with no printed range. A handful of attacks are
+ *     written without one, and `resolveEngagement` treats those as always in
+ *     range, so there is no circle to draw.
+ *   - in base contact with an enemy. A unit that close cannot shoot — the
+ *     same `!engaged` test that decides whether a ranged attack is legal —
+ *     and a reach drawn around it would be an invitation to an attack the
+ *     board would then refuse.
+ *
+ * Measured from the unit's centre, because that is where `distanceInches`
+ * measures from, and a ring that disagreed with the resolver about the range
+ * would be worse than no ring.
+ */
+export const rangedReach = (token, others = []) => {
+  const profile = attackProfile(token.unit, "ranged");
+  if (!profile?.range) return null;
+  if (anyThreatened(token, others)) return null;
+  return profile.range;
+};

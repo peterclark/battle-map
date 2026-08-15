@@ -7,6 +7,7 @@ import {
   inContact,
   preferredMode,
   rangeBand,
+  rangedReach,
   resolveEngagement,
   sideFrom,
 } from "./engagement.js";
@@ -588,5 +589,59 @@ describe("sideFrom", () => {
     const right = { x: 0, y: 5 };
     expect(arcFrom(target, left)).toBe(arcFrom(target, right));
     expect(sideFrom(target, left)).not.toBe(sideFrom(target, right));
+  });
+});
+
+describe("rangedReach", () => {
+  it("gives a shooter its printed range", () => {
+    const bowmen = token("orcArmy/goblinBowmen", { x: 10, y: 10 });
+    expect(rangedReach(bowmen, [bowmen])).toBe(
+      UNITS_BY_UID["orcArmy/goblinBowmen"].ranged.range
+    );
+  });
+
+  it("gives nothing to a unit that cannot shoot", () => {
+    const swordsmen = token("orcArmy/orcSwordsmen", { x: 10, y: 10 });
+    expect(rangedReach(swordsmen, [swordsmen])).toBe(null);
+  });
+
+  it("gives nothing to a shooter already in contact", () => {
+    // A unit this close cannot make a ranged attack, so a reach drawn round
+    // it would invite an attack the board would then refuse
+    const bowmen = token("orcArmy/goblinBowmen", { x: 0, y: 0, facing: EAST });
+    const enemy = token("orcArmy/orcSwordsmen", {
+      x: CONTACT_X,
+      y: 0,
+      facing: WEST,
+      side: "defender",
+    });
+
+    expect(rangedReach(bowmen, [bowmen, enemy])).toBe(null);
+    // A friend standing just as close is not a reason to stop shooting
+    const friend = { ...enemy, side: "attacker" };
+    expect(rangedReach(bowmen, [bowmen, friend])).toBeGreaterThan(0);
+  });
+
+  it("agrees with the resolver about who is in range", () => {
+    const bowmen = token("orcArmy/goblinBowmen", { x: 0, y: 0, facing: EAST });
+    const reach = rangedReach(bowmen, [bowmen]);
+
+    const inside = token("orcArmy/orcSwordsmen", {
+      x: reach - 0.5,
+      y: 0,
+      side: "defender",
+    });
+    const outside = token("orcArmy/orcSwordsmen", {
+      x: reach + 0.5,
+      y: 0,
+      side: "defender",
+    });
+
+    expect(
+      resolveEngagement(bowmen, inside, { mode: "ranged", others: [] }).outOfRange
+    ).toBe(false);
+    expect(
+      resolveEngagement(bowmen, outside, { mode: "ranged", others: [] }).outOfRange
+    ).toBe(true);
   });
 });
