@@ -225,6 +225,41 @@ an overhead camera wants. The Hydra has to manage without them and earns its
 outline with five necks fanned wide and moving independently — the formation
 trick, run on one body.
 
+### Dragons — confirmed, from an overhead reference
+
+The one piece of direction on this page that came from a picture rather than
+from a unit list, and usefully the picture was drawn from *directly above*,
+which is this board's own camera. What it establishes:
+
+- **The wings are the whole animal.** Span runs to something like five times
+  the width of the body, and the body reads as a thin rod slung between them.
+  Anything that makes the body heavier or the wings shorter is wrong.
+- **The membrane is deeply lobed, not lightly notched.** Finger struts fan
+  back from the shoulder and the membrane hangs between them in deep rounded
+  scallops. Shallow zigzag along a trailing edge reads as a leaf; deep lobes
+  read as a bat.
+- **The leading edge is not a spar.** It sweeps forward from the shoulder to a
+  pronounced wrist, carries a claw pointing forward off that wrist, then
+  sweeps back and out to the tip. The wrist claw is a strong overhead read and
+  costs no depth, because it points across the board rather than along it.
+- **Struts read as dark veins** radiating through a lighter membrane. The
+  membrane is warmer and paler than the body, not the same colour.
+- **The head is small and wears a crown of spikes** radiating flat outward —
+  from above it is a star, which is worth far more than a modelled face.
+- **A long, thin, tapering, segmented tail**, about as long as body and neck
+  together.
+- **Palette: oxidised rust.** Iron-red darkening at every edge, with the
+  membrane lighter and warmer than the hide.
+
+**Where the reference and the stand disagree, and what to do about it.** The
+reference animal is about as long as it is wide — a square silhouette. A stand
+wants 2.5:1. So the length goes sideways: the tail sweeps hard to one side
+rather than trailing straight back, and extra reach is spent on *span* rather
+than on wing chord. A deeper wing would eat the shallow axis and shrink the
+whole dragon, which is the trap this project has now fallen into three times.
+Before the rework the red dragon measured 8.4 × 5.5, or 1.5:1 — already
+depth-bound, and already rendering smaller than its stand could carry.
+
 Ogres, the Hill Giant and the Earth Elemental are brutes: hunched, wide-armed,
 pale across the shoulders. See the brute section of the skill.
 

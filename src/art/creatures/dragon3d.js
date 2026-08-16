@@ -66,13 +66,94 @@ const KINDS = {
   },
 };
 
-const HIDE_S = { roughness: 0.82 };
-const SCALE_S = { metalness: 0.22, roughness: 0.5 };
-const HORN_S = { metalness: 0.22, roughness: 0.42 };
-const SKIN_S = { roughness: 0.88 };
+// How far the tail is carried round from dead astern, and how much further
+// the last third curves. See the note where they are applied.
+//
+// Both angles were arrived at by measuring rather than by eye, because from
+// directly overhead a tail is either outside the wing's footprint or it does
+// not exist, and a render cannot tell you which.
+//
+// Swept too little it runs straight up the middle of the wing. Swept too much
+// — the first fix tried better than fifty degrees at each joint — the two
+// angles compound and the tail curls into a hook that is *shorter* than the
+// tail it was trying to extend: measured, root to tip fell to 1.5 units
+// against a wing reaching 3.1, still entirely underneath it. A gentle C
+// reaches; a hook does not.
+const TAIL_REST = 0.45;
+const TAIL_TIP_REST = 0.32;
+
+// These were the last surfaces on the board still perfectly flat in colour,
+// which is most of why a dragon read as painted plastic next to a reference
+// full of oxidised, blotchy iron-red. Mottling is per-fragment noise off the
+// vertex position — no map, no UVs, no second material, nothing to draw.
+//
+// The scale has to match the size of the part or the whole part lands inside
+// one lobe of the noise and merely shifts colour. Hence three different
+// numbers for what is otherwise the same treatment: the body is most of a
+// unit across, a wing is two units, and a horn is a tenth of one.
+const HIDE_S = { roughness: 0.82, mottle: 0.17, mottleScale: 8 };
+const SCALE_S = { metalness: 0.22, roughness: 0.5, mottle: 0.12, mottleScale: 22 };
+const HORN_S = { metalness: 0.22, roughness: 0.42, mottle: 0.1, mottleScale: 26 };
+// The membrane is the broadest surface on the board and the one the eye rests
+// on, so it gets the most. Low scale, because the noise is sampled in model
+// units and this thing is two of them across.
+const SKIN_S = { roughness: 0.88, mottle: 0.22, mottleScale: 3.2 };
 
 const prone = (points, thickness, bevel = 0.02) =>
   at(bevelled(points, thickness, bevel), { rot: [-Math.PI / 2, 0, 0] });
+
+/**
+ * The outline of a wing: a straight leading spar, and a trailing edge that
+ * hangs between the finger tips in rounded scallops.
+ *
+ * Generated rather than written out by hand, because the shape is the whole
+ * point and hand-written points get it wrong in a specific way: straight
+ * segments between a notch and a lobe make a row of sharp triangles, which
+ * reads as a torn banner. The first attempt at this did exactly that. A
+ * membrane slung between two fingers sags in a *curve*, so each bay is
+ * sampled off a sine arc and the wing reads as skin under tension.
+ *
+ * `notch` is where a finger ends and `sag` is how far the membrane falls
+ * below it midway between two of them. Both taper outboard, because a wing
+ * narrows toward the tip.
+ */
+const wingOutline = ({
+  span,
+  chordRoot,
+  chordTip,
+  notchRoot,
+  notchTip,
+  sagRoot,
+  sagTip,
+  fingers,
+  steps = 5,
+}) => {
+  const tip = (i) => span - (2 * span * i) / fingers;
+  // 0 at the tip, 1 at the root, so the taper reads the way it is named
+  const inboard = (x) => (span - x) / (2 * span);
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const points = [
+    [-span, chordRoot],
+    [span, chordTip],
+  ];
+  for (let i = 0; i < fingers; i += 1) {
+    const x0 = tip(i);
+    const x1 = tip(i + 1);
+    points.push([x0, lerp(notchTip, notchRoot, inboard(x0))]);
+    for (let s = 1; s < steps; s += 1) {
+      const u = s / steps;
+      const x = lerp(x0, x1, u);
+      const t = inboard(x);
+      points.push([
+        x,
+        lerp(notchTip, notchRoot, t) - Math.sin(u * Math.PI) * lerp(sagTip, sagRoot, t),
+      ]);
+    }
+  }
+  const last = tip(fingers);
+  points.push([last, lerp(notchTip, notchRoot, inboard(last))]);
+  return points;
+};
 
 const hang = (parent, geometry, material, position) => {
   if (!geometry) return null;
@@ -100,14 +181,18 @@ const spike = (length, base, curve = 0) =>
     { rot: [curve, 0, 0] }
   );
 
+// The body is deliberately slight. In the reference the animal reads as a thin
+// rod slung between two enormous wings, and anything that thickens the body
+// takes the wings' share of the silhouette — which is the only part of a
+// dragon this camera really sees.
 const bodyParts = (spec) => [
-  part(new THREE.CapsuleGeometry(0.52, 1.05, 10, 18), spec.hide, {
+  part(new THREE.CapsuleGeometry(0.42, 1.2, 10, 18), spec.hide, {
     pos: [0, 0, 0.1],
     rot: [Math.PI / 2, 0, 0],
     ...HIDE_S,
   }),
-  part(new THREE.SphereGeometry(0.52, 16, 13), spec.hideDark, {
-    pos: [0, -0.05, -0.5],
+  part(new THREE.SphereGeometry(0.44, 16, 13), spec.hideDark, {
+    pos: [0, -0.05, -0.52],
     scale: [1, 0.85, 1],
     ...HIDE_S,
   }),
@@ -135,11 +220,11 @@ const bodyParts = (spec) => [
       0.012
     ),
     spec.belly,
-    { pos: [0, 0.56, 0.1], ...SCALE_S }
+    { pos: [0, 0.46, 0.1], ...SCALE_S }
   ),
   ...[-0.5, 0, 0.5].map((z, i) =>
     part(spike(0.32, 0.1), spec.horn, {
-      pos: [0, 0.63, z],
+      pos: [0, 0.53, z],
       rot: [0.6 + i * 0.06, 0, 0],
       ...HORN_S,
     })
@@ -154,7 +239,7 @@ const bodyParts = (spec) => [
           new THREE.OctahedronGeometry(0.062 - row * 0.012 + (i % 2) * 0.012, 0),
           row ? spec.hideDark : spec.belly,
           {
-            pos: [side * 0.53 * Math.sin(a), 0.53 * Math.cos(a), z + row * 0.16],
+            pos: [side * 0.43 * Math.sin(a), 0.43 * Math.cos(a), z + row * 0.16],
             scale: [0.45, 1, 1.5],
             ...SCALE_S,
           }
@@ -230,6 +315,25 @@ const dragonHeadParts = (spec) => [
       ...HORN_S,
     })
   ),
+  // And a crown of smaller spikes fanned flat around the back of the skull,
+  // so from directly above the head reads as a star rather than as a lump.
+  //
+  // Placed by angle rather than by hand-written offsets — the skull is a
+  // wedge and working out where its surface actually is at each bearing is
+  // exactly the arithmetic this project has got wrong before. Laid almost
+  // flat, because a spike standing up is a dot from this camera.
+  ...[-1.15, -0.72, -0.32, 0.32, 0.72, 1.15].map((angle) =>
+    part(spike(0.3, 0.045, 0), spec.horn, {
+      pos: [Math.sin(angle) * 0.15, 0.09, 0.05],
+      // Lay it back and outward. +PI/2 about X carries the spike from
+      // straight up to straight back; a little under that leaves it raked
+      // slightly upward, and the Y turn fans it out along its own bearing.
+      // Turning the other way — which is the intuitive sign — drives it down
+      // through the skull instead, where nothing can be seen of it.
+      rot: [1.3, angle, 0],
+      ...HORN_S,
+    })
+  ),
   ...[0.11, -0.11].map((x) =>
     part(new THREE.SphereGeometry(0.045, 10, 8), spec.eye ?? 0xe8a423, {
       pos: [x, 0.08, -0.26],
@@ -246,83 +350,102 @@ const dragonHeadParts = (spec) => [
 // it and a scalloped trailing edge, which is the difference between a wing
 // and a plank.
 const wingInnerParts = (spec, side) => [
-  part(new THREE.CylinderGeometry(0.075, 0.045, 1.9, 14), spec.hideDark, {
-    pos: [side * 0.9, 0, 0],
+  part(new THREE.CylinderGeometry(0.075, 0.045, 2.1, 14), spec.hideDark, {
+    pos: [side * 1.0, 0, 0],
     rot: [0, 0, Math.PI / 2],
     ...HIDE_S,
   }),
   part(
     prone(
-      [
-        // Straight along the leading spar, scalloped along the trailing edge —
-        // the scallops are what stop a wing reading as an aeroplane's
-        [-0.9, 0.56],
-        [0.9, 0.5],
-        [0.86, -0.2],
-        [0.62, -0.44],
-        [0.45, -0.3],
-        [0.2, -0.56],
-        [0.05, -0.4],
-        [-0.22, -0.62],
-        [-0.38, -0.45],
-        [-0.64, -0.66],
-        [-0.82, -0.48],
-      ],
+      // The depth of these scallops is the difference between a bat and a
+      // leaf. The version before the reference notched the trailing edge by
+      // about 0.15 and read as a serrated plank. It costs almost nothing in
+      // the shallow axis, because the notches came *forward* by as much as
+      // the sag goes back.
+      wingOutline({
+        span: 1.0,
+        chordRoot: 0.56,
+        chordTip: 0.5,
+        notchRoot: -0.3,
+        notchTip: -0.24,
+        sagRoot: 0.46,
+        sagTip: 0.4,
+        fingers: 4,
+      }),
       0.05,
       0.008
     ),
     spec.membrane,
-    { pos: [side * 0.85, -0.03, 0.42], ...SKIN_S }
+    { pos: [side * 0.95, -0.03, 0.42], ...SKIN_S }
   ),
-  // Finger spars, splayed back through the membrane. They lie *along* the
-  // wing, which needs the quarter turn — a cylinder's axis is Y, and left
-  // upright these stood through the membrane like fence posts.
-  ...[-0.5, 0, 0.5].map((x) =>
-    part(new THREE.CylinderGeometry(0.032, 0.016, 1.1, 8), spec.hideDark, {
-      pos: [side * 0.85 + x * 0.72, 0.012, 0.46],
-      rot: [Math.PI / 2, x * 0.42, 0],
+  // Finger spars, fanned back through the membrane from the shoulder. They lie
+  // *along* the wing, which needs the quarter turn — a cylinder's axis is Y,
+  // and left upright these stood through the membrane like fence posts.
+  //
+  // Five rather than three, and splayed harder, because in the reference these
+  // read as dark veins radiating across a lighter membrane rather than as a
+  // few struts. They merge into the same buffer, so the extra two are free.
+  ...[-0.62, -0.31, 0, 0.31, 0.62].map((x) =>
+    part(new THREE.CylinderGeometry(0.032, 0.014, 1.15, 8), spec.hideDark, {
+      pos: [side * 0.95 + x * 0.78, 0.012, 0.46],
+      rot: [Math.PI / 2, x * 0.62, 0],
       ...HIDE_S,
     })
   ),
 ];
 
 const wingOuterParts = (spec, side) => [
-  part(new THREE.CylinderGeometry(0.075, 0.045, 1.9, 14), spec.hideDark, {
-    pos: [side * 0.72, 0, 0.2],
+  part(new THREE.CylinderGeometry(0.075, 0.045, 2.0, 14), spec.hideDark, {
+    pos: [side * 0.78, 0, 0.2],
     rot: [0.25, 0, Math.PI / 2],
     scale: [1, 0.85, 1],
     ...HIDE_S,
   }),
   part(
     prone(
-      [
-        // Tapering outward, the way a wing actually does
-        [-0.8, 0.46],
-        [0.8, 0.2],
-        [0.66, -0.12],
-        [0.42, -0.3],
-        [0.26, -0.16],
-        [0.0, -0.42],
-        [-0.16, -0.26],
-        [-0.44, -0.52],
-        [-0.6, -0.34],
-        [-0.78, -0.46],
-      ],
+      // Tapering outward, the way a wing actually does, and scalloped on the
+      // same rule as the inner half
+      wingOutline({
+        span: 0.88,
+        chordRoot: 0.46,
+        chordTip: 0.2,
+        notchRoot: -0.28,
+        notchTip: -0.1,
+        sagRoot: 0.4,
+        sagTip: 0.16,
+        fingers: 3,
+      }),
       0.045,
       0.008
     ),
     spec.membrane,
-    { pos: [side * 0.7, -0.04, 0.58], ...SKIN_S }
+    { pos: [side * 0.76, -0.04, 0.58], ...SKIN_S }
   ),
-  ...[-0.4, 0.2].map((x) =>
-    part(new THREE.CylinderGeometry(0.026, 0.012, 0.86, 8), spec.hideDark, {
-      pos: [side * 0.7 + x * 0.72, 0.008, 0.56],
-      rot: [Math.PI / 2, x * 0.5, 0],
+  ...[-0.42, 0, 0.42].map((x) =>
+    part(new THREE.CylinderGeometry(0.026, 0.011, 0.9, 8), spec.hideDark, {
+      pos: [side * 0.76 + x * 0.78, 0.008, 0.56],
+      rot: [Math.PI / 2, x * 0.6, 0],
       ...HIDE_S,
     })
   ),
-  part(spike(0.3, 0.06, 0), spec.horn, {
-    pos: [side * 1.4, 0, -0.05],
+  // The wrist claw, hooked forward off the leading edge at the joint.
+  //
+  // The most distinctive thing in the reference after the wings themselves,
+  // and it is free in the shallow axis for the reason that matters here: it
+  // points *across* the board rather than along it, so it buys silhouette
+  // without buying depth. `spike` builds along +Y, so the X turn lays it
+  // forward and the Y turn swings it outboard.
+  part(spike(0.44, 0.07, 0), spec.horn, {
+    pos: [side * -0.02, 0.03, 0.06],
+    // Laid forward by the X turn, then swung *outboard* by the Y turn. The
+    // sign is the counter-intuitive one: after -PI/2 about X the spike points
+    // along -Z, and rotating that by +t about Y carries it toward -X, so
+    // outboard on the +X wing needs a negative angle.
+    rot: [-Math.PI / 2, -side * 0.55, 0],
+    ...HORN_S,
+  }),
+  part(spike(0.32, 0.06, 0), spec.horn, {
+    pos: [side * 1.58, 0, -0.05],
     rot: [0, 0, side * -1.3],
     ...HORN_S,
   }),
@@ -390,26 +513,36 @@ const armLowerParts = (spec) => [
 ];
 
 const tailParts = (spec) => [
-  part(new THREE.CylinderGeometry(0.3, 0.16, 0.8, 16), spec.hide, {
-    pos: [0, 0, 0.36],
+  part(new THREE.CylinderGeometry(0.26, 0.14, 1.25, 16), spec.hide, {
+    pos: [0, 0, 0.46],
     rot: [Math.PI / 2.1, 0, 0],
     ...HIDE_S,
   }),
-  ...[0.16, 0.5].map((z) =>
+  // Segment ridges down the spine. In the reference the tail is visibly
+  // jointed rather than a smooth cone, and a dotted pale line along a length
+  // is one of the cheapest reads there is from above.
+  ...[0.1, 0.32, 0.54, 0.76].map((z) =>
     part(new THREE.OctahedronGeometry(0.07, 0), spec.belly, {
-      pos: [0, 0.24 - z * 0.14, z],
-      scale: [0.5, 1, 1.5],
+      pos: [0, 0.2 - z * 0.13, z],
+      scale: [0.5, 1, 1.6],
       ...SCALE_S,
     })
   ),
 ];
 
 const tailTipParts = (spec) => [
-  part(new THREE.CylinderGeometry(0.16, 0.03, 0.9, 14), spec.hide, {
-    pos: [0, -0.06, 0.4],
+  part(new THREE.CylinderGeometry(0.14, 0.025, 1.4, 14), spec.hide, {
+    pos: [0, -0.06, 0.52],
     rot: [Math.PI / 2.2, 0, 0],
     ...HIDE_S,
   }),
+  ...[0.18, 0.46].map((z) =>
+    part(new THREE.OctahedronGeometry(0.045, 0), spec.belly, {
+      pos: [0, 0.1 - z * 0.1, z],
+      scale: [0.5, 1, 1.6],
+      ...SCALE_S,
+    })
+  ),
 ];
 
 const buildBuffers = (spec, reaches) => ({
@@ -479,14 +612,14 @@ const makeDragon = (spec, buffers, material) => {
   const wings = spec.wings
     ? [1, -1].map((side, i) => {
         const shoulder = new THREE.Group();
-        shoulder.position.set(side * 0.4, 0.34, -0.1);
+        shoulder.position.set(side * 0.32, 0.34, -0.42);
         body.add(shoulder);
         shoulder.rotation.z = side * 0.28;
         shoulder.rotation.y = side * -0.25;
         hang(shoulder, buffers.wingInner[i], material);
 
         const outer = new THREE.Group();
-        outer.position.set(side * 1.75, 0, 0);
+        outer.position.set(side * 1.95, 0, 0);
         shoulder.add(outer);
         hang(outer, buffers.wingOuter[i], material);
 
@@ -497,7 +630,7 @@ const makeDragon = (spec, buffers, material) => {
   // Hind legs take the weight; forelimbs are small and tucked
   const legs = [1, -1].map((side) => {
     const hip = new THREE.Group();
-    hip.position.set(side * 0.42, -0.16, 0.36);
+    hip.position.set(side * 0.36, -0.16, 0.36);
     body.add(hip);
     hip.rotation.z = side * 0.2;
     hang(hip, buffers.thigh, material);
@@ -515,7 +648,7 @@ const makeDragon = (spec, buffers, material) => {
 
   const arms = [1, -1].map((side) => {
     const shoulder = new THREE.Group();
-    shoulder.position.set(side * 0.36, -0.1, -0.44);
+    shoulder.position.set(side * 0.3, -0.1, -0.46);
     body.add(shoulder);
     shoulder.rotation.z = side * 0.5;
     hang(shoulder, buffers.armUpper, material);
@@ -527,12 +660,26 @@ const makeDragon = (spec, buffers, material) => {
     return { shoulder, lower, side };
   });
 
+  // The tail, swept to one side rather than trailing straight back.
+  //
+  // This is where the reference and the stand have to be reconciled. The
+  // animal in the reference is about as long as it is wide, and a stand wants
+  // two and a half to one; a tail this length pointed straight aft would be
+  // depth the fit cannot spend, and the whole dragon would scale down to pay
+  // for it. Swept, the same length becomes width — which is what a sculptor
+  // does with a long animal on a shallow base, and it reads as alive rather
+  // than as a plank.
+  //
+  // These are *rest* rotations. The poser adds its motion on top rather than
+  // overwriting them, or the sweep would be flattened out on the first frame.
   const tail = new THREE.Group();
-  tail.position.set(0, -0.02, 0.62);
+  tail.position.set(0, 0.06, 0.62);
+  tail.rotation.y = TAIL_REST;
   body.add(tail);
   hang(tail, buffers.tail, material);
   const tailTip = new THREE.Group();
-  tailTip.position.z = 0.74;
+  tailTip.position.z = 1.15;
+  tailTip.rotation.y = TAIL_TIP_REST;
   tail.add(tailTip);
   hang(tailTip, buffers.tailTip, material);
 
@@ -549,9 +696,16 @@ export const buildDragon = ({ kind = "red" } = {}) => {
   const material = surfaceMaterial();
   // A hydra's necks are not the same length — the middle ones reach further —
   // so each gets its own buffer rather than sharing one
+  // A winged dragon's neck is short — the head sits almost on the shoulders in
+  // the reference, and there is a hard reason to follow that here beyond
+  // fidelity: a neck reaching forward spends the shallow axis, and it spends
+  // it on the one part of the animal this camera values least. Shortening it
+  // paid for the longer tail, which is worth far more from above. The hydra is
+  // the opposite case and keeps its reach, because its necks *are* its
+  // silhouette.
   const reaches =
     spec.necks === 1
-      ? [1.15]
+      ? [0.78]
       : Array.from(
           { length: spec.necks },
           (_, i) => 1 - Math.abs((i / (spec.necks - 1) - 0.5) * 1.5) * 0.18
@@ -623,6 +777,8 @@ export const poseDragon = (rig, time, state = "idle") => {
     shoulder.rotation.x = Math.sin(t * 2 + (side > 0 ? 1 : 2)) * 0.2 - gait.lunge * 0.3;
   });
 
-  d.tail.rotation.y = Math.sin(t * 0.9) * 0.3 * gait.tail;
-  d.tailTip.rotation.y = Math.sin(t * 0.9 - 0.8) * 0.35 * gait.tail;
+  // Added to the rest sweep, not written over it
+  d.tail.rotation.y = TAIL_REST + Math.sin(t * 0.9) * 0.22 * gait.tail;
+  d.tailTip.rotation.y =
+    TAIL_TIP_REST + Math.sin(t * 0.9 - 0.8) * 0.3 * gait.tail;
 };

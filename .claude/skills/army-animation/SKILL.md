@@ -148,6 +148,33 @@ growth rings and the dragons' dorsal ridge. **Work out where the surface
 actually is, or place detail by angle** — `[r·sin(a), r·cos(a), z]` round the
 body — which is self-correcting and reads better anyway.
 
+**A part can also be buried under a *sibling*, and from this camera that is
+the same as not existing.** The dragon's tail was the case: correctly built,
+correctly the right length, and completely invisible, because it sat inside
+the wing's footprint and below it. Two rounds of adjusting it by eye made it
+worse — swept harder, the root and joint angles compounded and the tail curled
+into a hook *shorter* than the tail it started as, still under the wing.
+
+What settled it in one query was measuring, and it is worth doing this the
+moment a part does not appear where it should:
+
+```js
+// demo/creature-lab.html exposes the rig for exactly this
+const box = (obj) => { /* world-space AABB by traversing meshes */ };
+box(d.tail)   // x -0.12 .. 1.43   z 0.45 .. 1.22
+box(d.wings[0].shoulder)  // x -0.03 .. 3.13   z 0.03 .. 1.78
+```
+
+Two boxes, and the answer is immediate: the tail is inside the wing on both
+axes. A render cannot distinguish *not built*, *built somewhere else* and
+*built underneath something*, and all three look like nothing at all.
+`window.__lab.made` and `window.__lab.scene` are there so the question can be
+asked directly.
+
+The fix, once the numbers were in front of it, was not a bigger sweep — it was
+moving the *wings* forward so their trailing edge stopped short of the tail,
+and spending what that freed on tail length.
+
 **A rig's resting size is not the space it occupies.** `CreatureLayer` now
 samples the three gaits at build time and places each rig by the box it
 actually sweeps, because the gap is large: a spear block sweeps **39% deeper**
