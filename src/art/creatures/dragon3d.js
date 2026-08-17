@@ -47,33 +47,53 @@ const CHORD = 1.9;
 
 const KINDS = {
   red: {
-    hide: 0x7e2820,
-    hideDark: 0x511713,
-    membrane: 0xb8543c,
-    belly: 0xd9a25c,
-    horn: 0xe8dcc0,
+    // Read off the reference by eye rather than sampled from its pixels — the
+    // image is not on disk here — so treat these as close, not exact. The
+    // relationships are the confident part: body much darker than membrane,
+    // membrane warm copper, and nothing anywhere near white.
+    // Chosen for how they *render*, not for how they match as swatches. The
+    // board tone-maps with ACES at 1.25 exposure, which lifts and desaturates
+    // everything; picking the hex that matched the reference flat produced a
+    // pale peach membrane on screen. These are pushed darker and more
+    // saturated so that what comes out the other side is the reference's
+    // colour.
+    hide: 0x4a2016,
+    hideDark: 0x2c1109,
+    membrane: 0x9c4a28,
+    // Was 0xd9a25c, a pale gold that drew a bright stripe down the spine and
+    // ringed the flanks. The reference has no pale marking at all; the body is
+    // uniformly dark and the membrane is the only light thing on the animal.
+    belly: 0x5f2c1d,
+    // Was 0xe8dcc0 — bone white, on every horn, tooth, claw, crown spike and
+    // wing tip. There is no white anywhere in the reference, and against an
+    // otherwise unified rust animal those spikes were the loudest wrong note
+    // in the whole rig. Mid rust keeps them readable as distinct shapes
+    // without pretending to be bone.
+    horn: 0x633326,
     wings: true,
     chord: CHORD,
     necks: 1,
     scale: 1.15,
   },
   redLesser: {
-    hide: 0x8c3a26,
-    hideDark: 0x5c2317,
-    membrane: 0xc06848,
-    belly: 0xd9a25c,
-    horn: 0xe8dcc0,
+    hide: 0x582a1c,
+    hideDark: 0x361710,
+    membrane: 0xa85630,
+    belly: 0x6d3623,
+    horn: 0x6f3d2c,
     wings: true,
     chord: CHORD,
     necks: 1,
     scale: 0.95,
   },
   blue: {
-    hide: 0x264a72,
-    hideDark: 0x16304c,
-    membrane: 0x4d7fae,
-    belly: 0xa8c6da,
-    horn: 0xeef1f5,
+    // Same treatment applied across the family, so the two breeds read as one
+    // kind of animal in two colourways rather than as two different rigs
+    hide: 0x1e3c5e,
+    hideDark: 0x122740,
+    membrane: 0x5589b8,
+    belly: 0x2f5878,
+    horn: 0x4776a0,
     wings: true,
     chord: CHORD,
     necks: 1,
@@ -439,10 +459,10 @@ const wingInnerParts = (spec, side) => {
           notchTip: -0.24,
           // Shallower than the first pass at this. Deep uniform lobes read as
           // a scalloped valance rather than as skin.
-          sagRoot: 0.3,
-          sagTip: 0.24,
+          sagRoot: 0.2,
+          sagTip: 0.15,
           chord,
-          fingers: 4,
+          fingers: 3,
         }),
         0.05,
         0.008
@@ -459,7 +479,7 @@ const wingInnerParts = (spec, side) => {
     // than as veins — you saw the struts and not the sheet, which is the wrong
     // way round: in the reference the membrane is the subject and the veins
     // are texture on it. Halved, and tapered to almost nothing at the tip.
-    ...[-0.62, -0.31, 0, 0.31, 0.62].map((x) =>
+    ...[-0.5, -0.17, 0.17, 0.5].map((x) =>
       part(
         new THREE.CylinderGeometry(0.016, 0.005, 1.15 * chord, 8),
         spec.hideDark,
@@ -500,10 +520,10 @@ const wingOuterParts = (spec, side) => {
           bow: 0.06,
           notchRoot: -0.26,
           notchTip: -0.08,
-          sagRoot: 0.26,
-          sagTip: 0.1,
+          sagRoot: 0.17,
+          sagTip: 0.07,
           chord,
-          fingers: 3,
+          fingers: 2,
         }),
         0.045,
         0.008
@@ -511,7 +531,7 @@ const wingOuterParts = (spec, side) => {
       spec.membrane,
       { pos: [side * 0.76, -0.04, LEAD_Z_OUTER + chordRoot * chord], ...SKIN_S }
     ),
-    ...[-0.42, 0, 0.42].map((x) =>
+    ...[-0.34, 0.34].map((x) =>
       part(
         new THREE.CylinderGeometry(0.013, 0.004, 0.9 * chord, 8),
         spec.hideDark,
