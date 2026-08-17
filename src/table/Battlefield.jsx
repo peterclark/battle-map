@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { find, findLast, forEach } from "lodash";
 import { damageStatus } from "../rules/data/index.js";
-import { contactSides, inContact } from "../engagement.js";
+import { contactSides, inContact, rangedReach } from "../engagement.js";
 import { CARD_H, CARD_W, damageBoxRects } from "../art/cardFace.js";
 import { cardImage, isDrawable } from "../art/cardImage.js";
 import { hasCreature } from "../art/creatures/roster.js";
@@ -154,6 +154,52 @@ const drawMovementAllowance = (ctx, t, token) => {
       (cy + t.offsetY + token.y * t.scale) / 2 - 8
     );
   }
+  ctx.restore();
+};
+
+// The second ring: how far this unit can shoot.
+//
+// It answers a different question from the movement ring and so it is drawn
+// differently on purpose. Movement is *dashed*, filled, amber, and centred on
+// where the turn found the unit — it is an allowance being spent. Range is
+// *dotted*, unfilled, bone, and centred on where the unit stands now — it is
+// a reach, and it costs nothing to have.
+//
+// Unfilled matters more than it sounds. A bowman's range is often most of the
+// table, and a wash over that much felt would tint half the board and drown
+// the thing the players are actually reading, which is the cards.
+const drawRangedReach = (ctx, t, token, range) => {
+  // From the unit's centre, because `distanceInches` measures centre to
+  // centre. Drawing from the front edge would look more like shooting and
+  // would disagree with the resolver about who is in range.
+  const cx = t.offsetX + token.x * t.scale;
+  const cy = t.offsetY + token.y * t.scale;
+  const reach = range * t.scale;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, reach, 0, Math.PI * 2);
+  ctx.setLineDash([2, 7]);
+  ctx.strokeStyle = "rgba(242,236,221,0.42)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labelled at the top of the ring, so the circle says what it is rather
+  // than being one of two rings the players have to tell apart by dash
+  // pattern. Most bows outreach the table from where they stand, so the top
+  // of the ring is usually off the board — the label is held inside the
+  // playing area instead, where it stays on the felt rather than drifting up
+  // into the chrome.
+  const size = Math.round(Math.max(t.scale * 0.45, 10));
+  ctx.fillStyle = "rgba(242,236,221,0.62)";
+  ctx.font = `600 ${size}px Georgia, serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(
+    `${range}" range`,
+    cx,
+    Math.max(cy - reach + size * 1.4, t.offsetY + size * 1.6)
+  );
   ctx.restore();
 };
 
@@ -416,15 +462,25 @@ export default function Battlefield({
       [...pointersRef.current.values()].map((grip) => grip.tokenId)
     );
 
+    const attention = (token) => held.has(token.id) || token.id === selectedId;
+
     // The Movement ring measures from where the turn found a unit, which
     // means nothing before the first turn has started
     if (!deploying) {
       forEach(tokensRef.current, (token) => {
-        if (held.has(token.id) || token.id === selectedId) {
-          drawMovementAllowance(ctx, t, token);
-        }
+        if (attention(token)) drawMovementAllowance(ctx, t, token);
       });
     }
+
+    // The reach ring has no such dependency — it is a property of the weapon
+    // and of where the unit stands — so it is drawn while deploying too,
+    // which is exactly when a player is deciding where to put their archers.
+    const standing = stillStanding(tokensRef.current);
+    forEach(tokensRef.current, (token) => {
+      if (!attention(token) || isDestroyed(token)) return;
+      const range = rangedReach(token, standing);
+      if (range) drawRangedReach(ctx, t, token, range);
+    });
 
     if (engagement) {
       const attacker = find(tokensRef.current, { id: engagement.attackerId });
