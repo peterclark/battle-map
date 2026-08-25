@@ -1,0 +1,9 @@
+{
+  "lines": 71.67,
+  "statements": 67.97,
+  "branches": 57.19,
+  "functions": 54.6,
+  "coveredLines": 286,
+  "totalLines": 399,
+  "scope": "src/**/*.js, excluding the Three.js creature rigs and the tests"
+}
