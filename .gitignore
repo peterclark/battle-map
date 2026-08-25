@@ -9,3 +9,4 @@ coverage
 logs
 *.log
 npm-debug.log*
+badges

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   ci:
@@ -16,5 +17,39 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:coverage
       - run: npm run build
+
+      # Put the numbers on the run itself, so a failing threshold or a sudden
+      # drop is visible without downloading anything.
+      - name: Summarise coverage
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            {
+              echo "### Coverage"
+              echo ""
+              echo "| Metric | % | Covered / Total |"
+              echo "| --- | --- | --- |"
+              node -e '
+                const t = JSON.parse(
+                  require("node:fs").readFileSync("coverage/coverage-summary.json", "utf8")
+                ).total;
+                for (const k of ["lines", "statements", "branches", "functions"]) {
+                  console.log(`| ${k} | ${t[k].pct}% | ${t[k].covered} / ${t[k].total} |`);
+                }
+              '
+              echo ""
+              echo "Scope: \`src/**/*.js\`, excluding the Three.js creature rigs."
+              echo "See [docs/ci-and-badges.md](../blob/main/docs/ci-and-badges.md)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The Badges workflow reads this artifact from the run that triggered it.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
