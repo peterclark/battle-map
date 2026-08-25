@@ -1,5 +1,13 @@
 # Battle Map
 
+[![CI](https://github.com/peterclark/battle-map/actions/workflows/ci.yml/badge.svg)](https://github.com/peterclark/battle-map/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpeterclark%2Fbattle-map%2Fbadges%2Fcoverage.json)](https://github.com/peterclark/battle-map/actions/workflows/ci.yml)
+
+> Coverage is measured over `src/**/*.js` — the rules engine, board geometry and
+> card layout — and not over the Three.js creature rigs or the React screens,
+> which are verified by rendering rather than by unit tests. The whole-repository
+> figure and the reasoning are in [docs/ci-and-badges.md](./docs/ci-and-badges.md).
+
 A digital war table for **Battleground: Fantasy Warfare** (Your Move Games).
 Two armies stand on a shared surface — a TV lying flat under an IR touch
 frame, or a projected image with the same frame around it — and both players
