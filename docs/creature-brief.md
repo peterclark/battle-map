@@ -141,6 +141,27 @@ as a **cross** from above — stock fore-and-aft, prod across it — which is a
 shape nothing else in the game makes. The Ballista is the same idea at engine
 scale.
 
+### The Ballista
+
+Built against a reference of a dwarven field ballista, and the direction it
+settles is *density rather than size*. Two engines to a stand, already the
+right shape for the band, so nothing about the rebuild may make the footprint
+bigger — see the note at the top of `warMachine3d.js` for the arithmetic.
+
+What it is, from the ground up: eight-spoked wheels with iron tyres and a
+runed hexagonal hub plate bolted over each face; a carriage of two side beams
+braced across, on bearing blocks either side of the axle; a short trail sloping
+back to a spade foot, with iron struts and splayed haul handles for the crew;
+an iron turntable the head trains on. The head carries a stock with trough
+rails and an iron floor, banded by four riveted straps, runed plates along both
+flanks, a **recurved** bow — back to the joint, forward to the tip, with a
+brass collar at the break and an iron cap on each tip — a string drawn back to
+the claw, a fletched bolt in the trough, and a windlass with ratchets, crank
+arms and handles.
+
+Three values along the length is the point of all of it: brass on iron on
+timber. One brown bar is what the blocked-out version was.
+
 Antonian Horsemen are men, not dwarves, and ride accordingly.
 
 ---

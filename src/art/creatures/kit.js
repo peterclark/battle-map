@@ -327,3 +327,161 @@ export const swept = (points, radius, { segments = 24, sides = 7 } = {}) =>
     sides,
     false
   );
+
+/**
+ * A bar between two points: a tapering cylinder from `a` to `b`.
+ *
+ * Stated as *endpoints* rather than as a position and a rotation, which is the
+ * single most useful idea this project has taken from a reference build. Every
+ * orientation bug here has come from writing a rotation by hand and getting the
+ * axis or the sign wrong — the wing claw that pointed inboard, the head crown
+ * that drove down through the skull, the wheels that sat a quarter turn off
+ * their axles. None of those is expressible in this form: say where the thing
+ * starts and where it ends, and the quaternion that carries a cylinder's +Y
+ * onto that direction is computed rather than guessed.
+ *
+ * Use it for anything whose job is to *connect* two places — a limb bone, a bow
+ * limb, a strut, a spoke, a drawn bowstring.
+ */
+export const spanning = (a, b, r0, r1 = r0, seg = 10) => {
+  const A = new THREE.Vector3(...a);
+  const B = new THREE.Vector3(...b);
+  const geometry = new THREE.CylinderGeometry(r1, r0, A.distanceTo(B), seg, 1);
+  geometry.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      B.clone().sub(A).normalize()
+    )
+  );
+  geometry.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  return geometry;
+};
+
+/** A smoothed path through `[x, y, z]` points, for `tapered` and `along`. */
+export const spline = (points, tension = 0.5) =>
+  new THREE.CatmullRomCurve3(
+    points.map((p) => new THREE.Vector3(...p)),
+    false,
+    "catmullrom",
+    tension
+  );
+
+/** The radius profile of a `tapered` run, sampled at `t`. */
+const radiusAt = (radii, t) => {
+  const f = Math.max(0, Math.min(1, t)) * (radii.length - 1);
+  const i = Math.min(radii.length - 2, Math.floor(f));
+  return radii[i] + (radii[i + 1] - radii[i]) * (f - i);
+};
+
+/**
+ * Where a curve is at `t`, and how thick and which way it is pointing there.
+ *
+ * This is what lets scutes, plates and spikes be *placed on* a body rather than
+ * positioned beside one. Hand-written offsets have to be re-derived every time
+ * the shape under them moves, and in this project they never were — which is
+ * how a row of tail scutes ended up hanging in the air next to the tail.
+ */
+export const along = (curve, radii, t) => ({
+  point: curve.getPointAt(Math.max(0, Math.min(1, t))),
+  tangent: curve.getTangentAt(Math.max(0, Math.min(1, t))),
+  radius: radiusAt(radii, t),
+});
+
+/**
+ * One continuous tapering body along a curve — a tail, a neck, a torso.
+ *
+ * This replaces the stack of cones and capsules these rigs were assembled from,
+ * and the difference is not subtle: a cone butted against another cone has a
+ * visible shoulder at every joint, so a tail built that way reads as a run of
+ * separate objects rather than as one animal narrowing to a point. A single
+ * surface with a radius profile has no joints to show.
+ *
+ * Articulation is what makes that awkward, because a tail still has to move. So
+ * a run can be built as a **slice**, `from`..`to` of the whole curve, and the
+ * pieces hung on separate groups. The slices are sampled off one shared frame
+ * set at ring indices `round(t * segments)`, so the ring the two share is
+ * computed identically on both sides: at rest the seam is invisible, and the
+ * whole point of the exercise survives being able to bend.
+ *
+ * The corollary is that the rest *shape* belongs in the curve and nowhere else.
+ * A curve that bends one way plus a group rotated the same way compounds, and
+ * this rig has already shipped the result once — a tail swept at the root and
+ * again at the joint curled into a hook shorter than the tail it started as.
+ * Bake the pose into the points; leave the groups at zero for the animation.
+ *
+ * `atStart` moves the slice so its first ring sits on the origin, which is what
+ * a hinged piece needs — its group is positioned at the seam.
+ */
+export const tapered = (
+  curve,
+  radii,
+  { from = 0, to = 1, segments = 64, sides = 14, atStart = false } = {}
+) => {
+  const frames = curve.computeFrenetFrames(segments, false);
+  const i0 = Math.round(from * segments);
+  const i1 = Math.round(to * segments);
+  const origin = atStart
+    ? curve.getPointAt(i0 / segments)
+    : new THREE.Vector3();
+
+  const position = [];
+  const uv = [];
+  const index = [];
+  const ring = sides + 1;
+
+  for (let i = i0; i <= i1; i += 1) {
+    const t = i / segments;
+    const c = curve.getPointAt(t).sub(origin);
+    const r = radiusAt(radii, t);
+    const N = frames.normals[i];
+    const B = frames.binormals[i];
+    for (let j = 0; j <= sides; j += 1) {
+      const a = (j / sides) * Math.PI * 2;
+      const cos = Math.cos(a);
+      const sin = Math.sin(a);
+      position.push(
+        c.x + (cos * N.x + sin * B.x) * r,
+        c.y + (cos * N.y + sin * B.y) * r,
+        c.z + (cos * N.z + sin * B.z) * r
+      );
+      uv.push(t, j / sides);
+    }
+  }
+  for (let i = 0; i < i1 - i0; i += 1) {
+    for (let j = 0; j < sides; j += 1) {
+      const a = i * ring + j;
+      index.push(a, a + ring, a + 1, a + 1, a + ring, a + ring + 1);
+    }
+  }
+
+  // Close both ends. The seam end is buried inside its neighbour and the tip
+  // end is usually a point, but an open tube shows its inside surface the
+  // moment the camera is tilted in the lab, which reads as a hole in the
+  // animal.
+  const rings = i1 - i0;
+  [0, rings].forEach((r, end) => {
+    const t = (i0 + r) / segments;
+    const c = curve.getPointAt(t).sub(origin);
+    const centre = position.length / 3;
+    position.push(c.x, c.y, c.z);
+    uv.push(t, 0.5);
+    for (let j = 0; j < sides; j += 1) {
+      const a = r * ring + j;
+      if (end) index.push(centre, a, a + 1);
+      else index.push(centre, a + 1, a);
+    }
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(position, 3)
+  );
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(index);
+  // Derived rather than assumed: a tapering tube's normal is not perpendicular
+  // to its axis, and using the ring direction as the normal lights a cone like
+  // a cylinder.
+  geometry.computeVertexNormals();
+  return geometry;
+};
