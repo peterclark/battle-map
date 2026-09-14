@@ -43,7 +43,13 @@ import { at, bevelled, merge, part, surfaceMaterial, turned } from "./kit.js";
 // edge overtook the tip and it disappeared from overhead again — so the tail
 // is longer and straighter than it was, and that is where the depth went. The
 // reference's long tail wanted it anyway.
-const CHORD = 1.9;
+//
+// It sits at 1 now, and that is not a reversal. The joint table below carries
+// the reference's proportions directly — its finger fan already spans three
+// quarters of the half-span — so the multiplier has nothing left to correct.
+// Left at 1.9 it double-counted and stretched the hand into a long thin
+// pennant trailing backwards off the wrist.
+const CHORD = 1;
 
 const KINDS = {
   red: {
@@ -150,89 +156,6 @@ const SKIN_S = { roughness: 0.88, mottle: 0.22, mottleScale: 3.2 };
 
 const prone = (points, thickness, bevel = 0.02) =>
   at(bevelled(points, thickness, bevel), { rot: [-Math.PI / 2, 0, 0] });
-
-/**
- * The outline of a wing: a bowed leading edge, and a trailing edge that hangs
- * between the finger tips in scallops.
- *
- * Generated rather than written out by hand, because the shape is the whole
- * point and hand-written points get it wrong in two opposite ways, both of
- * which this file has now shipped. Straight segments between a notch and a
- * lobe make a row of sharp triangles, which reads as a torn banner. Uniform
- * sine lobes at full depth make a row of even semicircles, which reads as a
- * scalloped valance — decorative, and just as wrong. The membrane wants
- * shallow, slightly uneven sag.
- *
- * `notch` is where a finger ends and `sag` is how far the membrane falls
- * below it midway between two of them. Both taper outboard, because a wing
- * narrows toward the tip.
- *
- * `bow` bends the leading edge forward at mid-span instead of running it dead
- * straight from root to tip. A straight leading edge is the single thing that
- * most made these read as airframes rather than as animals: a real wing
- * sweeps forward out of the shoulder to a wrist that sits *ahead* of it, then
- * back to the tip.
- *
- * `chord` scales the whole front-to-back dimension. It is the one number that
- * decides whether these look like the reference or like slats, and it is in
- * direct tension with the stand — see the note in `KINDS`.
- */
-const wingOutline = ({
-  span,
-  chordRoot,
-  chordTip,
-  notchRoot,
-  notchTip,
-  sagRoot,
-  sagTip,
-  bow = 0,
-  chord = 1,
-  fingers,
-  steps = 5,
-  leadSteps = 7,
-}) => {
-  const tip = (i) => span - (2 * span * i) / fingers;
-  // 0 at the tip, 1 at the root, so the taper reads the way it is named
-  const inboard = (x) => (span - x) / (2 * span);
-  const lerp = (a, b, u) => a + (b - a) * u;
-  const deep = (v) => v * chord;
-  const points = [];
-
-  // Leading edge, root to tip, bowed forward through the middle
-  for (let i = 0; i <= leadSteps; i += 1) {
-    const u = i / leadSteps;
-    points.push([
-      -span + 2 * span * u,
-      deep(lerp(chordRoot, chordTip, u) + Math.sin(u * Math.PI) * bow),
-    ]);
-  }
-
-  // Trailing edge, tip back to root
-  for (let i = 0; i < fingers; i += 1) {
-    const x0 = tip(i);
-    const x1 = tip(i + 1);
-    points.push([x0, deep(lerp(notchTip, notchRoot, inboard(x0)))]);
-    // Alternate bays hang a little slacker than their neighbours. Barely
-    // visible one bay at a time, and the difference between a membrane and a
-    // row of identical scallops.
-    const slack = i % 2 ? 1 : 0.82;
-    for (let s = 1; s < steps; s += 1) {
-      const u = s / steps;
-      const x = lerp(x0, x1, u);
-      const t = inboard(x);
-      points.push([
-        x,
-        deep(
-          lerp(notchTip, notchRoot, t) -
-            Math.sin(u * Math.PI) * lerp(sagTip, sagRoot, t) * slack
-        ),
-      ]);
-    }
-  }
-  const last = tip(fingers);
-  points.push([last, deep(lerp(notchTip, notchRoot, inboard(last)))]);
-  return points;
-};
 
 const hang = (parent, geometry, material, position) => {
   if (!geometry) return null;
@@ -428,143 +351,188 @@ const dragonHeadParts = (spec) => [
 // geometry the merge freed. The membrane now has finger spars running through
 // it and a scalloped trailing edge, which is the difference between a wing
 // and a plank.
-// Where the root of each panel's leading edge sits, front to back. Held fixed
-// as the chord changes, so deepening a wing grows it *backward* from a fixed
-// shoulder rather than sliding the whole thing forward over the head.
-const LEAD_Z_INNER = -0.14;
-const LEAD_Z_OUTER = 0.12;
+/**
+ * A bone: a tapering cylinder running from one point to another.
+ *
+ * Stated as *endpoints* rather than as a position and a rotation, which is the
+ * single most useful idea taken from the reference build. Every orientation bug
+ * in this project has come from writing a rotation by hand and getting the axis
+ * or the sign wrong — the wing claw that pointed inboard, the head crown that
+ * drove down through the skull, the wheels that sat a quarter turn off their
+ * axles. None of those is expressible here: say where it starts and where it
+ * ends, and the quaternion that carries a cylinder's +Y onto that direction is
+ * computed rather than guessed.
+ */
+const spanning = (a, b, r0, r1, seg = 10) => {
+  const A = new THREE.Vector3(...a);
+  const B = new THREE.Vector3(...b);
+  const geo = new THREE.CylinderGeometry(r1, r0, A.distanceTo(B), seg, 1);
+  geo.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      B.clone().sub(A).normalize()
+    )
+  );
+  geo.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  return geo;
+};
 
+/**
+ * The wing, defined once as joint coordinates in its own plane: +x outboard
+ * along the span, +y forward along the chord.
+ *
+ * Bones and membrane are both derived from this one table, which is the
+ * structural fix. The previous build generated an abstract outline and then
+ * placed the spars separately against it — which is precisely how the main spar
+ * ended up stranded a quarter of the way back across the membrane, reading as a
+ * bar laid over the wing rather than as its leading edge.
+ *
+ * Note where the fingers start. All four radiate from the **wrist**, the way a
+ * bat's hand does. Fanning them from the shoulder, as this rig did, spreads
+ * them across the whole wing and reads as slats rather than as a hand.
+ */
+const JOINTS = {
+  shoulder: [0, 0],
+  elbow: [1.35, 0.62],
+  wrist: [2.5, 0.92],
+  tips: [
+    [3.85, 1.2],
+    [3.55, 0.05],
+    [3.0, -0.95],
+    [2.2, -1.72],
+  ],
+  // Where the trailing edge comes back to meet the body
+  root: [1.05, -1.25],
+};
+
+// The wing plane is laid into the rig's axes: span across, chord forward.
+// `prone()` already maps an outline's +y onto -z, so a bone has to be placed
+// the same way or the two stop agreeing.
+// How big the wing is against the rest of the animal. The joint table holds
+// the reference's *proportions*; this is the one number that says how much of
+// the silhouette they get. In the reference the wings are the animal and
+// everything else hangs off them, which is the read this rig is after.
+const WING_SCALE = 1.4;
+
+const inWing = ([x, y], side, chord) => [
+  side * x * WING_SCALE,
+  0,
+  -y * chord * WING_SCALE,
+];
+
+/**
+ * A scallop between two finger tips, sampled off a quadratic Bézier whose
+ * control point is pulled *toward* the wrist.
+ *
+ * The direction is the whole thing, and this rig had it backwards twice. A
+ * membrane between two fingers is stretched taut, so it pulls **in** — concave,
+ * with a sharp cusp at each finger tip. Letting it sag outward, which is the
+ * intuitive reading of "a membrane hangs", gives a row of convex lobes: that is
+ * a scalloped valance, and it is why the last version read as decoration. The
+ * attempt before that used straight segments and read as a torn banner.
+ */
+const scallop = (from, to, pull, steps = 7) => {
+  const mx = (from[0] + to[0]) / 2;
+  const my = (from[1] + to[1]) / 2;
+  const span = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  // Toward the wrist, by a fraction of how far apart the two tips are
+  const dx = JOINTS.wrist[0] - mx;
+  const dy = JOINTS.wrist[1] - my;
+  const d = Math.hypot(dx, dy) || 1;
+  const cx = mx + (dx / d) * span * pull;
+  const cy = my + (dy / d) * span * pull;
+  const out = [];
+  for (let i = 1; i <= steps; i += 1) {
+    const t = i / steps;
+    const u = 1 - t;
+    out.push([
+      u * u * from[0] + 2 * u * t * cx + t * t * to[0],
+      u * u * from[1] + 2 * u * t * cy + t * t * to[1],
+    ]);
+  }
+  return out;
+};
+
+/**
+ * Lay an outline into the wing plane for one side.
+ *
+ * Mirroring the geometry with a negative scale is the obvious way to get the
+ * second wing and it does not work: a negative scale reverses the winding, the
+ * face normals point inward, and the whole membrane renders as an unlit black
+ * sheet. Reversing the point order restores the winding, so the left wing is
+ * built rather than transformed.
+ */
+const laid = (pts, side, chord) => {
+  const out = pts.map(([x, y]) => [side * x * WING_SCALE, y * chord * WING_SCALE]);
+  return side < 0 ? out.reverse() : out;
+};
+
+// The inner panel: leading edge along the arm, trailing edge sweeping back to
+// the body. This is the part that stays broad when the wing folds.
 const wingInnerParts = (spec, side) => {
   const chord = spec.chord ?? 1;
-  const chordRoot = 0.56;
+  const { shoulder, elbow, wrist, root, tips } = JOINTS;
+  const last = tips[tips.length - 1];
+  const bone = (a, b, r0, r1) =>
+    spanning(inWing(a, side, chord), inWing(b, side, chord), r0, r1, 12);
+
   return [
-    // The arm bone, which belongs *on* the leading edge. It used to sit at
-    // z = 0, which was the leading edge back when the membrane was shallow;
-    // deepening the chord left it stranded a quarter of the way back, reading
-    // as a bar laid across the wing rather than as its front spar.
-    part(new THREE.CylinderGeometry(0.075, 0.045, 2.1, 14), spec.hideDark, {
-      pos: [side * 1.0, 0, LEAD_Z_INNER],
-      rot: [0, 0, Math.PI / 2],
-      ...HIDE_S,
-    }),
+    // Humerus and radius, lying *on* the leading edge because they are what
+    // the leading edge is
+    part(bone(shoulder, elbow, 0.085, 0.062), spec.hideDark, HIDE_S),
+    part(bone(elbow, wrist, 0.062, 0.046), spec.hideDark, HIDE_S),
+    // The strut that carries the trailing edge back to the body
+    part(bone(wrist, root, 0.03, 0.012), spec.hideDark, HIDE_S),
     part(
       prone(
-        wingOutline({
-          span: 1.0,
-          chordRoot,
-          // Forward of the root, which is the sweep out to the wrist
-          chordTip: 0.74,
-          bow: 0.1,
-          notchRoot: -0.3,
-          notchTip: -0.24,
-          // Shallower than the first pass at this. Deep uniform lobes read as
-          // a scalloped valance rather than as skin.
-          sagRoot: 0.2,
-          sagTip: 0.15,
-          chord,
-          fingers: 3,
-        }),
+        // The trailing edge starts at the *last finger*, not at the wrist.
+        // Started at the wrist it leaves a wedge of open air between this
+        // panel and the hand — the two pieces of one membrane visibly not
+        // meeting. The fan and this panel overlap slightly around the wrist
+        // instead, which is what a real wing does there anyway.
+        laid(
+          [shoulder, elbow, wrist, last, ...scallop(last, root, 0.16)],
+          side,
+          chord
+        ),
         0.05,
         0.008
       ),
       spec.membrane,
-      { pos: [side * 0.95, -0.03, LEAD_Z_INNER + chordRoot * chord], ...SKIN_S }
-    ),
-    // Finger spars, fanned back through the membrane from the shoulder. They
-    // lie *along* the wing, which needs the quarter turn — a cylinder's axis
-    // is Y, and left upright these stood through the membrane like fence
-    // posts.
-    //
-    // Thin. The first pass ran these at 0.032 and they read as slats rather
-    // than as veins — you saw the struts and not the sheet, which is the wrong
-    // way round: in the reference the membrane is the subject and the veins
-    // are texture on it. Halved, and tapered to almost nothing at the tip.
-    ...[-0.5, -0.17, 0.17, 0.5].map((x) =>
-      part(
-        new THREE.CylinderGeometry(0.016, 0.005, 1.15 * chord, 8),
-        spec.hideDark,
-        {
-          pos: [
-            side * 0.95 + x * 0.78,
-            0.012,
-            LEAD_Z_INNER + chord * (chordRoot * 0.5 + 0.24),
-          ],
-          rot: [Math.PI / 2, x * 0.62, 0],
-          ...HIDE_S,
-        }
-      )
+      SKIN_S
     ),
   ];
 };
 
+// The outer panel: the hand. Four fingers fanned from the wrist with the
+// membrane drawn taut between them.
 const wingOuterParts = (spec, side) => {
   const chord = spec.chord ?? 1;
-  // Meets the inner panel at the wrist, so this root chord matches the inner
-  // panel's tip chord and the two halves make one continuous edge
-  const chordRoot = 0.74;
+  const { wrist, tips } = JOINTS;
+  // Everything here is relative to the wrist, because that is where this
+  // panel's group is hung and where it hinges
+  const rel = ([x, y]) => [x - wrist[0], y - wrist[1]];
+  const bone = (a, b, r0, r1) =>
+    spanning(inWing(rel(a), side, chord), inWing(rel(b), side, chord), r0, r1, 10);
+
+  const outline = [rel(wrist)];
+  tips.forEach((tip, i) => {
+    outline.push(rel(tip));
+    if (i < tips.length - 1) {
+      // Wider bays are pulled in harder, so every bay reads about equally taut
+      outline.push(...scallop(tips[i], tips[i + 1], 0.2).map(rel));
+    }
+  });
+
   return [
-    part(new THREE.CylinderGeometry(0.075, 0.045, 2.0, 14), spec.hideDark, {
-      pos: [side * 0.78, 0, LEAD_Z_OUTER],
-      rot: [0.25, 0, Math.PI / 2],
-      scale: [1, 0.85, 1],
-      ...HIDE_S,
-    }),
-    part(
-      prone(
-        // Sweeping back and tapering hard toward the tip, which is what the
-        // outer half of a wing does and what the first pass did not
-        wingOutline({
-          span: 0.88,
-          chordRoot,
-          chordTip: 0.16,
-          bow: 0.06,
-          notchRoot: -0.26,
-          notchTip: -0.08,
-          sagRoot: 0.17,
-          sagTip: 0.07,
-          chord,
-          fingers: 2,
-        }),
-        0.045,
-        0.008
-      ),
-      spec.membrane,
-      { pos: [side * 0.76, -0.04, LEAD_Z_OUTER + chordRoot * chord], ...SKIN_S }
+    ...tips.map((tip, i) =>
+      part(bone(wrist, tip, 0.04, 0.012 + (i === 0 ? 0.006 : 0)), spec.hideDark, HIDE_S)
     ),
-    ...[-0.34, 0.34].map((x) =>
-      part(
-        new THREE.CylinderGeometry(0.013, 0.004, 0.9 * chord, 8),
-        spec.hideDark,
-        {
-          pos: [
-            side * 0.76 + x * 0.78,
-            0.008,
-            LEAD_Z_OUTER + chord * (chordRoot * 0.5 + 0.12),
-          ],
-          rot: [Math.PI / 2, x * 0.6, 0],
-          ...HIDE_S,
-        }
-      )
-    ),
-    // The wrist claw, hooked forward off the leading edge at the joint.
-    //
-    // The most distinctive thing in the reference after the wings themselves,
-    // and it is free in the shallow axis for the reason that matters here: it
-    // points *across* the board rather than along it, so it buys silhouette
-    // without buying depth. `spike` builds along +Y, so the X turn lays it
-    // forward and the Y turn swings it outboard.
-    part(spike(0.44, 0.07, 0), spec.horn, {
-      pos: [side * -0.02, 0.03, LEAD_Z_OUTER + chordRoot * chord - 0.5 * chord],
-      // Laid forward by the X turn, then swung *outboard* by the Y turn. The
-      // sign is the counter-intuitive one: after -PI/2 about X the spike
-      // points along -Z, and rotating that by +t about Y carries it toward
-      // -X, so outboard on the +X wing needs a negative angle.
-      rot: [-Math.PI / 2, -side * 0.55, 0],
-      ...HORN_S,
-    }),
-    part(spike(0.32, 0.06, 0), spec.horn, {
-      pos: [side * 1.58, 0, -0.05],
-      rot: [0, 0, side * -1.3],
+    part(prone(laid(outline, side, chord), 0.045, 0.008), spec.membrane, SKIN_S),
+    // The claw at the wrist, hooked forward off the leading edge
+    part(spike(0.4, 0.062, 0), spec.horn, {
+      pos: [side * 0.06, 0.03, -0.12],
+      rot: [-Math.PI / 2, -side * 0.5, 0],
       ...HORN_S,
     }),
   ];
@@ -650,7 +618,7 @@ const tailParts = (spec) => [
 ];
 
 const tailTipParts = (spec) => [
-  part(new THREE.CylinderGeometry(0.11, 0.015, 2.55, 14), spec.hide, {
+  part(new THREE.CylinderGeometry(0.11, 0.015, 1.95, 14), spec.hide, {
     pos: [0, -0.06, 0.52],
     rot: [Math.PI / 2.2, 0, 0],
     ...HIDE_S,
@@ -738,7 +706,13 @@ const makeDragon = (spec, buffers, material) => {
         hang(shoulder, buffers.wingInner[i], material);
 
         const outer = new THREE.Group();
-        outer.position.set(side * 1.95, 0, 0);
+        // The wrist, read out of the same joint table the panels are built
+        // from, so the hand hinges exactly where the arm ends
+        outer.position.set(
+          side * JOINTS.wrist[0] * WING_SCALE,
+          0,
+          -JOINTS.wrist[1] * (spec.chord ?? 1) * WING_SCALE
+        );
         shoulder.add(outer);
         hang(outer, buffers.wingOuter[i], material);
 
