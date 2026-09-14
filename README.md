@@ -1,5 +1,13 @@
 # Battle Map
 
+[![CI](https://github.com/peterclark/battle-map/actions/workflows/ci.yml/badge.svg)](https://github.com/peterclark/battle-map/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpeterclark%2Fbattle-map%2Fbadges%2Fcoverage.json)](https://github.com/peterclark/battle-map/actions/workflows/ci.yml)
+
+> Coverage is measured over `src/**/*.js` — the rules engine, board geometry and
+> card layout — and not over the Three.js creature rigs or the React screens,
+> which are verified by rendering rather than by unit tests. The whole-repository
+> figure and the reasoning are in [docs/ci-and-badges.md](./docs/ci-and-badges.md).
+
 A digital war table for **Battleground: Fantasy Warfare** (Your Move Games).
 Two armies stand on a shared surface — a TV lying flat under an IR touch
 frame, or a projected image with the same frame around it — and both players
@@ -135,6 +143,7 @@ down on a monitor and the right way up to the person it is for.
 
 | Gesture | What it does |
 | --- | --- |
+| Tap a card | Select it, and draw what it can reach: a dashed ring for its remaining Movement, and for anything that shoots, a dotted ring at its weapon's Range |
 | Drag a card | March it. The board holds the tape measure — the march clamps to the unit's printed Movement, measured from where the turn found it |
 | Hold a card, touch the board with a second finger | Turn it to face where you touched |
 | March into an enemy | Opens the engagement, and counts as a charge |
@@ -214,7 +223,8 @@ demo/
 
 The board is modelled in inches, the unit the printed cards use, so a unit's
 Movement and a weapon's Range are drawn to scale and read straight off the
-card. 48" × 27" is a four-foot table at 16:9, the aspect of the panel or the
+card — both as rings around a selected unit, dashed for the march it has left
+and dotted for how far it can shoot. 48" × 27" is a four-foot table at 16:9, the aspect of the panel or the
 projected image it is drawn on.
 
 The two players stand at the long edges, and that is what makes the cards
