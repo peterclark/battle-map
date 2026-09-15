@@ -65,7 +65,21 @@ const gait = params.get("gait") === "march" ? "march" : "idle";
 
 // Fit the grid to the board rather than the other way round, so a long list
 // stays on one sheet instead of running off the edge.
-const columns = Math.max(1, Math.floor(BOARD_WIDTH_INCHES / CELL_W_INCHES));
+const MAX_COLUMNS = Math.max(1, Math.floor(BOARD_WIDTH_INCHES / CELL_W_INCHES));
+const MAX_ROWS = Math.max(1, Math.floor(BOARD_HEIGHT_INCHES / CELL_H_INCHES));
+
+// Squarish, not as wide as the board allows. Twelve units across a single
+// eight-wide row makes a sheet five times wider than it is tall, and a
+// before-and-after pair of those is unreadable side by side. Widen past square
+// only when the list is too long to fit the board's rows.
+const columns = Math.min(
+  MAX_COLUMNS,
+  Math.max(
+    1,
+    Math.ceil(Math.sqrt(units.length)),
+    Math.ceil(units.length / MAX_ROWS)
+  )
+);
 const rows = Math.max(1, Math.ceil(units.length / columns));
 
 const gridWidth = Math.min(units.length, columns) * CELL_W_INCHES;
