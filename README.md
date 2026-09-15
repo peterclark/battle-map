@@ -113,7 +113,8 @@ Everything is built for a camera looking straight down, which is a harsher
 constraint than it sounds: a spear held upright is a dot, a dark figure on
 dark turf disappears, and a lone sculpt reads far worse than twenty of the
 same parts in ranks. `.claude/skills/army-animation/` is the working guide,
-and `docs/creature-brief.md` holds the agreed direction per faction.
+`docs/creature-brief.md` holds the agreed direction per faction, and
+`docs/reference/` the reference builds some of it was drawn from.
 
 Three.js loads on the first switch and not before, so a player who never turns
 figures on never pays for them.

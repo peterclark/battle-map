@@ -4,7 +4,11 @@ import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
-  { ignores: ["dist", "coverage"] },
+  // `docs/reference/` holds standalone Three.js pages kept as art direction.
+  // They are not part of the app — nothing imports them and the build never
+  // sees them — and they were authored to different conventions, so linting
+  // them would only produce noise to be suppressed.
+  { ignores: ["dist", "coverage", "docs/reference"] },
   {
     files: ["**/*.{js,jsx}"],
     languageOptions: {

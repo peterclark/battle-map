@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dragon — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="dragon" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  scale:  new THREE.MeshStandardMaterial({ name:'scale_dark',  color:0x2f4a42, roughness:0.62, metalness:0.18 }),
+  belly:  new THREE.MeshStandardMaterial({ name:'scale_belly', color:0xbfa878, roughness:0.72, metalness:0.06 }),
+  horn:   new THREE.MeshStandardMaterial({ name:'horn',        color:0xe2d6bd, roughness:0.45, metalness:0.05 }),
+  claw:   new THREE.MeshStandardMaterial({ name:'claw',        color:0x1b1b1c, roughness:0.35, metalness:0.25 }),
+  wing:   new THREE.MeshStandardMaterial({ name:'membrane',    color:0x8c3a2c, roughness:0.85, metalness:0.02, side:THREE.DoubleSide }),
+  eye:    new THREE.MeshStandardMaterial({ name:'eye',         color:0xffb32e, roughness:0.15, metalness:0.0, emissive:0x3a2000 }),
+};
+
+const dragon = new THREE.Group();
+dragon.name = 'dragon';
+const add = (geo, mat, name, parent = dragon) => {
+  const m = new THREE.Mesh(geo, mat); m.name = name; parent.add(m); return m;
+};
+
+/* ---- tapered tube along a spline ---- */
+function taperedTube(pts, radii, name, mat, tubular = 120, radial = 28, parent = dragon) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)), false, 'catmullrom', 0.5);
+  const geo = new THREE.TubeGeometry(curve, tubular, 1, radial, false);
+  const pos = geo.attributes.position, nrm = geo.attributes.normal;
+  const ring = radial + 1;
+  for (let i = 0; i <= tubular; i++) {
+    const t = i / tubular;
+    const c = curve.getPointAt(t);
+    // piecewise-linear radius profile
+    const f = t * (radii.length - 1), i0 = Math.floor(f), i1 = Math.min(radii.length - 1, i0 + 1);
+    const r = radii[i0] + (radii[i1] - radii[i0]) * (f - i0);
+    for (let j = 0; j < ring; j++) {
+      const k = i * ring + j;
+      const nx = nrm.getX(k), ny = nrm.getY(k), nz = nrm.getZ(k);
+      pos.setXYZ(k, c.x + nx * r, c.y + ny * r, c.z + nz * r);
+    }
+  }
+  geo.computeVertexNormals();
+  return { mesh: add(geo, mat, name, parent), curve };
+}
+
+/* ---- limb segment between two points ---- */
+function bone(a, b, r0, r1, name, mat, parent = dragon, seg = 20) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const len = A.distanceTo(B);
+  const geo = new THREE.CylinderGeometry(r1, r0, len, seg, 1);
+  const m = add(geo, mat, name, parent);
+  m.position.copy(A).add(B).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  return m;
+}
+
+/* ================= SPINE: tail → body → neck ================= */
+const spine = [
+  [-3.30, 0.55, 0.75], [-2.85, 0.34, 0.50], [-2.30, 0.28, 0.24], [-1.75, 0.42, 0.06],
+  [-1.15, 0.72, 0.00], [-0.60, 1.04, 0.00], [ 0.00, 1.24, 0.00], [ 0.48, 1.33, 0.00],
+  [ 0.86, 1.40, 0.00], [ 1.06, 1.66, 0.00], [ 1.14, 2.08, 0.00], [ 1.22, 2.48, 0.00],
+  [ 1.42, 2.76, 0.00],
+];
+const radii = [0.035, 0.09, 0.15, 0.20, 0.26, 0.34, 0.42, 0.44, 0.42, 0.31, 0.22, 0.19, 0.18];
+const { curve: spineCurve } = taperedTube(spine, radii, 'body', M.scale, 160, 32);
+
+/* belly plates along the underside */
+const belly = new THREE.Group(); belly.name = 'belly_plates'; dragon.add(belly);
+for (let i = 0; i < 26; i++) {
+  const t = 0.16 + (i / 25) * 0.66;
+  const c = spineCurve.getPointAt(t);
+  const f = t * (radii.length - 1), i0 = Math.floor(f), i1 = Math.min(radii.length - 1, i0 + 1);
+  const r = radii[i0] + (radii[i1] - radii[i0]) * (f - i0);
+  const w = r * 1.25;
+  const p = add(new THREE.BoxGeometry(0.085, 0.05, w), M.belly, 'belly_plate_' + i, belly);
+  const tan = spineCurve.getTangentAt(t);
+  p.position.set(c.x, c.y - r * 0.93, c.z);
+  p.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), tan);
+}
+
+/* dorsal spikes */
+const crest = new THREE.Group(); crest.name = 'dorsal_spikes'; dragon.add(crest);
+for (let i = 0; i < 32; i++) {
+  const t = 0.10 + (i / 31) * 0.85;
+  const c = spineCurve.getPointAt(t);
+  const f = t * (radii.length - 1), i0 = Math.floor(f), i1 = Math.min(radii.length - 1, i0 + 1);
+  const r = radii[i0] + (radii[i1] - radii[i0]) * (f - i0);
+  const h = 0.10 + r * 0.72;
+  const s = add(new THREE.ConeGeometry(r * 0.22 + 0.018, h, 10), M.horn, 'spike_' + i, crest);
+  const tan = spineCurve.getTangentAt(t);
+  const up = new THREE.Vector3(0, 1, 0).sub(tan.clone().multiplyScalar(0.45 * tan.y)).normalize();
+  s.position.set(c.x, c.y + r * 0.9, c.z).add(up.clone().multiplyScalar(h * 0.35));
+  s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up.clone().add(tan.clone().multiplyScalar(-0.35)).normalize());
+}
+
+/* tail spade */
+const spade = new THREE.Group(); spade.name = 'tail_fin'; dragon.add(spade);
+{
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.bezierCurveTo(0.12, 0.10, 0.34, 0.18, 0.56, 0.06);
+  shape.bezierCurveTo(0.40, 0.02, 0.34, -0.06, 0.52, -0.22);
+  shape.bezierCurveTo(0.26, -0.20, 0.10, -0.10, 0, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.03, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.008, bevelSegments: 2 });
+  const m = add(geo, M.wing, 'tail_fin_web', spade);
+  m.rotation.set(Math.PI / 2, 0, 0);
+  spade.position.set(-3.30, 0.52, 0.75);
+  spade.rotation.set(0, -0.55, 0.25);
+}
+
+/* ================= HEAD ================= */
+const head = new THREE.Group(); head.name = 'head';
+head.position.set(1.42, 2.76, 0);
+head.rotation.z = -0.28;
+dragon.add(head);
+
+add(new THREE.SphereGeometry(0.235, 32, 24), M.scale, 'skull', head).scale.set(1.15, 0.95, 0.92);
+const snout = add(new THREE.CylinderGeometry(0.085, 0.145, 0.50, 4, 1), M.scale, 'snout', head);
+snout.position.set(0.40, -0.03, 0);
+snout.rotation.set(Math.PI / 4, 0, -Math.PI / 2);
+snout.scale.set(1, 1, 1.25);
+add(new THREE.SphereGeometry(0.095, 24, 18), M.scale, 'snout_tip', head).position.set(0.615, -0.015, 0);
+const jaw = add(new THREE.BoxGeometry(0.48, 0.105, 0.185), M.scale, 'lower_jaw', head);
+jaw.position.set(0.37, -0.20, 0);
+jaw.rotation.z = -0.10;
+
+for (const s of [1, -1]) {
+  const brow = add(new THREE.BoxGeometry(0.20, 0.055, 0.075), M.horn, 'brow_' + (s > 0 ? 'l' : 'r'), head);
+  brow.position.set(0.17, 0.115, 0.115 * s);
+  brow.rotation.z = 0.12;
+
+  const e = add(new THREE.SphereGeometry(0.055, 20, 16), M.eye, 'eye_' + (s > 0 ? 'l' : 'r'), head);
+  e.position.set(0.155, 0.045, 0.165 * s);
+
+  // horns, swept back
+  const h1 = add(new THREE.ConeGeometry(0.058, 0.62, 16), M.horn, 'horn_main_' + (s > 0 ? 'l' : 'r'), head);
+  h1.position.set(-0.21, 0.26, 0.115 * s);
+  h1.rotation.set(0.30 * s, 0, 1.15);
+  const h2 = add(new THREE.ConeGeometry(0.034, 0.30, 12), M.horn, 'horn_minor_' + (s > 0 ? 'l' : 'r'), head);
+  h2.position.set(-0.16, 0.08, 0.20 * s);
+  h2.rotation.set(0.6 * s, 0, 1.45);
+
+  // cheek frill
+  const fr = add(new THREE.ConeGeometry(0.03, 0.22, 8), M.horn, 'frill_' + (s > 0 ? 'l' : 'r'), head);
+  fr.position.set(-0.10, -0.14, 0.19 * s);
+  fr.rotation.set(1.0 * s, 0, 1.9);
+
+  // teeth
+  for (let i = 0; i < 5; i++) {
+    const x = 0.20 + i * 0.095;
+    const tu = add(new THREE.ConeGeometry(0.019, 0.075, 8), M.horn, 'tooth_up_' + i + (s > 0 ? 'l' : 'r'), head);
+    tu.position.set(x, -0.135, 0.082 * s); tu.rotation.z = Math.PI;
+    const tl = add(new THREE.ConeGeometry(0.016, 0.062, 8), M.horn, 'tooth_low_' + i + (s > 0 ? 'l' : 'r'), head);
+    tl.position.set(x - 0.02, -0.168, 0.072 * s);
+  }
+  // nostril ridge
+  add(new THREE.SphereGeometry(0.026, 12, 10), M.scale, 'nostril_' + (s > 0 ? 'l' : 'r'), head)
+    .position.set(0.615, 0.055, 0.06 * s);
+}
+
+/* ================= LEGS ================= */
+function claws(at, dir, scale, name, parent) {
+  for (let i = -1; i <= 1; i++) {
+    const c = add(new THREE.ConeGeometry(0.028 * scale, 0.17 * scale, 10), M.claw, name + '_claw_' + (i + 1), parent);
+    c.position.set(at[0] + dir[0] * 0.10 * scale, at[1] - 0.01, at[2] + i * 0.075 * scale);
+    c.rotation.set(0, 0, -Math.PI / 2 * dir[0] - i * 0.0);
+    c.rotation.z = -1.25 * Math.sign(dir[0]);
+    c.rotation.y = i * 0.45;
+  }
+}
+
+const legs = new THREE.Group(); legs.name = 'legs'; dragon.add(legs);
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  // hind leg
+  const hip = [-0.58, 1.00, 0.30 * s];
+  const knee = [-0.30, 0.62, 0.46 * s];
+  const ankle = [-0.52, 0.26, 0.44 * s];
+  const toe = [-0.22, 0.055, 0.44 * s];
+  add(new THREE.SphereGeometry(0.20, 20, 16), M.scale, 'haunch_' + tag, legs).position.set(-0.52, 0.98, 0.30 * s);
+  bone(hip, knee, 0.155, 0.115, 'thigh_' + tag, M.scale, legs);
+  bone(knee, ankle, 0.11, 0.075, 'shin_' + tag, M.scale, legs);
+  bone(ankle, toe, 0.075, 0.06, 'hind_foot_' + tag, M.scale, legs);
+  claws(toe, [1, 0, 0], 1.0, 'hind_' + tag, legs);
+  // heel spur
+  const spur = add(new THREE.ConeGeometry(0.026, 0.13, 8), M.claw, 'heel_spur_' + tag, legs);
+  spur.position.set(ankle[0] - 0.07, ankle[1] - 0.10, ankle[2]); spur.rotation.z = 1.9;
+
+  // front leg
+  const sh = [0.86, 1.28, 0.26 * s];
+  const elbow = [1.02, 0.86, 0.40 * s];
+  const wrist = [1.18, 0.40, 0.36 * s];
+  const hand = [1.34, 0.07, 0.36 * s];
+  add(new THREE.SphereGeometry(0.155, 20, 16), M.scale, 'shoulder_' + tag, legs).position.set(0.86, 1.30, 0.26 * s);
+  bone(sh, elbow, 0.115, 0.085, 'upper_arm_' + tag, M.scale, legs);
+  bone(elbow, wrist, 0.082, 0.058, 'forearm_' + tag, M.scale, legs);
+  bone(wrist, hand, 0.058, 0.05, 'fore_foot_' + tag, M.scale, legs);
+  claws(hand, [1, 0, 0], 0.8, 'fore_' + tag, legs);
+}
+
+/* ================= WINGS ================= */
+function buildWing(side) {
+  const g = new THREE.Group();
+  g.name = 'wing_' + (side > 0 ? 'l' : 'r');
+  const tag = side > 0 ? 'l' : 'r';
+
+  const shoulder = [0, 0, 0], elbow = [1.35, 0.62, 0], wrist = [2.50, 0.92, 0];
+  const tips = [[3.85, 1.20, 0], [3.55, 0.05, 0], [3.00, -0.95, 0], [2.20, -1.72, 0]];
+
+  bone(shoulder, elbow, 0.085, 0.062, 'wing_humerus_' + tag, M.horn, g, 14);
+  bone(elbow, wrist, 0.062, 0.046, 'wing_radius_' + tag, M.horn, g, 14);
+  tips.forEach((tp, i) => bone(wrist, tp, 0.040, 0.014, 'wing_finger_' + i + '_' + tag, M.horn, g, 12));
+  bone(wrist, [1.05, -1.25, 0], 0.030, 0.012, 'wing_strut_' + tag, M.horn, g, 10);
+
+  const sh = new THREE.Shape();
+  sh.moveTo(0.05, 0.02);
+  sh.lineTo(1.35, 0.62);
+  sh.lineTo(2.50, 0.92);
+  sh.lineTo(3.85, 1.20);
+  sh.quadraticCurveTo(3.55, 0.75, 3.55, 0.05);   // scallop 1
+  sh.quadraticCurveTo(3.32, 0.48, 3.00, -0.95);  // scallop 2
+  sh.quadraticCurveTo(2.82, -0.30, 2.20, -1.72); // scallop 3
+  sh.quadraticCurveTo(1.75, -0.90, 1.05, -1.25); // scallop 4
+  sh.quadraticCurveTo(0.55, -0.70, 0.05, 0.02);
+  const web = add(new THREE.ExtrudeGeometry(sh, { depth: 0.018, bevelEnabled: false, curveSegments: 18 }),
+    M.wing, 'wing_membrane_' + tag, g);
+  web.position.z = -0.009;
+
+  // orient by explicit basis: span up-and-outward, chord raked backward
+  // right wing oriented by an explicit basis; left wing is its exact mirror
+  const S = new THREE.Vector3(-0.36, 0.70, 0.62).normalize();
+  const C = new THREE.Vector3(0.90, 0.40, 0.18);
+  C.sub(S.clone().multiplyScalar(C.dot(S))).normalize();
+  const N = new THREE.Vector3().crossVectors(S, C).normalize();
+  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(S, C, N));
+  const pivot = new THREE.Group();
+  pivot.name = 'wing_pivot_' + tag;
+  pivot.add(g);
+  pivot.quaternion.copy(side > 0 ? q : new THREE.Quaternion(-q.x, -q.y, q.z, q.w));
+  pivot.position.set(0.36, 1.58, 0.26 * side);
+  pivot.scale.setScalar(0.90);
+  return pivot;
+}
+dragon.add(buildWing(1), buildWing(-1));
+
+/* ---- rest on ground, centered ---- */
+const box = new THREE.Box3().setFromObject(dragon);
+const c = box.getCenter(new THREE.Vector3());
+dragon.position.set(-c.x, -box.min.y, -c.z);
+
+stage.setObject(dragon);
+</script>
+</body>
+</html>

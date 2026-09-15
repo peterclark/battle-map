@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dwarven ballista — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="dwarven-ballista" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  oak:   new THREE.MeshStandardMaterial({ name:'oak',        color:0x9c6b3f, roughness:0.74, metalness:0.04 }),
+  dark:  new THREE.MeshStandardMaterial({ name:'dark_wood',  color:0x5a3a24, roughness:0.78, metalness:0.04 }),
+  iron:  new THREE.MeshStandardMaterial({ name:'black_iron', color:0x555b60, roughness:0.42, metalness:0.34 }),
+  brass: new THREE.MeshStandardMaterial({ name:'brass',      color:0xb08d3f, roughness:0.34, metalness:0.36 }),
+  rope:  new THREE.MeshStandardMaterial({ name:'rope',       color:0xcbb68a, roughness:0.92, metalness:0.0 }),
+  ash:   new THREE.MeshStandardMaterial({ name:'pale_ash',   color:0xc79a63, roughness:0.68, metalness:0.04 }),
+};
+
+const rig = new THREE.Group(); rig.name = 'dwarven_ballista';
+const add = (geo, mat, name, parent) => { const m = new THREE.Mesh(geo, mat); m.name = name; (parent || rig).add(m); return m; };
+
+/* segment between two points */
+function bar(a, b, r0, r1, name, mat, parent, seg = 18) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const geo = new THREE.CylinderGeometry(r1, r0, A.distanceTo(B), seg, 1);
+  const m = add(geo, mat, name, parent);
+  m.position.copy(A).add(B).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  return m;
+}
+/* iron band wrapping the x axis */
+function band(x, r, name, parent, tube = 0.022) {
+  const m = add(new THREE.TorusGeometry(r, tube, 8, 28), M.iron, name, parent);
+  m.position.x = x; m.rotation.y = Math.PI / 2;
+  return m;
+}
+function rivets(count, radius, x, name, parent, mat) {
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    add(new THREE.SphereGeometry(0.018, 10, 8), mat || M.brass, name + '_' + i, parent)
+      .position.set(x, Math.sin(a) * radius, Math.cos(a) * radius);
+  }
+}
+/* rivets ringing a horizontal plate's top face */
+function plateRivets(count, radius, cx, y, cz, name, parent, mat) {
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    add(new THREE.SphereGeometry(0.018, 10, 8), mat || M.brass, name + '_' + i, parent)
+      .position.set(cx + Math.cos(a) * radius, y, cz + Math.sin(a) * radius);
+  }
+}
+
+/* ===================== WHEELS + AXLE ===================== */
+const WHEEL_R = 0.64, HUB_Y = 0.64;
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  const w = new THREE.Group(); w.name = 'wheel_' + tag;
+  w.position.set(0, HUB_Y, 0.92 * s);   // wheel plane is x-y, axis along z
+  rig.add(w);
+
+  add(new THREE.TorusGeometry(WHEEL_R - 0.075, 0.075, 12, 40), M.oak, 'wheel_rim_' + tag, w);
+  const tyre = add(new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.11, 44, 1, true), M.iron, 'wheel_tyre_' + tag, w);
+  tyre.rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(0.15, 0.15, 0.32, 24), M.dark, 'wheel_hub_' + tag, w).rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(0.175, 0.175, 0.08, 24), M.iron, 'hub_ring_' + tag, w).rotation.x = Math.PI / 2;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const sp = add(new THREE.BoxGeometry(0.075, WHEEL_R - 0.18, 0.09), M.oak, 'spoke_' + i + '_' + tag, w);
+    sp.position.set(Math.cos(a) * (WHEEL_R - 0.09) / 2 * 1.0, Math.sin(a) * (WHEEL_R - 0.09) / 2 * 1.0, 0);
+    sp.rotation.z = a - Math.PI / 2;
+  }
+  // rune plate bolted over the hub
+  const plate = add(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 6), M.iron, 'hub_plate_' + tag, w);
+  plate.rotation.x = Math.PI / 2; plate.position.z = 0.17 * s;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    add(new THREE.SphereGeometry(0.019, 10, 8), M.brass, 'hub_rivet_' + i + '_' + tag, w)
+      .position.set(Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0.19 * s);
+  }
+}
+bar([0, HUB_Y, -1.02], [0, HUB_Y, 1.02], 0.075, 0.075, 'axle', M.iron, rig, 20);
+
+/* ===================== CARRIAGE ===================== */
+const carriage = new THREE.Group(); carriage.name = 'carriage'; rig.add(carriage);
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  const beam = add(new THREE.BoxGeometry(2.70, 0.19, 0.17), M.oak, 'frame_beam_' + tag, carriage);
+  beam.position.set(-0.10, 1.02, 0.46 * s);
+  band(0.85, 0.16, 'beam_band_f_' + tag, beam); // local: band wraps beam
+  // axle bearing block
+  add(new THREE.BoxGeometry(0.34, 0.50, 0.24), M.dark, 'axle_block_' + tag, carriage).position.set(0, 0.76, 0.46 * s);
+}
+for (const [i, x] of [0.95, 0.15, -0.75].entries()) {
+  add(new THREE.BoxGeometry(0.17, 0.15, 1.12), M.oak, 'cross_beam_' + i, carriage).position.set(x, 1.02, 0);
+}
+// trail beam sloping back to the ground, with a bracing strut and a spade foot
+bar([-1.28, 1.02, 0], [-2.42, 0.18, 0], 0.15, 0.11, 'trail_beam', M.oak, carriage, 14);
+bar([-0.80, 0.94, 0.34], [-2.02, 0.32, 0.10], 0.045, 0.045, 'trail_strut_l', M.iron, carriage, 10);
+bar([-0.80, 0.94, -0.34], [-2.02, 0.32, -0.10], 0.045, 0.045, 'trail_strut_r', M.iron, carriage, 10);
+const spade = add(new THREE.BoxGeometry(0.30, 0.10, 0.40), M.iron, 'trail_spade', carriage);
+spade.position.set(-2.50, 0.10, 0);
+plateRivets(4, 0.11, -2.50, 0.152, 0, 'spade_rivet', carriage);
+// handles for the crew to heave it around
+for (const s of [1, -1]) {
+  bar([-2.12, 0.36, 0.16 * s], [-2.70, 0.66, 0.30 * s], 0.035, 0.032, 'haul_handle_' + (s > 0 ? 'l' : 'r'), M.dark, carriage, 10);
+}
+
+/* turntable the whole engine swivels on */
+const turn = add(new THREE.CylinderGeometry(0.38, 0.42, 0.14, 8), M.iron, 'turntable', rig);
+turn.position.set(0.15, 1.16, 0);
+plateRivets(8, 0.31, 0.15, 1.225, 0, 'turntable_rivet', rig);
+
+/* ===================== BALLISTA HEAD ===================== */
+const head = new THREE.Group(); head.name = 'ballista_head';
+head.position.set(0.15, 1.28, 0);
+head.rotation.z = 0.30;                    // elevated a touch above level
+rig.add(head);
+
+/* stock and trough */
+add(new THREE.BoxGeometry(2.70, 0.15, 0.40), M.dark, 'stock', head).position.set(0.05, 0.07, 0);
+for (const s of [1, -1]) {
+  add(new THREE.BoxGeometry(2.70, 0.13, 0.07), M.oak, 'trough_rail_' + (s > 0 ? 'l' : 'r'), head)
+    .position.set(0.05, 0.18, 0.165 * s);
+}
+add(new THREE.BoxGeometry(2.20, 0.04, 0.26), M.iron, 'trough_floor', head).position.set(0.15, 0.155, 0);
+for (const [i, x] of [1.12, 0.55, -0.30, -1.00].entries()) {
+  const st = add(new THREE.BoxGeometry(0.07, 0.30, 0.46), M.iron, 'stock_strap_' + i, head);
+  st.position.set(x, 0.10, 0);
+  rivets(2, 0.16, x + 0.001, 'stock_strap_rivet_' + i, head);
+}
+
+/* bow: heavy laminated limbs, iron shod, string drawn back to the claw */
+const bowBlock = add(new THREE.BoxGeometry(0.34, 0.30, 0.44), M.dark, 'bow_block', head);
+bowBlock.position.set(1.28, 0.14, 0);
+rivets(4, 0.15, 1.28, 'bow_block_rivet', head);
+const tips = {};
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  const mid = [1.34, 0.26, 0.88 * s], tip = [1.62, 0.52, 1.88 * s];
+  bar([1.28, 0.15, 0.20 * s], mid, 0.135, 0.100, 'bow_limb_inner_' + tag, M.ash, head, 16);
+  bar(mid, tip, 0.100, 0.050, 'bow_limb_outer_' + tag, M.ash, head, 16);
+  const collar = add(new THREE.CylinderGeometry(0.105, 0.105, 0.07, 14), M.iron, 'limb_collar_' + tag, head);
+  collar.position.set(...mid);
+  collar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(tip[0] - mid[0], tip[1] - mid[1], tip[2] - mid[2]).normalize());
+  const cap = add(new THREE.CylinderGeometry(0.05, 0.05, 0.09, 14), M.iron, 'limb_cap_' + tag, head);
+  cap.position.set(...tip);
+  cap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(tip[0] - mid[0], tip[1] - mid[1], tip[2] - mid[2]).normalize());
+  tips[tag] = tip;
+}
+const claw = add(new THREE.BoxGeometry(0.30, 0.16, 0.26), M.iron, 'string_claw', head);
+claw.position.set(-0.55, 0.26, 0);
+bar(tips.l, [-0.55, 0.28, 0.07], 0.020, 0.020, 'bowstring_l', M.rope, head, 8);
+bar(tips.r, [-0.55, 0.28, -0.07], 0.020, 0.020, 'bowstring_r', M.rope, head, 8);
+
+/* bolt in the trough */
+const bolt = new THREE.Group(); bolt.name = 'bolt'; head.add(bolt);
+bar([-0.40, 0.27, 0], [1.42, 0.27, 0], 0.052, 0.052, 'bolt_shaft', M.ash, bolt, 14);
+const boltHead = add(new THREE.ConeGeometry(0.085, 0.36, 16), M.iron, 'bolt_head', bolt);
+boltHead.position.set(1.63, 0.27, 0); boltHead.rotation.z = -Math.PI / 2;
+add(new THREE.CylinderGeometry(0.058, 0.058, 0.07, 14), M.brass, 'bolt_collar', bolt)
+  .rotation.z = Math.PI / 2;
+bolt.children[bolt.children.length - 1].position.set(1.41, 0.27, 0);
+for (let i = 0; i < 3; i++) {
+  const a = (i / 3) * Math.PI * 2;
+  const fl = add(new THREE.BoxGeometry(0.26, 0.11, 0.012), M.iron, 'bolt_fletch_' + i, bolt);
+  fl.position.set(-0.28, 0.27, 0);
+  fl.rotation.x = a;
+  fl.translateY(0.075);
+}
+
+/* windlass: drum, ratchet, crank arms, ropes to the claw */
+const wl = new THREE.Group(); wl.name = 'windlass'; head.add(wl);
+const drum = add(new THREE.CylinderGeometry(0.15, 0.15, 0.52, 20), M.dark, 'windlass_drum', wl);
+drum.position.set(-1.05, 0.30, 0); drum.rotation.x = Math.PI / 2;
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  add(new THREE.CylinderGeometry(0.20, 0.20, 0.04, 16), M.iron, 'ratchet_' + tag, wl)
+    .position.set(-1.05, 0.30, 0.30 * s);
+  add(new THREE.BoxGeometry(0.10, 0.44, 0.06), M.iron, 'crank_arm_' + tag, wl)
+    .position.set(-1.05, 0.45, 0.38 * s);
+  const hnd = add(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 12), M.oak, 'crank_handle_' + tag, wl);
+  hnd.position.set(-1.05, 0.64, 0.46 * s); hnd.rotation.x = Math.PI / 2;
+  bar([-1.05, 0.34, 0.11 * s], [-0.55, 0.28, 0.10 * s], 0.016, 0.016, 'windlass_rope_' + tag, M.rope, wl, 8);
+  // upright post carrying the drum
+  add(new THREE.BoxGeometry(0.12, 0.42, 0.10), M.dark, 'windlass_post_' + tag, wl)
+    .position.set(-1.05, 0.16, 0.24 * s);
+}
+
+/* dwarven ironwork: rune plates bolted along the stock, nose plate under the bow */
+const iron = new THREE.Group(); iron.name = 'rune_plates'; head.add(iron);
+for (const s of [1, -1]) {
+  const tag = s > 0 ? 'l' : 'r';
+  const p = add(new THREE.BoxGeometry(0.60, 0.20, 0.04), M.iron, 'rune_plate_' + tag, iron);
+  p.position.set(0.62, 0.09, 0.212 * s);
+  for (const dx of [-0.22, 0, 0.22]) {
+    add(new THREE.SphereGeometry(0.021, 10, 8), M.brass, 'rune_rivet_' + tag + '_' + dx, iron)
+      .position.set(0.62 + dx, 0.09, 0.232 * s);
+  }
+  add(new THREE.BoxGeometry(0.10, 0.20, 0.05), M.brass, 'rune_edge_' + tag, iron)
+    .position.set(0.30, 0.09, 0.214 * s);
+}
+const nose = add(new THREE.BoxGeometry(0.22, 0.14, 0.50), M.iron, 'bow_nose_plate', iron);
+nose.position.set(1.30, -0.03, 0);
+rivets(4, 0.14, 1.30, 'nose_rivet', iron);
+
+/* rest on the ground, centered */
+const box = new THREE.Box3().setFromObject(rig);
+const c = box.getCenter(new THREE.Vector3());
+rig.position.set(-c.x, -box.min.y, -c.z);
+
+stage.setObject(rig);
+</script>
+</body>
+</html>
