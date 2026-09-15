@@ -16,12 +16,8 @@ import { buildLizardfolk, poseLizardfolk } from "./lizardfolk3d.js";
 import { buildSaurians, poseSaurians } from "./saurians3d.js";
 import { buildWarMachines, poseWarMachines } from "./warMachine3d.js";
 import { buildCatapults, poseCatapults } from "./catapult3d.js";
-import {
-  buildAbomination,
-  buildBrutes,
-  poseAbomination,
-  poseBrutes,
-} from "./brutes3d.js";
+import { buildBrutes, poseBrutes } from "./brutes3d.js";
+import { buildAbomination, poseAbomination } from "./abomination3d.js";
 import { buildDragon, poseDragon } from "./dragon3d.js";
 import { buildSwarm, poseSwarm } from "./swarm3d.js";
 

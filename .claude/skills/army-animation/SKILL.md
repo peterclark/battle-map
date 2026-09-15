@@ -185,7 +185,9 @@ scute on the Tyrannosaurus was placed against the wrong number and buried; so
 were the trolls' back plates, the Triceratops' spine plates, the Ancients'
 growth rings and the dragons' dorsal ridge. **Work out where the surface
 actually is, or place detail by angle** — `[r·sin(a), r·cos(a), z]` round the
-body — which is self-correcting and reads better anyway.
+body — which is self-correcting and reads better anyway. A surface with no
+formula, like the Abomination's heap of noise-displaced lumps, has neither: cast
+a ray at the merged geometry and put the detail where it lands.
 
 **A part can also be buried under a *sibling*, and from this camera that is
 the same as not existing.** The dragon's tail was the case: correctly built,
@@ -576,7 +578,7 @@ and turned bosses; forged axe heads with a beard and a horn; leaf-bladed
 spears with pennons; crossbows with tillers, nuts and strings; recurve bows
 with strings on them; bridles, reins, girths and saddles; lance vamplates;
 spiked collars and hackles on war-wolves; knotted muscle and torn hide mantles
-on brutes; ribcages surfacing out of the Abomination; osteoderms and crests on
+on brutes; ribs and faces surfacing out of the Abomination; osteoderms and crests on
 lizardfolk; scalloped frills; wing membranes with finger spars and a scalloped
 trailing edge; and — the one that had been wrong since the day it was built —
 **wheels with visible spokes**, because the spokes had always been modelled

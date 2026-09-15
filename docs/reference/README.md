@@ -1,14 +1,15 @@
 # Reference builds
 
-Two standalone Three.js pages, kept because they are the direction a rig was
-built *against*. Neither is part of the app: nothing under `src/` imports them,
+Standalone Three.js pages, kept because they are the direction a rig was
+built *against*. None is part of the app: nothing under `src/` imports them,
 the Vite build never sees them, and they are excluded from lint.
 
 | File | What it is |
 | --- | --- |
 | `dragon.html` | A dragon, built as one tapered spine with wings, legs and a head hung off it |
 | `ballista.html` | A dwarven field ballista: carriage, trail, turntable, recurved bow, windlass |
-| `three-d-stage.js` | The turntable viewer both pages use — orbit, zoom, and OBJ/GLB export |
+| `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
+| `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
 
@@ -75,6 +76,29 @@ disagreements are the interesting part:
 - **Not taken: high metalness.** Both notes and code here cap it around 0.3–0.4
   for the same reason this project does — no environment map means a metal
   surface has nothing to reflect and renders near black.
+
+### The Abomination
+
+`abomination3d.js` is a port of `abomination.html`, from its own tables.
+
+- **Taken.** The whole construction: one heap of lumps, no skeleton, limbs
+  sprouting where the corpses landed. The lump table, the `lumpy` noise
+  function and the seed are the reference's own, so the heap is recognisably
+  the same heap. So are the hands, feet and faces — big dark sockets and an
+  open mouth are the one detail that carries at stand scale.
+- **Taken.** Five limbs planted and the rest reaching, which is what makes it
+  haul rather than walk.
+- **Not taken: the footprint.** The reference is nearly round. The *layout* is
+  squeezed along Z to about 0.45 — lump positions, anchors, feet, the reach of
+  every loose limb — and head and limb angles are pulled toward the wide axis,
+  while the parts keep their shapes. It measures 2.56:1 at rest.
+- **Not taken: where the faces point.** Straight out of the heap is a face the
+  overhead camera never sees. They are tipped most of the way up.
+- **Not taken: the palette.** The reference heap is the turf's value once ACES
+  lifts it. The heap goes dark and the limbs and faces stay pale, per the brief.
+- **Not taken: placing detail on the ellipsoid.** Ribs, bones, sinew and gore
+  placed on the ideal ellipsoid land inside the lumps, and did on the first
+  render. The port casts a ray at the lumps and puts them where it lands.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.

@@ -206,6 +206,7 @@ src/
                       extruded timber and turned fittings merged into a
                       handful of meshes
       brutes3d.js     trolls, ogres, giants -- the shape with no silhouette
+      abomination3d.js a heap of the dead, with no skeleton at all
       dragon3d.js     wings, and the hydra that manages without them
       trex3d.js       the Tyrannosaurus Rex, and the shared scene and camera
   setup/
