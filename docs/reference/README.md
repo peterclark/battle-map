@@ -12,24 +12,30 @@ the Vite build never sees them, and they are excluded from lint.
 
 ## Viewing them
 
-Serve the folder and open a page:
+Run the dev server and open a page:
 
 ```sh
-npx serve docs/reference     # then open /dragon.html
+npm run dev      # then open /docs/reference/dragon.html
 ```
 
 Drag to orbit, scroll to zoom, right-drag to pan; each page also offers an
 OBJ/MTL and a GLB export of what it is showing.
 
-They pull Three.js **0.184.0 from unpkg**, through a pinned import map with
-integrity hashes, so they need that host reachable — which is worth knowing
-before concluding a page is broken. They also will not run from a `file://` URL
-in every browser, hence `serve` rather than double-clicking.
+They import Three.js through an import map pointing at **the copy in
+`node_modules`** — the same version `src/` builds against — so they need
+`npm ci` and the Vite dev server, and they will not run from a `file://` URL or
+from a plain static server rooted at this folder. That is what the leading `/`
+on the import-map paths means: they resolve from the repo root, not from here.
 
-This is the one thing about these files that cannot be checked from inside a
-sandboxed agent session: unpkg is commonly blocked by egress policy there, so
-the most that can be verified is that the pages and their import maps are
-intact. Rendering has to be confirmed in a real browser.
+Sharing a Three.js version with the app is the point. A reference that renders
+under a different version is a reference that can disagree with the rig for
+reasons nothing in either file records.
+
+Rendering **is** verified, headlessly, by `npm run reference:shoot`, which loads
+each page in Chromium, waits for the stage, counts what got built and writes a
+PNG. These pages used to pull 0.184.0 from unpkg behind integrity pins, which
+made them unrenderable wherever egress is filtered — including the agent
+sessions that do most of the work on this board.
 
 ## Why they are in the repo
 

@@ -10,3 +10,6 @@ logs
 *.log
 npm-debug.log*
 badges
+
+# Headless renders of the reference builds
+.reference-shots
