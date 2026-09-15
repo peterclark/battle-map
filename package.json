@@ -11,7 +11,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "reference:shoot": "node scripts/reference-shoot.mjs"
+    "reference:shoot": "node scripts/reference-shoot.mjs",
+    "board:shoot": "node scripts/board-shoot.mjs"
   },
   "dependencies": {
     "classnames": "^2.5.1",
