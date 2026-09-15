@@ -9,7 +9,10 @@ The board can show a unit two ways: its printed card, or modelled figures
 standing on that card. This skill is about the second.
 
 Read `docs/creature-brief.md` for the per-faction direction that has been
-agreed so far. If the army you are working on is not in it, ask for a
+agreed so far, and `docs/reference/` for the reference builds a rig was made
+against — standalone Three.js pages with the actual joint tables and radius
+profiles in them, plus a note on what this board took from each and what it
+deliberately did not. If the army you are working on is in neither, ask for a
 paragraph of direction before sculpting — see *Getting direction* below.
 
 ## The one rule that is not negotiable
@@ -750,3 +753,9 @@ cards.
 Write what you are told into `docs/creature-brief.md` before building, so
 the next revision starts from the agreed direction rather than re-deriving
 it.
+
+If the direction arrives as a **file** — a reference build, a sketch, an image —
+commit it under `docs/reference/` and say in that folder's README what was taken
+from it and what was not. A reference that stays in a chat log is a reference
+the next revision has to re-derive, and the disagreements between a reference
+and this board's camera are usually the most useful thing about it.
