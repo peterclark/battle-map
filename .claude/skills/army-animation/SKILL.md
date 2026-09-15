@@ -94,14 +94,50 @@ through the band. Length is the one thing there is no room for.
 A quick check before sculpting: divide the intended width by the intended
 depth. Under about 2:1 and the unit will come out smaller than it should.
 
+### Find out what sets the box before paying for it
+
+The ratio is set by the two parts at the extremes, and everything between them
+is free to grow until it reaches them. So before shrinking anything, *measure
+which part is actually at the edge of the box*.
+
+- The dragon's wing chord was doubled on the assumption that a deeper wing must
+  cost depth. It cost nothing: the head sets the front and the tail sets the
+  back, and the wings sit inside that envelope with room to spare. Same size on
+  the card, wings instead of slats.
+- The hydra renders far too narrow, and the obvious diagnosis was that its five
+  necks fan forward rather than sideways. Measured across four fan widths, the
+  depth **never moved at all** — because the fan is symmetric, so the middle
+  neck always points straight ahead and sets the front of the box whatever the
+  other four do. Widening it bought 5% of width and nothing else.
+
+### When the box is already the right shape, detail is the only currency
+
+The corollary, and it bites in the other direction. The ballista battery
+measured 2.42:1 against a band that wants about 2.4:1, so the fit already bound
+on width with depth a hair inside it. At that point **any** extent added
+anywhere makes the whole unit smaller and gains nothing — a trail beam run out
+properly behind the carriage cost a fifth of the machine's size on the card to
+buy one spar.
+
+So the rebuild added no extent at all. Everything went inside the envelope the
+blocked-out version already had: spoked wheels with bolted hub plates instead of
+a dark disc, a framed carriage instead of a slab, a recurved bow with collars
+and caps instead of a flat lath, a windlass with ratchets and cranks, brass
+rivets wherever a real one carries them. Identical size on the card, a different
+object.
+
 Two levers when an animal is long by nature:
 
 - **Curl it.** Sweep the tail hard to one side and turn the head the other, so
   the same length becomes width. It is what a sculptor does with a long animal
   on a shallow base, and it reads as alive rather than as a plank. The
-  Tyrannosaurus went from 3.9 × 11.3 to 5.1 × 5.6 this way, at no cost. Give
-  each joint a **rest** rotation and have the poser add its motion *on top*
-  rather than overwrite it.
+  Tyrannosaurus went from 3.9 × 11.3 to 5.1 × 5.6 this way, at no cost.
+
+  State the curl in **one** place. For a chain of separate parts that means a
+  rest rotation on each joint with the poser adding motion on top; for a body
+  built as a curve it means the curve's own points, with every group left at
+  zero. Doing both compounds and produces a hook — see *The rest pose belongs in
+  the curve* below.
 - **`depth` in `roster.js`**, which is `fill` for the front-to-back axis and
   lets a big creature overhang. `CreatureLayer` sends the excess off the front
   edge rather than back across the banner. Use it after curling, not instead
@@ -147,6 +183,33 @@ were the trolls' back plates, the Triceratops' spine plates, the Ancients'
 growth rings and the dragons' dorsal ridge. **Work out where the surface
 actually is, or place detail by angle** — `[r·sin(a), r·cos(a), z]` round the
 body — which is self-correcting and reads better anyway.
+
+**A part can also be buried under a *sibling*, and from this camera that is
+the same as not existing.** The dragon's tail was the case: correctly built,
+correctly the right length, and completely invisible, because it sat inside
+the wing's footprint and below it. Two rounds of adjusting it by eye made it
+worse — swept harder, the root and joint angles compounded and the tail curled
+into a hook *shorter* than the tail it started as, still under the wing.
+
+What settled it in one query was measuring, and it is worth doing this the
+moment a part does not appear where it should:
+
+```js
+// demo/creature-lab.html exposes the rig for exactly this
+const box = (obj) => { /* world-space AABB by traversing meshes */ };
+box(d.tail)   // x -0.12 .. 1.43   z 0.45 .. 1.22
+box(d.wings[0].shoulder)  // x -0.03 .. 3.13   z 0.03 .. 1.78
+```
+
+Two boxes, and the answer is immediate: the tail is inside the wing on both
+axes. A render cannot distinguish *not built*, *built somewhere else* and
+*built underneath something*, and all three look like nothing at all.
+`window.__lab.made` and `window.__lab.scene` are there so the question can be
+asked directly.
+
+The fix, once the numbers were in front of it, was not a bigger sweep — it was
+moving the *wings* forward so their trailing edge stopped short of the tail,
+and spending what that freed on tail length.
 
 **A rig's resting size is not the space it occupies.** `CreatureLayer` now
 samples the three gaits at build time and places each rig by the box it
@@ -362,6 +425,129 @@ camouflage.
 Note that it varies **roughness** as well as colour, and on flesh that does
 more work than the colour does — damp patches read as damp.
 
+### Say where a part starts and ends, not how to rotate it
+
+Every orientation bug this project has had came from writing a rotation by
+hand and getting the axis or the sign wrong: a wing claw that pointed inboard,
+a head crown that drove down through the skull, wheels a quarter turn off
+their axles, a lizard skull stood on edge. The fix is not to be more careful.
+It is to stop expressing orientation as an angle.
+
+`kit.js` has `spanning(a, b, r0, r1)` — a tapering cylinder from one point
+to another, with the quaternion that carries a cylinder's +Y onto that
+direction *computed*. None of the bugs above is expressible in it. Reach for
+this over `pos` + `rot` whenever a part runs between two places you can name:
+limb bones, wing spars, struts, hafts, chains.
+
+It also gives you *bands* for free. A collar on a bow limb, a ferrule, a cap on
+a tip — all of them need the axis of the thing they wrap, and all of them are a
+short `spanning` straddling a point on the line. Written as `pos` + `rot` they
+come out right on one side of the machine and wrong on the other.
+
+#### The `rot` array is applied about world axes, in order
+
+`at()` runs `rotateX`, then `rotateY`, then `rotateZ`, and each is about the
+**world** axis, not the part's own. So a second rotation does not mean what it
+looks like it means. For the `beam(length, width, depth)` helper, whose length
+runs along +Y:
+
+| `rot` | result |
+|---|---|
+| `[-PI/2, 0, 0]` | x = width, y = depth, **z = length** — a fore-and-aft timber |
+| `[-PI/2, PI/2, 0]` | **x = length**, y = depth, z = width — a timber lying across |
+| `[-PI/2, 0, PI/2]` | x = depth, y = width, **z = length** — *still* fore-and-aft |
+
+The third reads as "lay it down, then turn it a quarter" and is not: rotating
+about world Z after the first turn spins the beam about its own length. Written
+that way, a cross-brace braces nothing — which is what the ballista's braces and
+the chariot's top rail and yoke had been doing since the day they were built,
+invisibly, because a beam rolled about its own axis still looks like a beam.
+
+**Measure it, do not reason about it.** Build the geometry, apply the rotation,
+and print the bounding box. It takes two minutes and it is the only way to know.
+
+### Derive the outline and the parts inside it from one table
+
+The dragon's wing was built twice and failed twice for the same structural
+reason: the membrane outline was generated by one piece of code and the spars
+positioned by another, against numbers that were supposed to agree. They
+drifted. Deepening the wing left the main spar stranded a quarter of the way
+back across the membrane, reading as a bar laid over the wing rather than as
+its leading edge — and no amount of adjusting either side fixed it, because
+the two had no shared source of truth.
+
+It is now one table of joint coordinates — shoulder, elbow, wrist, finger
+tips, root — and the bones *and* the outline are both read from it. The
+leading edge is the arm bones because it is built from the same points. That
+class of bug is gone, not reduced.
+
+The same idea scales: place detail along a curve by sampling it (`along(curve,
+radii, t)` gives you the point, the tangent and the local radius at once) rather
+than hand-writing offsets. Detail placed that way follows the body when the body
+changes, instead of floating off it — which is exactly what happened to the
+dragon's flank scutes the moment its capsule was narrowed, and to its tail
+scutes when the tail underneath them was swept away.
+
+### One continuous body beats a stack of cones
+
+A tail, a neck and a torso are the same thing: a body that starts thick and
+narrows, bending as it goes. Built as cones and capsules butted end to end they
+read as *several objects in a line*, because a cone meeting a cone leaves a
+shoulder at the seam whatever you do with the radii. That is the single most
+obviously model-kit thing a creature rig can do, and this project did it three
+times on the same animal.
+
+`tapered(curve, radii, opts)` sweeps one surface along a spline with a radius
+profile. There is no join to hide.
+
+**Articulation is the reason this looks hard and is not.** Build the moving
+pieces as *slices* of one curve — `{from, to}` — and hang them on separate
+groups. The slices are sampled off one shared frame set at ring index
+`round(t * segments)`, so the ring the two share is computed identically on both
+sides: invisible at rest, and still able to bend.
+
+### The rest pose belongs in the curve, not in the groups
+
+Once a body is a curve, put its resting shape *in the points* and leave every
+group at zero rotation, so the poser adds motion from zero.
+
+The alternative — a curve that bends one way plus a group rotated the same way —
+compounds, and the poser then has to add its motion to a number it must also
+preserve. This rig shipped the consequence: a tail swept at the root and again
+at the joint curled into a hook **shorter** than the tail it was extending, 1.5
+units against a wing reaching 3.1. Two people looking at that render would both
+say "the tail is missing", and neither would guess why.
+
+### A flat plate outshines everything curved around it
+
+A horizontal surface takes the key light square on. Every curved surface near it
+turns away and gets the full highlight along one line at most. So a flat part —
+a tail spade, a plate, a fin — renders as the brightest thing on the figure
+*however dark you make its colour*, and darkening it further just makes a dark
+card. Rake it twenty degrees instead: that costs almost none of its area from
+directly above and takes the highlight off it.
+
+### Mirroring: reverse the points, never the scale
+
+`scale: [-1, 1, 1]` is the obvious way to get the second wing and it is wrong.
+A negative scale reverses the winding, the face normals point inward, and the
+part renders as an unlit black sheet — which looks like a lighting or material
+bug and is neither. Mirror the *coordinates* and reverse the point order to
+restore the winding, so the second copy is built rather than transformed.
+
+### A membrane pulls in, it does not sag out
+
+Worth stating because this rig got it wrong in both directions before getting
+it right. A membrane stretched between two finger tips is taut: the edge
+between them is **concave**, with a sharp cusp at each tip. Straight segments
+between the tips read as a torn banner. Convex lobes — the intuitive reading
+of "a membrane hangs" — read as a scalloped valance, which is decoration
+rather than anatomy. Sample a quadratic whose control point is pulled *toward*
+the joint the fingers radiate from.
+
+And they do radiate from a joint: a bat's fingers all leave the wrist. Fanning
+them from the shoulder spreads them across the whole wing and reads as slats.
+
 ### The shape vocabulary
 
 Once merging is on the table, stop reaching for capsules and boxes:
@@ -373,6 +559,9 @@ Once merging is on the table, stop reaching for capsules and boxes:
 | `swept(points, radius)` | rope, reins, chain, bowstrings, ribs, straps. |
 | `TorusGeometry` | rims, tyres, belts, brow bands, collars. |
 | `OctahedronGeometry` | osteoderms and scutes — a dotted pale line along a flank is what scaly hide looks like when it is too small to model. |
+| `spanning(a, b, r0, r1)` | anything that connects two places you can name — bones, spars, struts, bowstrings, collars. |
+| `spline(points)` + `tapered(curve, radii)` | one continuous tapering body: tail, neck, torso, trunk, serpent. Slice it at the hinges. |
+| `along(curve, radii, t)` | where to put the scutes, plates and spines *on* that body. |
 
 ### What the freed budget actually bought
 

@@ -192,7 +192,9 @@ src/
       registry.js     which builder each kind maps to -- dynamically imported
       kit.js          the toolkit every rig is built with: merged buffers, one
                       material that carries colour and metalness per vertex,
-                      and the shapes worth more than a box
+                      the shapes worth more than a box, and one continuous
+                      tapering body swept along a curve -- which is what a
+                      tail, a neck or a torso is
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
       infantry3d.js   foot, by weapon, palette and build -- five weapons,

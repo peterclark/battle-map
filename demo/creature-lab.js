@@ -221,10 +221,18 @@ const frame = (now) => {
 };
 requestAnimationFrame(frame);
 
-// A handle for driving this page from a browser test
+// A handle for driving this page from a browser test.
+//
+// `scene` and `made` are here so a part can be *measured* rather than
+// squinted at. A limb that does not appear in a render has two very different
+// causes — it is not being built, or it is being built somewhere you cannot
+// see it — and a screenshot cannot tell them apart. Asking the scene graph
+// where a part actually ended up settles it in one query.
 window.__lab = {
   get kind() { return kind; },
   get gait() { return gait; },
   get facts() { return facts; },
+  get scene() { return scene; },
+  get made() { return current?.made; },
   KINDS,
 };
