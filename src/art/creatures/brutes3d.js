@@ -667,12 +667,21 @@ const gorePatch = (pos, radius, colour = ABOMINATION.blood) =>
 // It is spread far wider than it is deep, which is both what a mass dragging
 // itself along would do and what the stand demands — a rig built square fits
 // the shallow axis and then wastes two thirds of the width it was given.
+// The confirmed brief is "pale dead flesh against a dark rotten core", and
+// this list used to open with the palest tone and carry one dark one. The heap
+// came out the same value as the limbs growing from it, so at stand scale the
+// two merged into a single pale blob and the limbs — the one silhouette
+// nothing else in the game makes — did not read at all.
+//
+// Weighted dark now. The limbs carry the pale, the heap carries the rot, and
+// the contrast between them is what separates a mass of bodies from a rock.
 const CORPSE_TONES = [
-  ABOMINATION.flesh,
-  ABOMINATION.fleshLivid,
-  ABOMINATION.fleshDrained,
   ABOMINATION.fleshDark,
   ABOMINATION.fleshBruised,
+  ABOMINATION.fleshLivid,
+  ABOMINATION.fleshDark,
+  ABOMINATION.fleshBruised,
+  ABOMINATION.flesh,
 ];
 
 // One body in the pile: a ribcage tapering to a waist, with a shoulder mass
@@ -861,12 +870,12 @@ const armUpper = () => [
   // The stump it was torn from, facing back into the mass
   ...tornStump(0.075, ABOMINATION.fleshLivid),
   // Deltoid, then the upper arm tapering to the elbow
-  part(new THREE.SphereGeometry(0.072, 10, 8), ABOMINATION.flesh, {
+  part(new THREE.SphereGeometry(0.072, 10, 8), ABOMINATION.fleshDrained, {
     pos: [0, 0.01, -0.08],
     scale: [1, 1.05, 1.15],
     ...FLESH,
   }),
-  part(new THREE.CapsuleGeometry(0.055, 0.34, 8, 12), ABOMINATION.flesh, {
+  part(new THREE.CapsuleGeometry(0.055, 0.34, 8, 12), ABOMINATION.fleshDrained, {
     pos: [0, 0, -0.3],
     rot: [Math.PI / 2, 0, 0],
     scale: [1.08, 1, 1],
@@ -882,7 +891,7 @@ const armLower = () => {
       pos: [0, 0, -0.02],
       ...FLESH,
     }),
-    part(new THREE.CapsuleGeometry(0.045, 0.28, 8, 12), ABOMINATION.flesh, {
+    part(new THREE.CapsuleGeometry(0.045, 0.28, 8, 12), ABOMINATION.fleshDrained, {
       pos: [0, 0, -0.22],
       rot: [Math.PI / 2, 0, 0],
       scale: [1.15, 1, 1],
@@ -910,7 +919,7 @@ const armLower = () => {
         ),
         { rot: [-Math.PI / 2, 0, 0] }
       ),
-      ABOMINATION.flesh,
+      ABOMINATION.fleshDrained,
       { pos: [0, 0, -0.47], ...FLESH }
     ),
   ];
@@ -922,12 +931,12 @@ const armLower = () => {
     const curl = 0.5 + (i % 2) * 0.25;
     const reach = 0.075 - Math.abs(i - 1.5) * 0.008;
     parts.push(
-      part(new THREE.CapsuleGeometry(0.019, reach, 5, 7), ABOMINATION.flesh, {
+      part(new THREE.CapsuleGeometry(0.019, reach, 5, 7), ABOMINATION.fleshDrained, {
         pos: [x, 0.012, -0.545],
         rot: [Math.PI / 2 - curl * 0.3, 0, 0],
         ...FLESH,
       }),
-      part(new THREE.CapsuleGeometry(0.016, reach * 0.8, 5, 7), ABOMINATION.flesh, {
+      part(new THREE.CapsuleGeometry(0.016, reach * 0.8, 5, 7), ABOMINATION.fleshDrained, {
         pos: [x, 0.012 + reach * 0.4, -0.585],
         rot: [Math.PI / 2 - curl, 0, 0],
         ...FLESH,
@@ -941,12 +950,12 @@ const armLower = () => {
     );
   });
   parts.push(
-    part(new THREE.CapsuleGeometry(0.022, 0.06, 5, 7), ABOMINATION.flesh, {
+    part(new THREE.CapsuleGeometry(0.022, 0.06, 5, 7), ABOMINATION.fleshDrained, {
       pos: [-0.072, -0.012, -0.5],
       rot: [Math.PI / 2.4, 0, 0.7],
       ...FLESH,
     }),
-    part(new THREE.CapsuleGeometry(0.019, 0.05, 5, 7), ABOMINATION.flesh, {
+    part(new THREE.CapsuleGeometry(0.019, 0.05, 5, 7), ABOMINATION.fleshDrained, {
       pos: [-0.088, 0.01, -0.55],
       rot: [Math.PI / 3, 0, 1.0],
       ...FLESH,
@@ -959,13 +968,13 @@ const armLower = () => {
 const legUpper = () => [
   ...tornStump(0.095, ABOMINATION.fleshLivid),
   // A thigh, which is the heaviest thing on a body and should look it
-  part(new THREE.CapsuleGeometry(0.082, 0.32, 8, 12), ABOMINATION.flesh, {
+  part(new THREE.CapsuleGeometry(0.082, 0.32, 8, 12), ABOMINATION.fleshDrained, {
     pos: [0, 0, -0.28],
     rot: [Math.PI / 2, 0, 0],
     scale: [1.05, 1.12, 1],
     ...FLESH,
   }),
-  part(new THREE.SphereGeometry(0.065, 10, 8), ABOMINATION.flesh, {
+  part(new THREE.SphereGeometry(0.065, 10, 8), ABOMINATION.fleshDrained, {
     pos: [0, 0.04, -0.2],
     scale: [1, 0.9, 1.6],
     ...FLESH,
@@ -981,12 +990,12 @@ const legLower = () => {
       scale: [1, 1, 1.15],
       ...FLESH,
     }),
-    part(new THREE.CapsuleGeometry(0.055, 0.26, 8, 12), ABOMINATION.flesh, {
+    part(new THREE.CapsuleGeometry(0.055, 0.26, 8, 12), ABOMINATION.fleshDrained, {
       pos: [0, 0.02, -0.2],
       rot: [Math.PI / 2, 0, 0],
       ...FLESH,
     }),
-    part(new THREE.SphereGeometry(0.062, 10, 8), ABOMINATION.flesh, {
+    part(new THREE.SphereGeometry(0.062, 10, 8), ABOMINATION.fleshDrained, {
       pos: [0, 0.05, -0.16],
       scale: [0.9, 1, 0.9],
       ...FLESH,
@@ -1012,14 +1021,14 @@ const legLower = () => {
         ),
         { rot: [-Math.PI / 2, 0, 0] }
       ),
-      ABOMINATION.flesh,
+      ABOMINATION.fleshDrained,
       { pos: [0, -0.03, -0.44], rot: [0.5, 0, 0], ...FLESH }
     ),
   ];
   // Five toes
   [-0.048, -0.024, 0, 0.024, 0.048].forEach((x, i) =>
     parts.push(
-      part(new THREE.CapsuleGeometry(0.017 - Math.abs(i - 2) * 0.002, 0.03, 5, 6), ABOMINATION.flesh, {
+      part(new THREE.CapsuleGeometry(0.017 - Math.abs(i - 2) * 0.002, 0.03, 5, 6), ABOMINATION.fleshDrained, {
         pos: [x, -0.06, -0.53],
         rot: [Math.PI / 2.2, 0, 0],
         ...FLESH,
@@ -1217,6 +1226,16 @@ const spareJawParts = (index) => {
   ].filter(Boolean);
 };
 
+// How much thicker the limbs are than they were modelled. See the note at the
+// socket below: this is girth only, never reach.
+const LIMB_GIRTH = 1.25;
+// Weight-bearing limbs are lengthened just enough to plant on the ground
+// rather than leave the whole creature hovering, which is what it was doing.
+const LEG_REACH = 2.0;
+// How steeply a weight-bearing limb drops. Raised with the reach so the foot
+// lands under the heap instead of out beyond it, where it would cost width.
+const DOWN_PITCH = 1.28;
+
 const makeAbomination = (material) => {
   const group = new THREE.Group();
 
@@ -1235,8 +1254,21 @@ const makeAbomination = (material) => {
   const limbs = [];
   const COUNT = 14;
   for (let i = 0; i < COUNT; i += 1) {
-    // Spread by golden angle so no two sit in a line, without random
-    const a = i * 2.399;
+    // Spread by golden angle so no two sit in a line, without random, then
+    // pulled toward the board's wide axis.
+    //
+    // Thickening a limb grows it in both directions across its length. One of
+    // those is height, which this camera never sees and the stand never pays
+    // for; the other is whichever way the limb happens to point. A limb aimed
+    // along the board's depth therefore spends its girth on the one axis there
+    // is no room for — girth 3 with an even fan measured 1.26:1, against 2.37
+    // before it, which would have rendered this creature at half the size.
+    //
+    // `a - k sin 2a` compresses the spacing near 0 and PI, so more limbs lie
+    // along the wide axis and fewer point up and down the shallow one. Same
+    // count, same reach, same girth, spent where the stand has room.
+    const even = i * 2.399;
+    const a = even - Math.sin(2 * even) * 0.5;
     const out = 0.42 + (i % 3) * 0.12;
     const socket = new THREE.Group();
     // Flattened: limbs reach out along the front of the stand far more than
@@ -1252,8 +1284,25 @@ const makeAbomination = (material) => {
     // the reason to have two kinds at all.
     const down = i % 3 === 0;
     const kind = down || i % 4 === 1 ? "leg" : "arm";
-    socket.rotation.x = down ? 1.1 : 0.15 + (i % 4) * 0.12;
+    socket.rotation.x = down ? DOWN_PITCH : 0.15 + (i % 4) * 0.12;
     socket.rotation.z = ((i * 5) % 7) * 0.06 - 0.18;
+    // Thicken across the limb and leave its length alone.
+    //
+    // Measured, this rig is 6.31 wide by 2.67 deep, which is 2.37:1 against a
+    // band that wants about 2.4 — so the box is already the right shape and any
+    // reach added anywhere shrinks the whole creature for nothing. That is the
+    // lesson the ballista taught. Girth is the one dimension that is free.
+    //
+    // It is also what was wrong. At stand scale this creature is 167 px over
+    // 6.31 units, so 26 px per unit, and an arm of radius 0.055 came out 2.9 px
+    // across — under the 4 px floor where detail stops being visible at all.
+    // The reference build runs its limbs at 11-13% of the mass half-width
+    // against 3% here, and that difference is the whole silhouette.
+    //
+    // Scaling x and y and leaving z alone keeps the determinant positive, so
+    // no winding is reversed — the trap that renders a mirrored part as an
+    // unlit black sheet.
+    socket.scale.set(LIMB_GIRTH, LIMB_GIRTH, down ? LEG_REACH : 1);
     mass.add(socket);
     hang(socket, buffers[kind][0], material);
 

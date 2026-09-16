@@ -14,6 +14,8 @@ export default defineConfig({
         creatureLab: resolve(import.meta.dirname, "demo/creature-lab.html"),
         // Draw-call benchmark for the animated formations
         bench: resolve(import.meta.dirname, "demo/bench.html"),
+        // The board itself, laid out for photographing at true stand scale
+        boardShoot: resolve(import.meta.dirname, "demo/board-shoot.html"),
       },
     },
   },

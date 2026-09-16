@@ -57,11 +57,33 @@ const chromiumPath = () => {
   return found;
 };
 
+/** Stop the dev server and everything `npx` started under it. */
+const stopVite = (vite) => {
+  // Node keeps the child's stdout and stderr pipes alive as handles, so a run
+  // that does not destroy them never lets the event loop drain.
+  vite.stdout?.destroy();
+  vite.stderr?.destroy();
+  try {
+    // Negative pid signals the whole group, which is the point of `detached`.
+    process.kill(-vite.pid, "SIGTERM");
+  } catch {
+    // Already gone, or no group to signal. Fall back to the single child.
+    vite.kill();
+  }
+};
+
 const startVite = async () => {
   const vite = spawn(
     "npx",
     ["vite", "--port", String(PORT), "--strictPort", "--clearScreen", "false"],
-    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] }
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+      // `npx` is a wrapper: it starts the real vite as a child of itself, so
+      // killing the pid we hold here leaves vite running and holding the port.
+      // Its own group makes the whole tree killable in one signal.
+      detached: true,
+    }
   );
   const log = [];
   vite.stdout.on("data", (d) => log.push(String(d)));
@@ -80,7 +102,7 @@ const startVite = async () => {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  vite.kill();
+  stopVite(vite);
   throw new Error(`vite did not come up on ${base}:\n${log.join("")}`);
 };
 
@@ -195,7 +217,7 @@ const main = async () => {
     for (const name of names) results.push(await shoot(browser, base, name));
   } finally {
     await browser.close();
-    vite.kill();
+    stopVite(vite);
   }
 
   const pad = Math.max(...results.map((r) => r.name.length), 9);

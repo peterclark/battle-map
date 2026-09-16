@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Without this the browser asks for /favicon.ico and takes a 404, which
+         the shoot script reports as a failure. It is right to: a page that
+         cannot fetch what it asked for is a page worth looking at. -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>Battle Map — board at stand scale</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0e0c0a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./board-shoot.jsx"></script>
+  </body>
+</html>
