@@ -9,6 +9,7 @@ the Vite build never sees them, and they are excluded from lint.
 | `dragon.html` | A dragon, built as one tapered spine with wings, legs and a head hung off it |
 | `ballista.html` | A dwarven field ballista: carriage, trail, turntable, recurved bow, windlass |
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
+| `rat-swarm.html` | The Swarm of Rats: forty-three rats in three tiers, four coats, some of them rotted down to the ribs |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -99,6 +100,56 @@ disagreements are the interesting part:
 - **Not taken: placing detail on the ellipsoid.** Ribs, bones, sinew and gore
   placed on the ideal ellipsoid land inside the lumps, and did on the first
   render. The port casts a ray at the lumps and puts them where it lands.
+
+### The Swarm of Rats
+
+`swarm3d.js` is a port of `rat-swarm.html`, from its own tables.
+
+- **Taken.** The rat: the torso of three swelling spheres, the wedge skull and
+  long snout, the sockets and witchlight and incisors, the four two-segment
+  legs stated by their endpoints, and the nine-segment tail that curls where it
+  was shoved. All of it merges into one buffer, so a rat that is forty-three
+  meshes there is one here — or two, if its tail swings.
+- **Taken.** The four coats, and the rats rotted down to bare ribs. The variety
+  is the read: this unit is *texture*, and texture is what a mat of one colour
+  does not have.
+- **Taken.** The tiers. A floor of rats, climbers riding their backs, a few on
+  the crest up on their haunches, and a fringe of stragglers. A climber shades
+  the rat beneath it, and it is shadow inside the mat that makes it a mass
+  rather than a decal — and a body with another body lying across it has no
+  outline of its own, which is the brief.
+- **Taken.** The seed and the generator, so the scatter is recognisably the
+  same scatter.
+- **Not taken: the footprint.** The reference is round. The layout here is an
+  ellipse of about 2.5:1, and the *headings* are turned with it — a rat is six
+  times longer than it is wide, so pointed down-range each one lays 0.6 units
+  across a band 0.9 deep and the mat comes out one rat thick. Turned across,
+  the same rat costs 0.1 of depth. The brief asks for rats pointing every which
+  way, so this gives up nothing to get it.
+- **Not taken: the free-running tail curl.** Nine segments each turning by
+  `dir * 0.22` carry a tail through 159°, far enough that the tip comes back
+  past its own root. On an orbit camera that is a tail curled round a body;
+  under a sweep it went through the turf, and `CreatureLayer` lifts a rig by
+  the lowest point it ever reaches, so one tail held all hundred and thirty
+  rats a hair above the ground. Capped at a quarter turn.
+- **Not taken: upright ears.** A rat's ear is a paddle standing up, and from
+  directly overhead an upright paddle is a line. They are raked back to nearly
+  flat, which makes each one a pale ellipse two or three pixels across — two
+  hundred and seventy of them, and the cheapest texture in the unit.
+- **Not taken: the palette, twice over.** The reference's greys lean blue and
+  its tans lean pink, and ACES at 1.25 exposure lifts *and* saturates: the
+  first render came out a mat of lavender. These are olive, umber and dust. The
+  coats are also weighted rather than picked evenly — four in equal measure
+  gave a mat that was half pale, and a pale rat on dark turf is a rat you can
+  point at.
+- **Not taken, and then taken after all: `trampled_earth`.** The reference
+  declares this material and never uses it, because it is standing on a studio
+  floor. It turned out to be the part this board needed most. A hundred and
+  thirty rats cover about two thirds of a stand — randomly-placed bodies leave
+  randomly-placed gaps however many you add — and what showed through was
+  bright even pasture, so the mat read as vermin on a lawn. One bevelled,
+  raggedly-outlined patch of churned mud under them, at a cost of one mesh,
+  turns every gap into the swarm's own wake.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.

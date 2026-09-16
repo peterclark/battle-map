@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<title>Swarm of rats — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "/node_modules/three/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "/node_modules/three/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "/node_modules/three/examples/jsm/exporters/GLTFExporter.js"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="swarm-of-rats" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  fur:    new THREE.MeshStandardMaterial({ name:'matted_fur',   color:0x4a423c, roughness:0.92, metalness:0.0 }),
+  furPale:new THREE.MeshStandardMaterial({ name:'mangy_fur',    color:0x6d6157, roughness:0.90, metalness:0.0 }),
+  furGrey:new THREE.MeshStandardMaterial({ name:'grave_fur',    color:0x57575c, roughness:0.90, metalness:0.0 }),
+  hide:   new THREE.MeshStandardMaterial({ name:'bald_hide',    color:0x8a7168, roughness:0.80, metalness:0.0 }),
+  tail:   new THREE.MeshStandardMaterial({ name:'scaly_tail',   color:0x9b8378, roughness:0.62, metalness:0.0 }),
+  bone:   new THREE.MeshStandardMaterial({ name:'bone',         color:0xd6c9ae, roughness:0.60, metalness:0.0 }),
+  tooth:  new THREE.MeshStandardMaterial({ name:'tooth',        color:0xe2d9c2, roughness:0.42, metalness:0.0 }),
+  eye:    new THREE.MeshStandardMaterial({ name:'witchlight',   color:0xbcd9a8, roughness:0.30, metalness:0.0, emissive:0x4d6b3a, emissiveIntensity:0.6 }),
+  socket: new THREE.MeshStandardMaterial({ name:'socket_dark',  color:0x231d1d, roughness:0.95, metalness:0.0 }),
+  earth:  new THREE.MeshStandardMaterial({ name:'trampled_earth', color:0x574b3e, roughness:0.97, metalness:0.0 }),
+};
+const COATS = [M.fur, M.furPale, M.furGrey, M.hide];
+
+const rig = new THREE.Group(); rig.name = 'swarm_of_rats';
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const add = (geo, mat, name, parent) => { const m = new THREE.Mesh(geo, mat); m.name = name; parent.add(m); return m; };
+
+let seed = 90210773;
+const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+const R = (a, b) => a + rnd() * (b - a);
+const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
+
+function bar(a, b, r0, r1, name, mat, parent, seg = 7) {
+  const m = add(new THREE.CylinderGeometry(r1, r0, a.distanceTo(b), seg, 1), mat, name, parent);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+
+/* ============================ ONE RAT ============================
+   Built nose-first along local +z, hips at the origin, so a rat can be
+   dropped at any position/heading and still sit on its own feet. */
+function rat(opts) {
+  const { scale: S = 1, coat = M.fur, rot = 0, pitch = 0, roll = 0, rear = 0,
+          skeletal = false, tailDir = 0, tailLift = 0, name = 'rat' } = opts;
+  const g = new THREE.Group(); g.name = name;
+  g.rotation.set(pitch, rot, roll);
+  g.scale.setScalar(S);
+
+  const body = new THREE.Group(); body.name = name + '_body';
+  body.rotation.x = -rear;            // rearing rats pivot up from the hips
+  g.add(body);
+
+  /* torso: hips → shoulders → neck, a swelling then tapering tube */
+  const hip = V(0, 0.34, 0), sho = V(0, 0.40, 0.62), neck = V(0, 0.42, 0.88);
+  const belly = add(new THREE.SphereGeometry(0.34, 12, 9), coat, name + '_belly', body);
+  belly.position.set(0, 0.34, 0.30); belly.scale.set(0.82, 0.86, 1.55);
+  const rump = add(new THREE.SphereGeometry(0.30, 12, 9), coat, name + '_rump', body);
+  rump.position.copy(hip); rump.scale.set(0.9, 0.92, 1.0);
+  const shoulder = add(new THREE.SphereGeometry(0.26, 12, 9), coat, name + '_shoulder', body);
+  shoulder.position.copy(sho); shoulder.scale.set(0.92, 0.9, 1.0);
+
+  if (skeletal) {
+    /* ribs laid bare where the hide has rotted off the flank */
+    for (let i = 0; i < 4; i++) {
+      const rb = add(new THREE.TorusGeometry(0.19 - i * 0.012, 0.018, 5, 12, Math.PI * 1.15), M.bone, name + '_rib_' + i, body);
+      rb.position.set(0, 0.34, 0.16 + i * 0.13);
+      rb.rotation.set(0, Math.PI / 2, Math.PI * 0.5);
+    }
+    bar(hip, sho, 0.03, 0.03, name + '_spine', M.bone, body, 6);
+  }
+
+  /* head: wedge skull, long snout, ears, glowing eyes, incisors */
+  const head = new THREE.Group(); head.name = name + '_head';
+  head.position.copy(neck); head.rotation.x = R(-0.12, 0.22) + rear * 0.5;
+  body.add(head);
+  const skull = add(new THREE.SphereGeometry(0.21, 12, 9), coat, name + '_skull', head);
+  skull.scale.set(0.86, 0.84, 1.15); skull.position.z = 0.06;
+  const snout = add(new THREE.ConeGeometry(0.15, 0.40, 10), coat, name + '_snout', head);
+  snout.position.set(0, -0.03, 0.30); snout.rotation.x = Math.PI / 2;
+  add(new THREE.SphereGeometry(0.035, 7, 6), M.tail, name + '_nose', head).position.set(0, -0.03, 0.49);
+  for (const s of [1, -1]) {
+    const ear = add(new THREE.SphereGeometry(0.115, 10, 8), M.hide, name + '_ear_' + (s > 0 ? 'l' : 'r'), head);
+    ear.position.set(s * 0.17, 0.15, -0.02); ear.scale.set(0.28, 1, 0.95);
+    ear.rotation.z = s * 0.35;
+    const sock = add(new THREE.SphereGeometry(0.06, 8, 7), M.socket, name + '_socket_' + (s > 0 ? 'l' : 'r'), head);
+    sock.position.set(s * 0.14, 0.04, 0.17);
+    add(new THREE.SphereGeometry(0.042, 8, 7), skeletal ? M.socket : M.eye, name + '_eye_' + (s > 0 ? 'l' : 'r'), head)
+      .position.set(s * 0.145, 0.04, 0.20);
+    const inc = add(new THREE.ConeGeometry(0.022, 0.11, 5), M.tooth, name + '_incisor_' + (s > 0 ? 'l' : 'r'), head);
+    inc.position.set(s * 0.035, -0.10, 0.42); inc.rotation.x = 2.75;
+  }
+
+  /* legs: four two-segment limbs whose feet end at local y = 0 */
+  const foot = (x, z, fr, nm) => {
+    const pad = add(new THREE.SphereGeometry(0.055, 8, 7), M.tail, nm + '_paw', body);
+    pad.position.set(x, 0.045, z + (fr ? 0.06 : -0.02)); pad.scale.set(0.9, 0.55, 1.5);
+    for (let i = 0; i < 3; i++) {
+      const t = add(new THREE.SphereGeometry(0.016, 6, 5), M.tail, nm + '_claw_' + i, body);
+      t.position.set(x + (i - 1) * 0.035, 0.03, z + (fr ? 0.14 : 0.06));
+    }
+  };
+  for (const s of [1, -1]) {
+    const sd = s > 0 ? 'l' : 'r';
+    /* hind */
+    const hh = V(s * 0.19, 0.32, -0.02), hk = V(s * 0.23, 0.17, -0.14), hf = V(s * 0.21, 0.05, 0.02);
+    bar(hh, hk, 0.075, 0.055, name + '_hind_thigh_' + sd, skeletal ? M.bone : coat, body);
+    bar(hk, hf, 0.05, 0.035, name + '_hind_shin_' + sd, skeletal ? M.bone : coat, body);
+    foot(s * 0.21, 0.02, false, name + '_hind_' + sd);
+    /* fore — lifted and reaching on a rearing rat */
+    const fs = V(s * 0.16, 0.38, 0.56);
+    const lift = rear * 0.9;
+    const fe = V(s * 0.18 + lift * s * 0.05, 0.22 - lift * 0.02 + lift * 0.34, 0.60 + lift * 0.30);
+    const fp = V(s * 0.17 + lift * s * 0.08, 0.05 + lift * 0.62, 0.66 + lift * 0.42);
+    bar(fs, fe, 0.055, 0.042, name + '_fore_upper_' + sd, skeletal ? M.bone : coat, body);
+    bar(fe, fp, 0.04, 0.03, name + '_fore_lower_' + sd, skeletal ? M.bone : coat, body);
+    if (rear < 0.15) foot(s * 0.17, 0.62, true, name + '_fore_' + sd);
+    else {
+      const pad = add(new THREE.SphereGeometry(0.05, 8, 7), M.tail, name + '_fore_' + sd + '_paw', body);
+      pad.position.copy(fp); pad.scale.set(0.9, 0.7, 1.2);
+    }
+  }
+
+  /* tail: a long chain of shrinking segments, curling where it was shoved */
+  let p = V(0, 0.32, -0.16);
+  const N = 9;
+  let dir = V(Math.sin(tailDir) * 0.22, tailLift * 0.5, -1).normalize();
+  for (let i = 0; i < N; i++) {
+    const len = 0.22 - i * 0.008;
+    dir.applyAxisAngle(V(0, 1, 0), tailDir * 0.22).applyAxisAngle(V(1, 0, 0), tailLift * 0.10).normalize();
+    const q = p.clone().add(dir.clone().multiplyScalar(len));
+    if (q.y < 0.035) q.y = 0.035;
+    bar(p, q, 0.042 - i * 0.0035, 0.038 - i * 0.0035, name + '_tail_' + i, M.tail, body, 6);
+    p = q;
+  }
+  return g;
+}
+
+/* ============================ THE SWARM ============================
+   A press of bodies, dense at the centre and fraying at the edge: rats on the
+   ground, rats climbing over the rats on the ground, a few dragging behind. */
+const swarm = new THREE.Group(); swarm.name = 'rats'; rig.add(swarm);
+
+const placed = [];   // [x, z, radius] — keeps ground rats from interpenetrating
+function spot(maxR, minGap) {
+  for (let t = 0; t < 60; t++) {
+    const a = R(0, 6.283), d = Math.sqrt(rnd()) * maxR;
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (placed.every(([px, pz, pr]) => (x - px) ** 2 + (z - pz) ** 2 > (pr + minGap) ** 2)) {
+      placed.push([x, z, minGap]); return V(x, 0, z);
+    }
+  }
+  return null;
+}
+
+/* tier 1 — the floor of the swarm, all facing roughly forward as it advances */
+let n = 0;
+for (let i = 0; i < 26; i++) {
+  const p = spot(2.45, 0.52);
+  if (!p) continue;
+  const heading = R(-0.55, 0.55) + Math.atan2(-p.x, 2.4);   // fanning out from the push
+  const r = rat({
+    name: 'rat_' + (n++), scale: R(0.82, 1.06), coat: pick(COATS), rot: heading,
+    roll: R(-0.06, 0.06), skeletal: rnd() < 0.22,
+    tailDir: R(-1, 1), tailLift: R(-0.2, 0.5), rear: rnd() < 0.12 ? R(0.2, 0.5) : 0,
+  });
+  r.position.copy(p);
+  swarm.add(r);
+}
+
+/* tier 2 — climbers riding the backs of the ones below, scrabbling forward */
+const CLIMB = [
+  [ 0.10, -0.15, 0.30], [ 0.95,  0.45, 0.10], [-0.85,  0.20, 0.45],
+  [-0.15,  0.95,-0.35], [ 0.60, -0.95, 0.65], [-1.05, -0.60,-0.25],
+  [ 1.35, -0.25, 0.20], [-0.45, -1.20, 0.55],
+];
+CLIMB.forEach(([x, z, lean], i) => {
+  const r = rat({
+    name: 'rat_climber_' + i, scale: R(0.80, 0.98), coat: pick(COATS),
+    rot: R(-0.7, 0.7) + Math.atan2(-x, 2.0), pitch: R(-0.10, 0.06),
+    roll: lean * 0.45, rear: R(0.35, 0.85), skeletal: rnd() < 0.3,
+    tailDir: R(-1.2, 1.2), tailLift: R(0.3, 1.0),
+  });
+  r.position.set(x, R(0.44, 0.60), z);
+  swarm.add(r);
+});
+
+/* tier 3 — two on the crest, up on their haunches, nearly upright */
+[[0.30, 0.10], [-0.35, -0.45]].forEach(([x, z], i) => {
+  const r = rat({
+    name: 'rat_crest_' + i, scale: R(0.86, 0.96), coat: pick(COATS),
+    rot: R(-0.4, 0.4), rear: R(0.9, 1.15), skeletal: i === 1,
+    tailDir: R(-0.8, 0.8), tailLift: R(0.6, 1.2),
+  });
+  r.position.set(x, R(0.88, 1.00), z);
+  swarm.add(r);
+});
+
+/* stragglers — the fringe of the swarm, spread wide and low */
+for (let i = 0; i < 7; i++) {
+  const a = R(0, 6.283), d = R(2.6, 3.5);
+  const r = rat({
+    name: 'rat_straggler_' + i, scale: R(0.74, 0.94), coat: pick(COATS),
+    rot: Math.atan2(-Math.cos(a) * d, -Math.sin(a) * d) + R(-1.4, 1.4) + Math.PI,
+    skeletal: rnd() < 0.35, tailDir: R(-1.4, 1.4), tailLift: R(-0.3, 0.6),
+  });
+  r.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+  swarm.add(r);
+}
+
+/* a scatter of gnawed bone the swarm has left in its wake */
+for (let i = 0; i < 9; i++) {
+  const a = R(0, 6.283), d = R(1.2, 3.2);
+  const p = V(Math.cos(a) * d, 0.035, Math.sin(a) * d);
+  const q = p.clone().add(V(R(-0.22, 0.22), R(0, 0.05), R(-0.22, 0.22)));
+  bar(p, q, 0.028, 0.024, 'bone_scrap_' + i, M.bone, rig, 6);
+}
+
+rig.updateMatrixWorld(true);
+const box = new THREE.Box3().setFromObject(rig);
+const c = box.getCenter(V());
+const wrap = new THREE.Group(); wrap.name = 'rat_swarm';
+rig.position.set(-c.x, -box.min.y, -c.z);
+wrap.add(rig);
+stage.setObject(wrap);
+</script>
+</body>
+</html>
