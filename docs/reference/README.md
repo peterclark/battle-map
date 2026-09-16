@@ -9,6 +9,7 @@ the Vite build never sees them, and they are excluded from lint.
 | `dragon.html` | A dragon, built as one tapered spine with wings, legs and a head hung off it |
 | `ballista.html` | A dwarven field ballista: carriage, trail, turntable, recurved bow, windlass |
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
+| `skeleton-horde.html` | The Skeleton Horde: a pelvis, a spine, five pairs of ribs and long bones with a knuckle at each end, in loose ranks |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -99,6 +100,50 @@ disagreements are the interesting part:
 - **Not taken: placing detail on the ellipsoid.** Ribs, bones, sinew and gore
   placed on the ideal ellipsoid land inside the lumps, and did on the first
   render. The port casts a ray at the lumps and puts them where it lands.
+
+### The Skeleton Horde
+
+The `skeleton` build in `infantry3d.js` is a port of `skeleton-horde.html`. It
+is a parameter rather than a file of its own, because a skeleton carries the
+same four weapons off the same eight groups as every other block of foot, and
+a second copy of that rig would drift from the first the day someone fixed a
+bug in one of them.
+
+- **Taken.** The anatomy: the flattened pelvis, seven vertebrae, five pairs of
+  ribs, the sternum and clavicles, long bones with a knuckle at each end, the
+  fibula alongside the tibia, heel and toe bones, and the skull with its
+  sockets, witchlight, slack jaw and cheekbones. Coordinates are the
+  reference's own, scaled by about 0.64 — it stands its figures 1.6 units tall
+  with the hips at 0.92, and this rig hangs its figures off hips at 0.52 — and
+  with z negated, because the reference presses forward along +z.
+- **Taken.** The tattered kit: a grave-cloth tabard, a belt, one rusted
+  pauldron on the arm that swings, and a helm on half of them. Half is two
+  head buffers alternating, which costs one buffer and no meshes at all.
+- **Taken.** The fallen, trampled into the ground behind the ranks.
+- **Not taken: a ribcage of equal hoops.** From an orbit camera a cage of five
+  even rings is unmistakable. From directly overhead the top ring hides the
+  four under it. The cage here **widens downward**, so the five ribs read as
+  nested arcs rather than as one hoop, and a dark core is built inside it —
+  the same thing the Abomination needed, for the same reason: a pale part
+  reads because something dark is behind it.
+- **Not taken: the face pointing forward.** A skull looking where it is going
+  is a pale dome and nothing else. It is tipped back so the face plane rakes
+  upward, which puts both sockets and the witchlight where they can be seen.
+- **Not taken: the crowd.** The reference is a round press of four ragged
+  ranks with flankers dragging in from the sides and no rank ever straight.
+  That is the read this unit must **not** have, because it is the read the
+  Zombies and the Ghoul Pack have: the confirmed brief is that the Horde is
+  the one Undead foot that dresses its lines. Seven files, three ranks, closed
+  up, and the flankers are gone.
+- **Not taken: iron.** The reference's helm is `pitted_steel` at 0.85
+  metalness. With no environment to reflect, that renders as a black ball
+  bigger than the skull inside it. The helm and the pauldron are rust here:
+  0.12 metalness, 0.84 roughness.
+- **Not taken: the dropped shields.** They were built, rendered and taken out
+  again. A dark disc lying flat on the turf at stand scale does not read as a
+  shield; it reads as a hole in the ground.
+- **Not taken: the nicks hacked out of the blade.** Detail below about four
+  pixels is wasted work, and a nick in a sword edge is well under one.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.
