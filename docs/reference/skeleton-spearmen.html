@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<title>Skeleton spearmen — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "/node_modules/three/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "/node_modules/three/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "/node_modules/three/examples/jsm/exporters/GLTFExporter.js"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="skeleton-spearmen" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  bone:   new THREE.MeshStandardMaterial({ name:'old_bone',     color:0xd2c5a6, roughness:0.66, metalness:0.0 }),
+  boneDk: new THREE.MeshStandardMaterial({ name:'stained_bone', color:0xb0a184, roughness:0.72, metalness:0.0 }),
+  socket: new THREE.MeshStandardMaterial({ name:'socket_dark',  color:0x1f1a1a, roughness:0.96, metalness:0.0 }),
+  eye:    new THREE.MeshStandardMaterial({ name:'witchlight',   color:0xbcd9a8, roughness:0.3, metalness:0.0, emissive:0x4d6b3a, emissiveIntensity:0.7 }),
+  steel:  new THREE.MeshStandardMaterial({ name:'pitted_steel', color:0x8c9096, roughness:0.48, metalness:0.85 }),
+  rust:   new THREE.MeshStandardMaterial({ name:'rust',         color:0x6d4530, roughness:0.85, metalness:0.25 }),
+  wood:   new THREE.MeshStandardMaterial({ name:'split_wood',   color:0x5c4632, roughness:0.88, metalness:0.0 }),
+  leather:new THREE.MeshStandardMaterial({ name:'rotted_leather',color:0x453427, roughness:0.90, metalness:0.0 }),
+  cloth:  new THREE.MeshStandardMaterial({ name:'grave_cloth',  color:0x6a6258, roughness:0.95, metalness:0.0 }),
+};
+const BONES = [M.bone, M.boneDk];
+
+const rig = new THREE.Group(); rig.name = 'skeleton_spearmen';
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const add = (geo, mat, name, parent) => { const m = new THREE.Mesh(geo, mat); m.name = name; parent.add(m); return m; };
+
+let seed = 77310451;
+const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+const R = (a, b) => a + rnd() * (b - a);
+const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
+
+function bar(a, b, r0, r1, name, mat, parent, seg = 8) {
+  const m = add(new THREE.CylinderGeometry(r1, r0, a.distanceTo(b), seg, 1), mat, name, parent);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+function knob(p, r, name, mat, parent) {
+  const m = add(new THREE.SphereGeometry(r, 8, 7), mat, name, parent);
+  m.position.copy(p); return m;
+}
+/* a long bone: shaft with a knuckle at each end, the way a real limb bone reads */
+function longBone(a, b, r, name, mat, parent) {
+  bar(a, b, r, r * 0.88, name, mat, parent);
+  knob(a, r * 1.45, name + '_head', mat, parent);
+  knob(b, r * 1.35, name + '_end', mat, parent);
+}
+
+/* ============================ GEAR ============================ */
+/* a spear built along local +y from the butt: shaft, binding, socket, leaf blade.
+   Two hands grip it, so it is placed in TORSO space and the arms reach to it. */
+function spear(parent, name, len, lit) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  const steel = lit ? M.steel : M.rust;
+  const shaft = add(new THREE.CylinderGeometry(0.032, 0.038, len, 9), M.wood, name + '_shaft', g);
+  shaft.position.y = len * 0.5;
+  add(new THREE.CylinderGeometry(0.042, 0.042, 0.10, 8), M.rust, name + '_ferrule', g).position.y = 0.04;
+  /* socket where the head is bound on, then a long leaf blade */
+  add(new THREE.CylinderGeometry(0.048, 0.036, 0.20, 9), steel, name + '_socket', g).position.y = len - 0.06;
+  const blade = add(new THREE.OctahedronGeometry(0.115, 0), steel, name + '_blade', g);
+  blade.position.y = len + 0.30; blade.scale.set(0.60, 3.3, 0.22);
+  add(new THREE.ConeGeometry(0.052, 0.20, 6), steel, name + '_point', g).position.y = len + 0.66;
+  for (let i = 0; i < 3; i++) {
+    const c = add(new THREE.TorusGeometry(0.041, 0.010, 5, 10), M.leather, name + '_binding_' + i, g);
+    c.rotation.x = Math.PI / 2; c.position.y = len - 0.20 - i * 0.07;
+  }
+  /* a narrow strip of grave-cloth knotted below the head, as unit colours:
+     two thin tapering folds hugging the shaft so it never fouls a neighbour */
+  const knot = add(new THREE.TorusGeometry(0.040, 0.014, 5, 10), M.cloth, name + '_knot', g);
+  knot.rotation.x = Math.PI / 2; knot.position.y = len - 0.40;
+  const spin = R(0, 6.283);
+  for (let i = 0; i < 2; i++) {
+    const f = add(new THREE.CylinderGeometry(0.010, 0.026, 0.26, 4), M.cloth, name + '_pennant_' + i, g);
+    f.position.set(Math.cos(spin + i * 1.9) * 0.045, len - 0.54, Math.sin(spin + i * 1.9) * 0.045);
+    f.rotation.set(R(-0.18, 0.18), spin, R(-0.22, 0.22));
+    f.scale.z = 0.35;
+  }
+  return g;
+}
+function shield(parent, name, r) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  const face = add(new THREE.CylinderGeometry(r, r * 0.96, 0.05, 16), M.wood, name + '_face', g);
+  face.rotation.x = Math.PI / 2;
+  const rim = add(new THREE.TorusGeometry(r, 0.03, 6, 20), M.rust, name + '_rim', g);
+  const boss = add(new THREE.SphereGeometry(r * 0.26, 12, 8), M.steel, name + '_boss', g);
+  boss.position.z = -0.05; boss.scale.z = 0.7;
+  /* planks and a split across the face */
+  for (let i = -1; i <= 1; i++) {
+    const p = add(new THREE.BoxGeometry(0.022, r * 1.8, 0.02), M.rust, name + '_band_' + (i + 1), g);
+    p.position.set(i * r * 0.5, 0, -0.04);
+  }
+  const split = add(new THREE.BoxGeometry(0.018, r * 1.1, 0.07), M.socket, name + '_split', g);
+  split.position.set(r * 0.42, r * 0.3, -0.02); split.rotation.z = 0.2;
+  add(new THREE.CylinderGeometry(0.02, 0.02, r * 1.2, 6), M.leather, name + '_strap', g).position.z = 0.06;
+  return g;
+}
+
+/* ============================ ONE SKELETON ============================
+   Hips at local y = 0.92 and both heels at y = 0, so every trooper stands on
+   its own feet wherever it is dropped. */
+function skeleton(o) {
+  const { name = 'skel', scale: S = 1, rot = 0, lean = 0, twist = 0,
+          grip = 'braced', shieldUp = 0.5, missing = null, tattered = true,
+          jawOpen = R(0.1, 0.5), lit = true, spearLen = 2.35 } = o;
+  const g = new THREE.Group(); g.name = name;
+  g.rotation.set(0, rot, 0); g.scale.setScalar(S);
+  const B = pick(BONES);
+
+  const stride = R(0.14, 0.34);           // mid-step, ranks never in lockstep
+  const torso = new THREE.Group(); torso.name = name + '_torso';
+  torso.position.y = 0.92; torso.rotation.set(lean, twist, 0);
+  g.add(torso);
+
+  /* pelvis + spine + ribcage */
+  /* pelvis: a closed basin with iliac crests flaring off it and a sacrum wedge
+     behind — solid geometry, so there is no ring opening at the waist */
+  const pelvis = add(new THREE.SphereGeometry(0.155, 14, 10), B, name + '_pelvis', torso);
+  pelvis.position.y = 0.01; pelvis.scale.set(1.05, 0.62, 0.72);
+  for (const s of [1, -1]) {
+    const crest = add(new THREE.SphereGeometry(0.105, 12, 9), B, name + '_ilium_' + (s > 0 ? 'l' : 'r'), torso);
+    crest.position.set(s * 0.115, 0.075, 0.01);
+    crest.scale.set(0.42, 1.0, 0.88);
+    crest.rotation.z = s * 0.30;
+  }
+  const sacrum = add(new THREE.SphereGeometry(0.085, 10, 8), B, name + '_sacrum', torso);
+  sacrum.position.set(0, 0.05, -0.10); sacrum.scale.set(0.85, 1.15, 0.6);
+  const spineTop = V(0, 0.62, 0);
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6;
+    const v = knob(V(0, 0.06 + t * 0.56, -0.02 + Math.sin(t * 2.2) * 0.03), 0.045, name + '_vert_' + i, B, torso);
+    v.scale.set(1.3, 0.8, 1);
+  }
+  const sternum = V(0, 0.44, 0.09);
+  for (let i = 0; i < 5; i++) {
+    const y = 0.20 + i * 0.085, w = 0.20 - Math.abs(i - 1.6) * 0.016;
+    for (const s of [1, -1]) {
+      /* each pair gets its own centre, sweep and droop, so the arcs stop sharing
+         one axis and no longer wind into a spring */
+      const sweep = Math.PI * (0.62 + (i % 2) * 0.10 + i * 0.02);
+      const droop = 0.10 + i * 0.045;
+      const rb = add(new THREE.TorusGeometry(w, 0.019, 5, 12, sweep), B, name + '_rib_' + i + (s > 0 ? 'l' : 'r'), torso);
+      rb.position.set(s * 0.012, y, 0.015 - i * 0.012);
+      rb.rotation.set(Math.PI / 2 - droop, s * 0.06, s > 0 ? Math.PI * (0.58 + i * 0.01) : Math.PI * (1.42 - i * 0.01));
+      rb.scale.z = 0.58 + i * 0.03;
+    }
+  }
+  bar(V(0, 0.22, 0.08), V(0, 0.50, 0.07), 0.028, 0.022, name + '_sternum', B, torso, 6);
+  const clav = V(0, 0.56, 0.02);
+  for (const s of [1, -1]) bar(clav, V(s * 0.19, 0.58, 0.02), 0.022, 0.022, name + '_clavicle_' + (s > 0 ? 'l' : 'r'), B, torso, 6);
+
+  /* skull, hung forward on the neck, jaw slack */
+  const head = new THREE.Group(); head.name = name + '_head';
+  head.position.copy(spineTop).add(V(0, 0.10, 0.02));
+  head.rotation.set(R(-0.1, 0.22) - lean, R(-0.3, 0.3), R(-0.08, 0.08));
+  torso.add(head);
+  const skull = add(new THREE.SphereGeometry(0.135, 14, 11), B, name + '_skull', head);
+  skull.scale.set(0.94, 1.0, 1.06);
+  const face = add(new THREE.BoxGeometry(0.17, 0.11, 0.10), B, name + '_maxilla', head);
+  face.position.set(0, -0.07, 0.10);
+  for (const s of [1, -1]) {
+    const sock = add(new THREE.SphereGeometry(0.048, 10, 8), M.socket, name + '_socket_' + (s > 0 ? 'l' : 'r'), head);
+    sock.position.set(s * 0.058, 0.005, 0.10); sock.scale.set(1, 0.95, 0.8);
+    add(new THREE.SphereGeometry(0.024, 8, 7), lit ? M.eye : M.socket, name + '_eye_' + (s > 0 ? 'l' : 'r'), head)
+      .position.set(s * 0.058, 0.005, 0.125);
+    const cheek = add(new THREE.BoxGeometry(0.03, 0.06, 0.05), B, name + '_cheek_' + (s > 0 ? 'l' : 'r'), head);
+    cheek.position.set(s * 0.105, -0.025, 0.06);
+  }
+  const nasal = add(new THREE.SphereGeometry(0.022, 7, 6), M.socket, name + '_nasal', head);
+  nasal.position.set(0, -0.035, 0.14); nasal.scale.set(0.8, 1.4, 0.6);
+  const jaw = add(new THREE.BoxGeometry(0.155, 0.055, 0.14), B, name + '_jaw', head);
+  jaw.position.set(0, -0.155 - jawOpen * 0.05, 0.055 + jawOpen * 0.02);
+  jaw.rotation.x = -jawOpen * 0.55;
+  for (let i = 0; i < 6; i++) {
+    const t = add(new THREE.BoxGeometry(0.018, 0.03, 0.018), M.bone, name + '_tooth_' + i, head);
+    t.position.set((i - 2.5) * 0.026, -0.115, 0.125);
+  }
+
+  /* arms — shoulder → elbow → wrist. A spear hand is given its wrist target
+     directly (a point on the shaft) and the elbow is solved to swing outward. */
+  function arm(side, pose, target) {
+    const sd = side > 0 ? 'l' : 'r';
+    const sh = V(side * 0.21, 0.55, 0.01);
+    let el, wr;
+    if (target) {
+      wr = target.clone();
+      const mid = sh.clone().add(wr).multiplyScalar(0.5);
+      const out = V(side * 0.14, -0.10, -0.04);          // elbows flare out and drop
+      el = mid.add(out);
+    } else if (pose === 'shield') {     // braced across the body
+      el = V(side * 0.30, 0.30, 0.10);  wr = V(side * 0.16, 0.34, 0.30);
+    } else {                            // hanging
+      el = V(side * 0.26, 0.28, -0.02); wr = V(side * 0.27, 0.02, 0.06);
+    }
+    knob(sh, 0.055, name + '_shoulder_' + sd, B, torso);
+    longBone(sh, el, 0.032, name + '_humerus_' + sd, B, torso);
+    longBone(el, wr, 0.026, name + '_forearm_' + sd, B, torso);
+    /* hand: palm plus three stub fingers curled around whatever it holds */
+    const hand = new THREE.Group(); hand.name = name + '_hand_' + sd;
+    hand.position.copy(wr);
+    hand.quaternion.setFromUnitVectors(V(0, 1, 0), wr.clone().sub(el).normalize());
+    torso.add(hand);
+    knob(V(0, 0.03, 0), 0.042, name + '_palm_' + sd, B, hand);
+    for (let i = 0; i < 3; i++) {
+      const f = bar(V((i - 1) * 0.026, 0.05, 0.01), V((i - 1) * 0.03, 0.07, 0.07), 0.013, 0.010, name + '_finger_' + sd + '_' + i, B, hand, 5);
+    }
+    return hand;
+  }
+
+  /* ---- the spear, and the hands that hold it ----
+     The shaft is laid down as a line in torso space (butt → point direction), and
+     the grip points ON that line become the wrist targets, so the hands always
+     close on the wood no matter how the spear is angled. */
+  const spearSide = 1, shieldSide = -1;
+  const hasSpear = missing !== 'spear_arm';
+  const twoHanded = missing !== 'shield_arm' && (grip === 'braced' || grip === 'sloped');
+
+  if (hasSpear) {
+    let butt, dir, front, rear;
+    if (grip === 'braced') {
+      /* front rank: butt planted in the earth behind the heel, shaft rising
+         forward at a low angle — the hedge an enemy charge breaks on.
+         The torso's lean/twist would swing an authored y off the ground, so the
+         butt's height is solved backwards from the world contact at y = 0. */
+      const bx = spearSide * 0.30, bz = -0.62;
+      const zt = -bx * Math.sin(twist) + bz * Math.cos(twist);
+      butt = V(bx, (-0.92 + zt * Math.sin(lean)) / Math.cos(lean), bz);
+      /* elevation is authored ABOVE the lean, so the shaft still stands at ~45°
+         in world terms and the grips land at chest and waist, not at the ankles */
+      const el = R(0.76, 0.88) + lean;
+      dir = V(-spearSide * R(0.10, 0.20), Math.sin(el), Math.cos(el)).normalize();
+      front = 1.58; rear = 1.06;
+    } else if (grip === 'sloped') {
+      /* second rank at high port: the spear is shouldered and rises steeply
+         forward, clearing the heads of the rank ahead rather than threading the
+         gap between them — no forward-aimed shaft survives this rank spacing */
+      butt = V(spearSide * 0.22, -0.20, -0.66);
+      const el = R(0.95, 1.10) + lean;
+      dir = V(-spearSide * R(0.02, 0.12), Math.sin(el), Math.cos(el)).normalize();
+      front = 1.05; rear = 0.62;
+    } else {
+      /* rear ranks: spear up, a thicket of points above the formation */
+      butt = V(spearSide * 0.30, -0.86, -0.10);
+      dir = V(spearSide * R(0.02, 0.16), 1, R(-0.12, 0.14)).normalize();
+      front = 1.55; rear = 1.16;
+    }
+    const at = (d) => butt.clone().add(dir.clone().multiplyScalar(d));
+    const sp = spear(torso, name + '_spear', spearLen, lit);
+    sp.position.copy(butt);
+    sp.quaternion.setFromUnitVectors(V(0, 1, 0), dir);
+    arm(spearSide, 'spear', at(front));
+    if (twoHanded) arm(shieldSide, 'spear', at(rear));
+  } else {
+    /* shoulder stump only — the arm and its spear are long gone */
+    knob(V(spearSide * 0.21, 0.55, 0.01), 0.055, name + '_stump', B, torso);
+    bar(V(spearSide * 0.21, 0.55, 0.01), V(spearSide * 0.30, 0.44, -0.02), 0.032, 0.02, name + '_humerus_broken', B, torso);
+  }
+  if (!twoHanded) {
+    if (missing === 'shield_arm') {
+      knob(V(shieldSide * 0.21, 0.55, 0.01), 0.055, name + '_stump_shield', B, torso);
+    } else {
+      const h = arm(shieldSide, 'shield');
+      const sh = shield(h, name + '_shield', R(0.26, 0.32));
+      sh.position.set(shieldSide * 0.02, 0.10, 0.06);
+      sh.rotation.set(R(-0.2, 0.2), shieldSide * (0.9 - shieldUp * 0.5), R(-0.15, 0.15));
+    }
+  }
+
+  /* legs — one forward, one trailing. The torso's lean and twist would swing an
+     authored ankle off the ground, so each leg's contact height is solved in world
+     terms and the tibia simply runs a little longer or shorter to meet it. */
+  const worldY = (x, y, z) => 0.92 + (y * Math.cos(lean) - (-x * Math.sin(twist) + z * Math.cos(twist)) * Math.sin(lean));
+  for (const s of [1, -1]) {
+    const sd = s > 0 ? 'l' : 'r';
+    const fwd = s > 0 ? stride : -stride;
+    const hip = V(s * 0.13, 0.0, 0);
+    const knee = V(s * 0.15, -0.44, fwd * 0.75 + 0.02);
+    const ankle = V(s * 0.15, -0.84, fwd);
+    /* heel and toe tips both have to clear the ground; take whichever sits lower */
+    const CONTACTS = [[0, -0.043, -0.02], [0, -0.016, 0.15]];
+    ankle.y += Math.min(...CONTACTS.map(([cx, cy, cz]) =>
+      -worldY(ankle.x + cx, ankle.y + cy, ankle.z + cz) / Math.cos(lean)));
+    if (missing === 'leg' && s < 0) {
+      longBone(hip, knee, 0.038, name + '_femur_' + sd, B, torso);
+      bar(knee, knee.clone().add(V(0, -0.16, fwd * 0.3)), 0.03, 0.018, name + '_tibia_broken_' + sd, B, torso);
+      continue;
+    }
+    knob(hip, 0.055, name + '_hip_' + sd, B, torso);
+    longBone(hip, knee, 0.04, name + '_femur_' + sd, B, torso);
+    longBone(knee, ankle, 0.032, name + '_tibia_' + sd, B, torso);
+    bar(knee.clone().add(V(s * 0.04, 0.02, 0.03)), ankle.clone().add(V(s * 0.04, 0, 0.01)), 0.016, 0.014, name + '_fibula_' + sd, B, torso, 6);
+    /* foot: tarsals plus toe bones, flat on the ground */
+    const ft = new THREE.Group(); ft.name = name + '_foot_' + sd;
+    ft.position.copy(ankle).add(V(0, -0.045, 0));
+    torso.add(ft);
+    knob(V(0, 0.02, -0.02), 0.045, name + '_heel_' + sd, B, ft);
+    for (let i = 0; i < 4; i++) {
+      bar(V((i - 1.5) * 0.025, 0.02, 0.01), V((i - 1.5) * 0.034, 0.012, 0.15), 0.013, 0.010, name + '_toe_' + sd + '_' + i, B, ft, 5);
+    }
+  }
+
+  /* what's left of the armour they were buried in */
+  if (tattered) {
+    /* a tabard hangs front and back off the belt — it is NOT a skirt, so the
+       flanks stay open and the bone shows through. Each side is a handful of
+       narrow strips of differing length and hang, so the hem is genuinely
+       ragged and no two figures wear the same rag. */
+    [1, -1].forEach((face) => {
+      const strips = 3 + Math.floor(rnd() * 2);
+      const pitch = 0.072, w = 0.105;
+      const base = face > 0 ? R(0.34, 0.46) : R(0.26, 0.40);
+      for (let i = 0; i < strips; i++) {
+        /* lengths fall away from one shoulder of the drape, then jitter */
+        const drop = Math.max(0.14, base * (1 - Math.abs(i - R(0, strips - 1)) * 0.22) + R(-0.07, 0.05));
+        const x = (i - (strips - 1) / 2) * pitch + R(-0.012, 0.012);
+        const strip = add(new THREE.BoxGeometry(w, drop, 0.014), M.cloth,
+          name + '_tabard_' + (face > 0 ? 'front' : 'back') + '_' + i, torso);
+        strip.position.set(x, 0.01 - drop * 0.5, face * (0.16 + Math.abs(x) * 0.12));
+        strip.rotation.set(face * R(0.02, 0.14), R(-0.10, 0.10) + x * 0.5, R(-0.13, 0.13));
+      }
+    });
+    /* one loose strip still knotted at the hip, swinging clear of the body */
+    const hang = add(new THREE.BoxGeometry(R(0.07, 0.11), R(0.26, 0.46), 0.014), M.cloth, name + '_hip_rag', torso);
+    hang.position.set(R(0.16, 0.22) * (rnd() < 0.5 ? 1 : -1), -0.30, R(-0.06, 0.06));
+    hang.rotation.set(R(-0.12, 0.12), R(-0.25, 0.25), R(-0.10, 0.10));
+    const pauldron = add(new THREE.SphereGeometry(0.11, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.rust, name + '_pauldron', torso);
+    pauldron.position.set(spearSide * 0.21, 0.58, 0.01); pauldron.scale.set(1, 0.7, 1.1);
+    const belt = add(new THREE.BoxGeometry(0.30, 0.055, 0.045), M.leather, name + '_belt', torso);
+    belt.position.set(0, 0.055, 0.115); belt.rotation.x = R(-0.06, 0.06);
+    const buckle = add(new THREE.BoxGeometry(0.06, 0.06, 0.02), M.rust, name + '_buckle', torso);
+    buckle.position.set(R(-0.04, 0.04), 0.055, 0.145);
+    if (rnd() < 0.5) {
+      const helm = add(new THREE.SphereGeometry(0.155, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62), M.rust, name + '_helm', head);
+      helm.position.y = 0.01; helm.scale.set(1, 1.05, 1.02);
+      const nasalGuard = add(new THREE.BoxGeometry(0.03, 0.14, 0.03), M.rust, name + '_helm_nasal', head);
+      nasalGuard.position.set(0, -0.03, 0.14);
+    }
+  }
+  return g;
+}
+
+/* ============================ THE PHALANX ============================
+   Spearmen fight in a block, not a mob: a braced front rank, a levelled second
+   rank reaching through it, and raised spears behind — a thicket of points. */
+const unit = new THREE.Group(); unit.name = 'spearmen'; rig.add(unit);
+
+/* files are staggered half a spacing rank to rank, so a levelled shaft passes
+   through the GAP between the two men ahead of it rather than through one of them */
+const RANKS = [
+  { z:  1.50, xs: [-2.10, -1.05,  0.00,  1.05,  2.10], grip: 'braced' },
+  { z:  0.55, xs: [-1.58, -0.53,  0.53,  1.58,  2.63], grip: 'sloped' },
+  { z: -0.42, xs: [-2.10, -1.05,  0.00,  1.05,  2.10], grip: 'upright' },
+  { z: -1.40, xs: [-1.58, -0.53,  0.53,  1.58], grip: 'upright' },
+];
+let n = 0;
+RANKS.forEach((rank, ri) => {
+  rank.xs.forEach((x) => {
+    const damage = rnd();
+    const sk = skeleton({
+      name: 'spearman_' + (n++),
+      scale: R(0.95, 1.07),
+      rot: R(-0.12, 0.12),                      // dressed ranks, but not machined
+      lean: rank.grip === 'braced' ? R(0.10, 0.20) : R(0.0, 0.10),
+      twist: R(-0.14, 0.14),
+      grip: rank.grip,
+      spearLen: rank.grip === 'braced' ? R(2.2, 2.5) : R(2.5, 2.9),
+      shieldUp: R(0.3, 1.0),
+      missing: damage < 0.08 ? 'spear_arm' : (damage < 0.16 ? 'shield_arm' : (damage < 0.22 ? 'leg' : null)),
+      lit: rnd() < 0.85,
+    });
+    sk.position.set(x + R(-0.10, 0.10), 0, rank.z + R(-0.10, 0.10));
+    unit.add(sk);
+  });
+});
+
+/* file-closers on the flanks, turned outward to guard the formation's edge — so
+   their points sweep away from the block rather than across their own ranks */
+[[-3.35, 1.25, -1.15], [3.35, 1.25, 1.15], [-2.85, -0.95, -1.05], [2.85, -0.95, 1.05]].forEach(([x, z, face], i) => {
+  const sk = skeleton({
+    name: 'spearman_flank_' + i, scale: R(0.92, 1.04), rot: face + R(-0.2, 0.2),
+    lean: R(0.04, 0.16), twist: R(-0.2, 0.2), grip: rnd() < 0.5 ? 'braced' : 'sloped',
+    spearLen: R(2.2, 2.5), missing: rnd() < 0.2 ? 'shield_arm' : null, lit: rnd() < 0.8,
+  });
+  sk.position.set(x, 0, z);
+  unit.add(sk);
+});
+
+/* the fallen: bones and a dropped shield trampled into the ground behind them */
+for (let i = 0; i < 12; i++) {
+  const a = R(0, 6.283), d = R(1.0, 3.4);
+  const r = R(0.022, 0.032);
+  const p = V(Math.cos(a) * d, r * 1.5, Math.sin(a) * d - 1.0);
+  const q = p.clone().add(V(R(-0.34, 0.34), R(0, 0.03), R(-0.34, 0.34)));
+  longBone(p, q, r, 'fallen_bone_' + i, M.boneDk, rig);
+}
+{
+  /* a spear snapped off at the shaft, lying where its owner fell */
+  const s = spear(rig, 'broken_spear', 1.15, false);
+  s.position.set(R(-1.9, 1.9), 0.13, R(-2.9, -2.0));
+  s.rotation.set(Math.PI / 2 + R(-0.1, 0.1), 0, R(0, 6.283));
+}
+for (let i = 0; i < 2; i++) {
+  const s = shield(rig, 'dropped_shield_' + i, R(0.26, 0.32));
+  s.position.set(R(-2.2, 2.2), 0.085, R(-3.0, -1.6));
+  /* lay it flat first, then spin it in its own plane — an XYZ Y-term here would
+     tip the disc back out of plane and put its rim below the ground */
+  s.rotation.set(Math.PI / 2 + R(-0.12, 0.12), 0, R(0, 6.283));
+}
+{
+  const sk = add(new THREE.SphereGeometry(0.135, 12, 10), M.boneDk, 'fallen_skull', rig);
+  sk.position.set(R(-1.8, 1.8), 0.175, R(-2.8, -1.8)); sk.rotation.set(1.2, R(0, 3), 0.3);
+  const j = add(new THREE.BoxGeometry(0.15, 0.05, 0.13), M.boneDk, 'fallen_jaw', rig);
+  j.position.copy(sk.position).add(V(0.14, -0.06, 0.06)); j.rotation.y = R(0, 3);
+}
+
+rig.updateMatrixWorld(true);
+const box = new THREE.Box3().setFromObject(rig);
+const c = box.getCenter(V());
+const wrap = new THREE.Group(); wrap.name = 'skeleton_spearmen';
+rig.position.set(-c.x, -box.min.y, -c.z);
+wrap.add(rig);
+stage.setObject(wrap);
+</script>
+</body>
+</html>

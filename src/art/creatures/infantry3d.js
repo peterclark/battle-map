@@ -200,6 +200,55 @@ const DRESSINGS = {
   ragged: { turn: 1.1, drift: 0.46, size: 0.22, stoop: 0.3, spread: 1 },
 };
 
+// How a rank holds its weapon, which a spear block needs and nothing else on
+// the board does. Ported from `docs/reference/skeleton-spearmen.html`, which
+// builds a phalanx: a braced front rank with its butts planted in the earth,
+// a levelled rank reaching over it, and spears raised upright behind.
+//
+// Upright is the one thing not taken. A spear standing on end is a dot from
+// directly above — the mistake this rig has already paid for twice — so every
+// rank behind the first levels its spear over the heads in front, and the
+// block reads as a hedge of points rather than a thicket nobody can see.
+//
+// `rest` is the weapon's lean off the vertical, positive back over the
+// shoulder as everywhere else in this file, so a negative one points forward.
+// `splay` turns the point in across the body, as a man bracing with the
+// right hand does. `planted` means the butt is on the ground and the pose must
+// not lift it or drive it through.
+const GRIPS = {
+  // Levelled low, butt planted behind the heel: the hedge a charge breaks on.
+  // Low enough that a camera above it sees near nine tenths of its length.
+  // No strike: the brace *is* the attack, and a jab would lift the butt.
+  braced: { rest: -1.1, swing: 0, splay: 0.14, planted: true },
+  // Held high and forward, clearing the skulls of the rank ahead by half a
+  // man's height. Lower than it looks: a skeleton is scaled narrower than it
+  // is tall, which steepens anything leaning fore-and-aft, and at -0.72 this
+  // came out 36° off the vertical on the board rather than the 41° written.
+  levelled: { rest: -0.85, swing: 0.2, splay: 0.06, planted: false },
+};
+
+// How far in front of the hand a braced spear runs. Shorter than a carried
+// one, because the hand has moved a third of the way up the shaft — and
+// because every unit of it is depth, which a stand this shallow has not got.
+const BRACED_REACH = 0.62;
+
+// Where the hand is above the ground, in figure space: the hips, the weapon
+// anchor above them, and the heels, which sit just under 0.1 below zero on
+// this rig. Measured, not reasoned — see the test that pins it.
+const GRIP_HEIGHT = 0.52 + 0.14 + 0.098;
+
+// How far back a braced butt has to run to reach the ground at its grip's
+// angle. Worked out from the angle rather than written down beside it, so
+// changing one cannot leave the other stranded in the air or in the turf.
+//
+// The shaft's axis stops short of the heel line by the ferrule's own rim: a
+// shaft lying at this angle meets the ground with the underside of its butt,
+// not its centre, and aimed at the centre it sank six hundredths in — which
+// lifts every figure in the block off the turf by the same amount.
+const FERRULE_RIM = 0.06;
+const brace = (grip) =>
+  (GRIP_HEIGHT - FERRULE_RIM) / (Math.cos(grip.rest) * Math.cos(grip.splay));
+
 // Surfaces, as the merged material reads them.
 //
 // materials.js explains why metalness tops out at 0.72 rather than 1: with no
@@ -1011,8 +1060,8 @@ const shinParts = (p, body) =>
 
 // --- weapons ---------------------------------------------------------------
 
-// A tapered haft with a ferrule at the butt — shared by axe, spear and staff,
-// because they are the same stick with different things on the end.
+// A tapered haft with a ferrule at the butt. The spear's is the same stick,
+// cut to its own length by `spearParts`.
 const haftParts = (p, length, radius = 0.036) => [
   part(new THREE.CylinderGeometry(radius * 0.86, radius, length, 14), p.haft, {
     pos: [0, length / 2 - 0.18, 0],
@@ -1022,6 +1071,65 @@ const haftParts = (p, length, radius = 0.036) => [
     pos: [0, -0.16, 0],
     ...IRON,
   }),
+];
+
+// A spear, from its butt `butt` behind the hand to its socket `reach` in
+// front of it. Carried, the hand is near the butt; braced, it is a third of
+// the way up and the butt runs back to the ground — the same weapon either
+// way, so it is one function rather than two copies that drift.
+const spearParts = (p, butt = 0.18, reach = 1.74) => [
+  part(new THREE.CylinderGeometry(0.03 * 0.86, 0.03, butt + reach, 14), p.haft, {
+    pos: [0, (reach - butt) / 2, 0],
+    ...WOOD,
+  }),
+  part(new THREE.CylinderGeometry(0.03 * 1.25, 0.03 * 1.15, 0.06, 14), p.metalDark, {
+    pos: [0, 0.02 - butt, 0],
+    ...IRON,
+  }),
+  // A leaf-bladed head with a socket and langets
+  part(
+    flat(
+      [
+        [-0.018, 0],
+        [0.018, 0],
+        [0.047, 0.07],
+        [0.05, 0.15],
+        [0.032, 0.27],
+        [0, 0.36],
+        [-0.032, 0.27],
+        [-0.05, 0.15],
+        [-0.047, 0.07],
+      ],
+      0.036,
+      0.006
+    ),
+    p.metal,
+    { pos: [0, reach + 0.04, 0], ...BLADE }
+  ),
+  part(new THREE.CylinderGeometry(0.042, 0.034, 0.16, 14), p.metalDark, {
+    pos: [0, reach - 0.04, 0],
+    ...IRON,
+  }),
+  // A pennon below the head. Free silhouette, and it puts the block's
+  // colour up where the camera can see it.
+  part(
+    at(
+      bevelled(
+        [
+          [-0.015, 0],
+          [0.015, 0],
+          [0.02, -0.16],
+          [-0.01, -0.22],
+          [-0.015, -0.16],
+        ],
+        0.11,
+        0.006
+      ),
+      { rot: [0, Math.PI / 2, 0] }
+    ),
+    p.shield,
+    { pos: [0, reach - 0.12, 0], ...CLOTH }
+  ),
 ];
 
 // How each weapon is built, how the block carrying it forms up, and how it is
@@ -1166,53 +1274,10 @@ const WEAPONS = {
     files: 5,
     ranks: 5,
     shield: true,
-    parts: (p) => [
-      ...haftParts(p, 1.92, 0.03),
-      // A leaf-bladed head with a socket and langets
-      part(
-        flat(
-          [
-            [-0.018, 0],
-            [0.018, 0],
-            [0.047, 0.07],
-            [0.05, 0.15],
-            [0.032, 0.27],
-            [0, 0.36],
-            [-0.032, 0.27],
-            [-0.05, 0.15],
-            [-0.047, 0.07],
-          ],
-          0.036,
-          0.006
-        ),
-        p.metal,
-        { pos: [0, 1.78, 0], ...BLADE }
-      ),
-      part(new THREE.CylinderGeometry(0.042, 0.034, 0.16, 14), p.metalDark, {
-        pos: [0, 1.7, 0],
-        ...IRON,
-      }),
-      // A pennon below the head. Free silhouette, and it puts the block's
-      // colour up where the camera can see it.
-      part(
-        at(
-          bevelled(
-            [
-              [-0.015, 0],
-              [0.015, 0],
-              [0.02, -0.16],
-              [-0.01, -0.22],
-              [-0.015, -0.16],
-            ],
-            0.11,
-            0.006
-          ),
-          { rot: [0, Math.PI / 2, 0] }
-        ),
-        p.shield,
-        { pos: [0, 1.62, 0], ...CLOTH }
-      ),
-    ],
+    parts: (p) => spearParts(p),
+    // The same spear gripped a third of the way up, with the butt run back
+    // far enough to reach the ground — see GRIPS.
+    braced: (p, butt) => spearParts(p, butt, BRACED_REACH),
     // Well down off the vertical. Held as a real pikeman holds it, a spear is
     // a single dark pixel; laid back over the shoulder it draws a line the
     // length of the stand, and a block of them reads as a thicket.
@@ -1481,7 +1546,7 @@ const withHand = (geometry, p, body) =>
 // than one head: half the skeletons kept the helm they were buried in and
 // half did not, and alternating between two buffers gives twenty figures that
 // variety for the cost of one extra buffer and no extra meshes at all.
-const buildBuffers = (weapon, spec, p, body) => ({
+const buildBuffers = (weapon, spec, p, body, grips) => ({
   body: merge(bodyParts(p, body)),
   heads: (body.bone ? [false, true] : [false]).map((helmed) =>
     merge(headParts(p, body, helmed))
@@ -1519,6 +1584,11 @@ const buildBuffers = (weapon, spec, p, body) => ({
         ])
     : null,
   weapon: withHand(merge(spec.parts(p)), p, body),
+  // Only built when a rank actually braces, so every other block pays nothing
+  braced:
+    spec.braced && grips.some((g) => g.planted)
+      ? withHand(merge(spec.braced(p, brace(GRIPS.braced))), p, body)
+      : null,
   banner: merge(bannerParts(p)),
 });
 
@@ -1538,7 +1608,15 @@ const hang = (parent, geometry, material, position) => {
 // Eight meshes, which is one per part of a man that moves independently of
 // the others. Everything inside one of them was merged when the buffers were
 // built.
-const makeFigure = (buffers, material, spec, build, carriesBanner, index) => {
+const makeFigure = (
+  buffers,
+  material,
+  spec,
+  build,
+  carriesBanner,
+  index,
+  grip
+) => {
   const group = new THREE.Group();
   // Short and broad, or tall and narrow. Applied to the whole figure so the
   // kit scales with the body rather than floating beside it.
@@ -1583,9 +1661,31 @@ const makeFigure = (buffers, material, spec, build, carriesBanner, index) => {
   const held = new THREE.Group();
   held.position.set(0.26, 0.14, -0.04);
   hips.add(held);
-  hang(held, carriesBanner ? buffers.banner : buffers.weapon, material);
+  const planted = !carriesBanner && grip?.planted && buffers.braced;
+  hang(
+    held,
+    carriesBanner ? buffers.banner : planted ? buffers.braced : buffers.weapon,
+    material
+  );
+  // Start in the grip, not upright. `CreatureLayer` fits the rig by the box
+  // it measures before any pose runs, and a braced spear standing on end at
+  // that moment drives its butt a metre into the turf.
+  const hold = carriesBanner ? null : grip;
+  if (hold) {
+    held.rotation.x = hold.rest;
+    held.rotation.z = hold.splay;
+  }
 
-  return { group, hips, head, legs, shield, weapon: held, carriesBanner };
+  return {
+    group,
+    hips,
+    head,
+    legs,
+    shield,
+    weapon: held,
+    carriesBanner,
+    grip: hold,
+  };
 };
 
 /**
@@ -1607,13 +1707,17 @@ export const buildInfantry = ({
   spacing,
   banner = false,
   dressing = "ranked",
+  grips,
 } = {}) => {
   const spec = WEAPONS[weapon] ?? WEAPONS.axe;
   const p = PALETTES[palette] ?? PALETTES.orc;
   const body = BUILDS[build] ?? BUILDS.man;
   const form = DRESSINGS[dressing] ?? DRESSINGS.ranked;
   const material = surfaceMaterial();
-  const buffers = buildBuffers(weapon, spec, p, body);
+  // One grip per rank, front first; the last is held by every rank behind it
+  const held = (grips ?? []).map((g) => GRIPS[g]).filter(Boolean);
+  const gripOf = (rank) => held[Math.min(rank, held.length - 1)];
+  const buffers = buildBuffers(weapon, spec, p, body, held);
 
   const root = new THREE.Group();
   const figures = [];
@@ -1638,7 +1742,8 @@ export const buildInfantry = ({
         spec,
         body,
         carriesBanner,
-        index
+        index,
+        gripOf(rank)
       );
       // Alternate ranks step half a file across, closing the gaps in front —
       // the same dressing the card art shows
@@ -1713,14 +1818,19 @@ export const poseInfantry = (rig, time, state = "idle") => {
 
   rig.figures.forEach((figure) => {
     const t = time * gait.rate + figure.phase;
+    // A man bracing a spear against the ground stands his ground: he does not
+    // step or bob until the block moves off
+    const braced = figure.grip?.planted && state !== "march";
+    const stride = gait.stride * (braced ? 0.25 : 1);
+    const bob = gait.bob * (braced ? 0.25 : 1);
 
     figure.legs.forEach(({ hip, shin, side }) => {
       const swing = t + (side > 0 ? 0 : Math.PI);
-      hip.rotation.x = Math.sin(swing) * 0.55 * gait.stride;
-      shin.rotation.x = Math.max(-Math.sin(swing - 0.7), 0) * 0.7 * gait.stride;
+      hip.rotation.x = Math.sin(swing) * 0.55 * stride;
+      shin.rotation.x = Math.max(-Math.sin(swing - 0.7), 0) * 0.7 * stride;
     });
 
-    figure.hips.position.y = 0.52 + Math.abs(Math.sin(t)) * 0.045 * gait.bob;
+    figure.hips.position.y = 0.52 + Math.abs(Math.sin(t)) * 0.045 * bob;
     // A crowd stoops unevenly; a rank does not. `figure.lean` is zero for
     // everyone in a dressed block and per-figure in a ragged one.
     figure.hips.rotation.x = -(gait.lean + figure.lean);
@@ -1742,7 +1852,29 @@ export const poseInfantry = (rig, time, state = "idle") => {
         (shooting ? 3 : 1.6)
       : 0;
 
-    if (figure.carriesBanner) {
+    if (figure.grip?.planted) {
+      // The butt is in the ground, so the angle is held against the world
+      // rather than the body: whatever the hips lean, the spear does not.
+      // On the march it comes up off the turf a little and trails.
+      figure.weapon.rotation.x =
+        figure.grip.rest +
+        gait.lean +
+        figure.lean -
+        (state === "march" ? 0.1 : 0) -
+        strike * figure.grip.swing -
+        // only ever lifts: the other way is into the turf
+        Math.abs(Math.sin(t)) * 0.012;
+      figure.weapon.rotation.z = figure.grip.splay;
+    } else if (figure.grip) {
+      // Levelled over the rank in front: dipped for the fight, and a short
+      // jab rather than a swing, because the shaft passes over a man's head
+      figure.weapon.rotation.x =
+        figure.grip.rest -
+        gait.ready * 0.4 -
+        strike * figure.grip.swing +
+        Math.sin(t) * 0.04 * gait.stride;
+      figure.weapon.rotation.z = figure.grip.splay;
+    } else if (figure.carriesBanner) {
       // Colours are carried, not swung: held well back off the vertical so
       // the cloth stays visible, with a slow sway and no strike at all
       figure.weapon.rotation.x = 0.6 + Math.sin(t * 0.5) * 0.06;

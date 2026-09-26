@@ -10,6 +10,7 @@ the Vite build never sees them, and they are excluded from lint.
 | `ballista.html` | A dwarven field ballista: carriage, trail, turntable, recurved bow, windlass |
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
 | `skeleton-horde.html` | The Skeleton Horde: a pelvis, a spine, five pairs of ribs and long bones with a knuckle at each end, in loose ranks |
+| `skeleton-spearmen.html` | The Skeleton Spearmen: the same skeletons as a phalanx — a braced front rank, a levelled second, raised spears behind, and flankers turned outward |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -144,6 +145,44 @@ bug in one of them.
   shield; it reads as a hole in the ground.
 - **Not taken: the nicks hacked out of the blade.** Detail below about four
   pixels is wasted work, and a nick in a sword edge is well under one.
+
+### The Skeleton Spearmen
+
+The `grips` option on `buildInfantry` is a port of `skeleton-spearmen.html`.
+The skeleton itself is the Horde's and was not rebuilt; what this reference
+adds is how a spear block holds its spears, rank by rank.
+
+- **Taken.** The phalanx: a braced front rank with its butts planted in the
+  earth behind the heel and the shafts levelled low, and the rank behind it
+  levelling over the heads in front. The braced spear is the same weapon
+  gripped a third of the way up — a second buffer from the same function, not
+  a second mesh — and the length of shaft behind the hand is solved from the
+  grip's angle, so the butt meets the ground whatever the angle is set to.
+- **Taken.** Files staggered half a spacing rank to rank, so a levelled shaft
+  passes through the gap between the two men ahead of it. The rig already
+  dressed its ranks this way.
+- **Not taken: the rear ranks' spears held upright.** The reference raises
+  them into "a thicket of points above the formation". From an orbit camera
+  that is the most striking thing on the page; from directly above, a spear on
+  end is a dot, which is the mistake this project has paid for twice. Every
+  rank behind the first levels its spear forward instead, at about 44° off the
+  vertical on the board, and the block reads as a hedge.
+- **Not taken: the depth.** Five, five, five and four in four ranks, plus
+  flankers, is a square block, and square blocks fit their own depth and leave
+  the stand's width empty — the old five-by-five used half of it. Eight files
+  by three ranks measures 2.8:1 at rest and 2.6:1 across its gaits.
+- **Not taken: the flank file-closers** turned outward. From above they read
+  as stragglers, and their spears point off the sides of the block, widening
+  it past the ranks for nothing the camera can use.
+- **Not taken: the two-handed grip without a shield.** The reference's front
+  two ranks hold the shaft in both hands and carry no shield. A shield is the
+  broadest thing an infantryman has for a camera above him, and this rig's
+  arms are merged into the body, so they keep it.
+- **Not taken: the missing arms and legs.** A stump is well under four pixels
+  at stand scale, and a figure without its spear is a gap in the hedge.
+- **Not taken: the dropped shields and the broken spear.** For the same reason
+  as the Horde's: flat on the turf, they read as holes in the ground. The
+  fallen bones stay, from the skeleton build.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.

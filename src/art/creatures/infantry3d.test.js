@@ -91,3 +91,103 @@ describe("dressing", () => {
     expect(twice).toEqual(once);
   });
 });
+
+describe("the Skeleton Spearmen", () => {
+  const phalanx = () =>
+    buildInfantry({
+      weapon: "spear",
+      palette: "undead",
+      build: "skeleton",
+      files: 8,
+      ranks: 3,
+      spacing: 0.88,
+      grips: ["braced", "levelled"],
+    });
+
+  // Where a figure's heels are, from its legs alone
+  const heels = (figure) => {
+    const box = new THREE.Box3();
+    figure.legs.forEach(({ hip }) => box.expandByObject(hip));
+    return box.min.y;
+  };
+
+  it("is wide and shallow enough to fill its stand across the front", () => {
+    // A braced spear runs forward, and every unit of that is depth. Five by
+    // five with shouldered spears measured 1.2:1 and used half the stand.
+    const rig = phalanx();
+    const rest = boxOf(rig.root).getSize(new THREE.Vector3());
+    expect(rest.x / rest.z).toBeGreaterThan(2.4);
+
+    const swept = new THREE.Box3();
+    ["idle", "march", "attack"].forEach((state) => {
+      for (let i = 0; i < 12; i += 1) {
+        poseInfantry(rig, i * 0.41, state);
+        swept.union(boxOf(rig.root));
+      }
+    });
+    const size = swept.getSize(new THREE.Vector3());
+    expect(size.x / size.z).toBeGreaterThan(2.4);
+  });
+
+  it("plants the front rank's butts on the ground and never through it", () => {
+    // Too short and the spear floats; too long and it sinks, and a rig is
+    // lifted by its lowest point, so one butt in the turf leaves the whole
+    // block hovering.
+    const rig = phalanx();
+    const front = rig.figures.filter((f) => f.grip?.planted);
+    expect(front).toHaveLength(8);
+    // The heel line at rest. Heels lift as the legs move, so the ground is
+    // taken once, before anything poses.
+    rig.root.updateMatrixWorld(true);
+    const ground = Math.min(...front.map(heels));
+    ["idle", "attack"].forEach((state) => {
+      for (let i = 0; i < 20; i += 1) {
+        poseInfantry(rig, i * 0.37, state);
+        rig.root.updateMatrixWorld(true);
+        front.forEach((figure) => {
+          const butt = new THREE.Box3().setFromObject(figure.weapon).min.y;
+          expect(butt).toBeGreaterThanOrEqual(ground - 0.02);
+          // A braced man barely bobs, and the butt only ever lifts with him
+          expect(butt).toBeLessThan(ground + 0.05);
+        });
+      }
+    });
+  });
+
+  it("holds no spear upright, in any gait", () => {
+    // The trap on this unit. An upright spear is a dot from directly above,
+    // which is how the reference holds its rear ranks and why this does not.
+    const rig = phalanx();
+    const up = new THREE.Vector3();
+    ["idle", "march", "attack"].forEach((state) => {
+      for (let i = 0; i < 20; i += 1) {
+        poseInfantry(rig, i * 0.37, state);
+        rig.root.updateMatrixWorld(true);
+        rig.figures.forEach((figure) => {
+          up.set(0, 1, 0).transformDirection(figure.weapon.matrixWorld);
+          // Leaning forward, and at least ~37° off the vertical
+          expect(up.z).toBeLessThan(0);
+          expect(Math.acos(up.y)).toBeGreaterThan(0.65);
+        });
+      }
+    });
+  });
+
+  it("stays inside the mesh budget a block of foot is allowed", () => {
+    // The braced spear is a second weapon buffer, not a second mesh
+    const rig = phalanx();
+    let meshes = 0;
+    rig.root.traverse((o) => {
+      if (o.isMesh) meshes += 1;
+    });
+    expect(meshes).toBe(rig.count * 8 + 1);
+  });
+
+  it("leaves every other spear block holding its spear as it did", () => {
+    const rig = buildInfantry({ weapon: "spear", palette: "hawkshold" });
+    rig.figures.forEach((figure) => {
+      expect(figure.grip).toBeUndefined();
+      expect(figure.weapon.rotation.x).toBe(0);
+    });
+  });
+});
