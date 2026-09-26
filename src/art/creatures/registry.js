@@ -71,7 +71,19 @@ const FOOT = {
     ranks: 3,
     spacing: 0.88,
   },
-  "undead.spear": { weapon: "spear", palette: "undead", build: "skeleton" },
+  // The Spearmen are a phalanx: a braced front rank with its butts in the
+  // earth and two ranks levelling over it. Eight across and three deep,
+  // because five by five measured 1.2:1 and used half its stand's width, and
+  // because a braced spear runs forward and every unit of that is depth.
+  "undead.spear": {
+    weapon: "spear",
+    palette: "undead",
+    build: "skeleton",
+    files: 8,
+    ranks: 3,
+    spacing: 0.88,
+    grips: ["braced", "levelled"],
+  },
   "undead.bow": { weapon: "bow", palette: "undead", build: "skeleton" },
   // Zombies and ghouls do not dress ranks. They come in a wide shambling
   // crowd, which is the read — and now that the skeletons are bone rather
