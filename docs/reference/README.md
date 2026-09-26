@@ -11,6 +11,7 @@ the Vite build never sees them, and they are excluded from lint.
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
 | `skeleton-horde.html` | The Skeleton Horde: a pelvis, a spine, five pairs of ribs and long bones with a knuckle at each end, in loose ranks |
 | `skeleton-spearmen.html` | The Skeleton Spearmen: the same skeletons as a phalanx — a braced front rank, a levelled second, raised spears behind, and flankers turned outward |
+| `zombie-trolls.html` | The Zombie Trolls: two hunched brutes, one swinging a spiked club and one dragging it, with a flank torn to the ribs and the battlefield still stuck in their backs |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -183,6 +184,52 @@ adds is how a spear block holds its spears, rank by rank.
 - **Not taken: the dropped shields and the broken spear.** For the same reason
   as the Horde's: flat on the turf, they read as holes in the ground. The
   fallen bones stay, from the skeleton build.
+
+### The Zombie Trolls
+
+The `zombieTroll` row of `KINDS` in `brutes3d.js` is a port of
+`zombie-trolls.html`. It is a row of the brute rig's table rather than a file,
+and it has its own roster kind, `brute.zombie`: until this, a Zombie Troll and
+a Skeleton Troll were both `brute.bone`, the same figure on two stands.
+
+- **Taken.** The palette: grey-green grave hide (`troll_hide`, lifted a touch),
+  clotted gore, bruised meat, bone, witchlight eyes, black iron, rust, split
+  wood. The hide is 1.7:1 against the turf; the bruising goes darker than the
+  field rather than matching it.
+- **Taken.** The hunch — the reference makes the hump the highest point of the
+  body with the head slung under it, and the rig's hunch goes from 0.66 to
+  0.72.
+- **Taken, and moved.** The flank torn open to the ribs. In the reference it
+  is a small gore patch with three bone arcs on one side of the chest, which
+  from above is nearly invisible. Here the wound is torn across the whole back
+  and five ribs arch across it either side of a knuckled spine: from directly
+  overhead, a pale fishbone laid over the widest part of the figure. That is
+  the pale thing across the shoulders the brutes' brief asks for, found in the
+  body instead of worn on it — and the one thing a skeleton troll cannot show,
+  because it has no meat for the bone to show through.
+- **Taken.** The battlefield's leavings: broken spears and crossbow bolts
+  still stuck in it. Leaned out of the **flanks** rather than the top of the
+  hump, because a shaft standing straight up is a dot and one laid out sideways
+  is a line that widens the silhouette.
+- **Taken.** The club as a felled trunk: iron bands, three rows of rusted
+  spikes through the head, gore on it. Iron shackles on both wrists with the
+  broken chain hanging off them. Pale boils and bruising over the hide, and
+  lank hair raked back off the crown.
+- **Not taken: the dragged club.** Trailed through the dirt two metres behind
+  the troll, it is depth a 2.4:1 stand cannot spend. It stays shouldered, like
+  every weapon on this board.
+- **Not taken: the two poses.** The reference builds one troll swinging and one
+  dragging. The poser already swings in `attack` and walks in `march`, and
+  a pose baked into the buffers would stop it doing either.
+- **Not taken: the loincloth, the stitched belly seam and the trophy skull.**
+  All three hang under a hunched troll, where the overhead camera never
+  reaches.
+- **Not taken: the smashed planks, shields and scattered bones** on the
+  ground. The Horde's finding again — flat litter at stand scale reads as holes
+  in the turf — and the trolls overhang their stand in any case.
+- **Not taken: `black_iron` at 0.75 metalness.** Shackles and bands are the
+  rig's `IRON` tier, 0.55 / 0.55; with no environment to reflect, 0.75 renders
+  them as black rings.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.

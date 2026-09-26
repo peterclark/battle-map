@@ -162,12 +162,19 @@ const KINDS = [
   { kind: "brute.giant", fill: 1.12, depth: 1.7, match: (u) => has(u, "giant") && !has(u, "catapult") },
   { kind: "brute.elemental", fill: 1.08, depth: 1.45, match: (u) => has(u, "elemental") && keyworded(u, "large") },
   { kind: "undead.abomination", fill: 1.1, depth: 1.2, match: (u) => has(u, "abomination") },
+  // Zombie and Skeleton Trolls: one rig, two rows of its table. They were
+  // one kind until #38, which put the same figure on both stands.
   {
-    // Skeleton and Zombie Trolls -- the same brute with the meat off
+    kind: "brute.zombie",
+    fill: 1.08,
+    depth: 1.5,
+    match: (u) => has(u, "troll") && has(u, "zombie"),
+  },
+  {
     kind: "brute.bone",
     fill: 1.08,
     depth: 1.5,
-    match: (u) => has(u, "troll") && (has(u, "skeleton") || has(u, "zombie")),
+    match: (u) => has(u, "troll") && has(u, "skeleton"),
   },
   { kind: "brute.troll", fill: 1.08, depth: 1.5, match: (u) => has(u, "troll") },
   { kind: "brute.ogre", fill: 1.08, depth: 1.5, match: (u) => has(u, "ogre") },

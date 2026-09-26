@@ -166,6 +166,7 @@ const BRUTES = {
   "brute.ogre": { kind: "ogre" },
   "brute.giant": { kind: "giant" },
   "brute.bone": { kind: "boneBrute" },
+  "brute.zombie": { kind: "zombieTroll" },
   "brute.elemental": { kind: "elemental" },
 };
 
