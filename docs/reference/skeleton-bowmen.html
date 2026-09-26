@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<title>Skeleton crossbowmen — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "/node_modules/three/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "/node_modules/three/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "/node_modules/three/examples/jsm/exporters/GLTFExporter.js"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="skeleton-crossbowmen" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  bone:   new THREE.MeshStandardMaterial({ name:'old_bone',     color:0xd2c5a6, roughness:0.66, metalness:0.0 }),
+  boneDk: new THREE.MeshStandardMaterial({ name:'stained_bone', color:0xb0a184, roughness:0.72, metalness:0.0 }),
+  socket: new THREE.MeshStandardMaterial({ name:'socket_dark',  color:0x1f1a1a, roughness:0.96, metalness:0.0 }),
+  eye:    new THREE.MeshStandardMaterial({ name:'witchlight',   color:0xbcd9a8, roughness:0.3, metalness:0.0, emissive:0x4d6b3a, emissiveIntensity:0.7 }),
+  steel:  new THREE.MeshStandardMaterial({ name:'pitted_steel', color:0x8c9096, roughness:0.48, metalness:0.85 }),
+  rust:   new THREE.MeshStandardMaterial({ name:'rust',         color:0x6d4530, roughness:0.85, metalness:0.25 }),
+  wood:   new THREE.MeshStandardMaterial({ name:'split_wood',   color:0x5c4632, roughness:0.88, metalness:0.0 }),
+  leather:new THREE.MeshStandardMaterial({ name:'rotted_leather',color:0x453427, roughness:0.90, metalness:0.0 }),
+  cloth:  new THREE.MeshStandardMaterial({ name:'grave_cloth',  color:0x6a6258, roughness:0.95, metalness:0.0 }),
+  string: new THREE.MeshStandardMaterial({ name:'gut_string',   color:0x3b342b, roughness:0.80, metalness:0.0 }),
+  feather:new THREE.MeshStandardMaterial({ name:'crow_fletch',  color:0x26231f, roughness:0.92, metalness:0.0 }),
+};
+const BONES = [M.bone, M.boneDk];
+
+const rig = new THREE.Group(); rig.name = 'skeleton_crossbowmen';
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const add = (geo, mat, name, parent) => { const m = new THREE.Mesh(geo, mat); m.name = name; parent.add(m); return m; };
+
+let seed = 51820677;
+const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+const R = (a, b) => a + rnd() * (b - a);
+const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
+
+function bar(a, b, r0, r1, name, mat, parent, seg = 8) {
+  const m = add(new THREE.CylinderGeometry(r1, r0, a.distanceTo(b), seg, 1), mat, name, parent);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+function knob(p, r, name, mat, parent) {
+  const m = add(new THREE.SphereGeometry(r, 8, 7), mat, name, parent);
+  m.position.copy(p); return m;
+}
+function longBone(a, b, r, name, mat, parent) {
+  bar(a, b, r, r * 0.88, name, mat, parent);
+  knob(a, r * 1.45, name + '_head', mat, parent);
+  knob(b, r * 1.35, name + '_end', mat, parent);
+}
+/* orient an object so local +y runs along dir and local +z faces as close to
+   `up` as it can — the crossbow's top (bolt groove) side is its local +z */
+function orient(obj, dir, up) {
+  const y = dir.clone().normalize();
+  const z = up.clone().sub(y.clone().multiplyScalar(up.dot(y))).normalize();
+  const x = new THREE.Vector3().crossVectors(y, z);
+  obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  return { x, y, z };
+}
+
+/* ============================ GEAR ============================ */
+const XB = { L: 0.78, NUT: 0.42, TIP_Y: 0.633, TIP_X: 0.2727 };
+/* a crossbow along local +y from the butt: stock, steel prod near the nose,
+   nut + trigger lever, foot stirrup at the nose, optional loaded bolt */
+function bolt(parent, name, len = 0.40) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  add(new THREE.CylinderGeometry(0.008, 0.008, len, 5), M.wood, name + '_shaft', g).position.y = len * 0.5;
+  add(new THREE.ConeGeometry(0.016, 0.07, 4), M.rust, name + '_head', g).position.y = len + 0.03;
+  for (let i = 0; i < 2; i++) {
+    const f = add(new THREE.BoxGeometry(0.004, 0.07, 0.026), M.feather, name + '_fletch_' + i, g);
+    f.position.y = 0.05; f.rotation.y = i * Math.PI / 2;
+  }
+  return g;
+}
+function crossbow(parent, name, { drawn = true, loaded = true, lit = true } = {}) {
+  const { L, NUT, TIP_Y, TIP_X } = XB;
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  const steel = lit ? M.steel : M.rust;
+  add(new THREE.BoxGeometry(0.045, L, 0.06), M.wood, name + '_stock', g).position.y = L * 0.5;
+  /* the butt deepens on the belly side so it beds into a shoulder */
+  const butt = add(new THREE.BoxGeometry(0.06, 0.26, 0.10), M.wood, name + '_butt', g);
+  butt.position.set(0, 0.13, -0.015);
+  const nut = add(new THREE.CylinderGeometry(0.018, 0.018, 0.052, 8), steel, name + '_nut', g);
+  nut.position.set(0, NUT, 0.034); nut.rotation.z = Math.PI / 2;
+  bar(V(0, NUT, -0.03), V(0, NUT - 0.24, -0.075), 0.009, 0.007, name + '_trigger', M.rust, g, 5);
+  /* prod: an arc whose limbs sweep back toward the shooter */
+  const prod = add(new THREE.TorusGeometry(0.40, 0.020, 6, 16, 1.5), steel, name + '_prod', g);
+  prod.position.set(0, L - 0.44, 0.02); prod.rotation.z = Math.PI / 2 - 0.75;
+  add(new THREE.BoxGeometry(0.075, 0.07, 0.085), M.leather, name + '_lashing', g).position.set(0, L - 0.05, 0.005);
+  for (const s of [1, -1]) knob(V(s * TIP_X, TIP_Y, 0.02), 0.022, name + '_nock_' + (s > 0 ? 'a' : 'b'), steel, g);
+  const stir = add(new THREE.TorusGeometry(0.068, 0.012, 5, 12), steel, name + '_stirrup', g);
+  stir.position.y = L + 0.05;
+  if (drawn) for (const s of [1, -1])
+    bar(V(s * TIP_X, TIP_Y, 0.02), V(s * 0.012, NUT, 0.034), 0.0055, 0.0055, name + '_string_' + (s > 0 ? 'a' : 'b'), M.string, g, 4);
+  else bar(V(TIP_X, TIP_Y, 0.02), V(-TIP_X, TIP_Y, 0.02), 0.0055, 0.0055, name + '_string', M.string, g, 4);
+  if (loaded) bolt(g, name + '_bolt').position.set(0, NUT + 0.015, 0.045);
+  return g;
+}
+/* a pavise: the tall standing shield crossbowmen shoot over while spanning */
+function pavise(parent, name, lit) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  add(new THREE.BoxGeometry(0.62, 1.15, 0.045), M.wood, name + '_board', g).position.y = 0.575;
+  add(new THREE.BoxGeometry(0.13, 1.12, 0.03), M.wood, name + '_ridge', g).position.set(0, 0.575, 0.035);
+  for (const y of [0.22, 0.92]) add(new THREE.BoxGeometry(0.64, 0.045, 0.06), M.rust, name + '_band_' + y, g).position.y = y;
+  for (const s of [1, -1]) add(new THREE.BoxGeometry(0.03, 1.15, 0.055), M.rust, name + '_edge_' + (s > 0 ? 'l' : 'r'), g).position.set(s * 0.31, 0.575, 0);
+  /* the painted field is long gone: a grave-cloth hung over the top edge */
+  const rag = add(new THREE.BoxGeometry(R(0.16, 0.24), R(0.32, 0.52), 0.012), M.cloth, name + '_rag', g);
+  rag.position.set(R(-0.16, 0.16), 1.15 - rag.geometry.parameters.height * 0.5 + 0.02, 0.058);
+  rag.rotation.z = R(-0.08, 0.08);
+  const boss = add(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit ? M.steel : M.rust, name + '_boss', g);
+  boss.position.set(0, 0.62, 0.05); boss.rotation.x = Math.PI / 2;
+  const split = add(new THREE.BoxGeometry(0.016, 0.42, 0.06), M.socket, name + '_split', g);
+  split.position.set(-0.19, 0.42, 0.005); split.rotation.z = 0.12;
+  return g;
+}
+
+/* ============================ ONE SKELETON ============================
+   Hips at local y = 0.92, heels at y = 0.
+   Poses: aim (levelled over the pavise), volley (elevated, shooting over the
+   front rank), port (drawn, carried across the chest), span (stirrup on the
+   ground, string hauled to a belt hook). */
+function skeleton(o) {
+  const { name = 'skel', scale: S = 1, rot = 0, lean = 0, twist = 0, pose = 'aim',
+          elev = 0, missing = null, tattered = true, jawOpen = R(0.1, 0.5), lit = true } = o;
+  const g = new THREE.Group(); g.name = name;
+  g.rotation.set(0, rot, 0); g.scale.setScalar(S);
+  const B = pick(BONES);
+  const aiming = pose === 'aim' || pose === 'volley';
+
+  const stride = aiming ? R(0.22, 0.34) : R(0.12, 0.26);
+  const torso = new THREE.Group(); torso.name = name + '_torso';
+  torso.position.y = 0.92; torso.rotation.set(lean, twist, 0);
+  g.add(torso);
+
+  const pelvis = add(new THREE.SphereGeometry(0.155, 14, 10), B, name + '_pelvis', torso);
+  pelvis.position.y = 0.01; pelvis.scale.set(1.05, 0.62, 0.72);
+  for (const s of [1, -1]) {
+    const crest = add(new THREE.SphereGeometry(0.105, 12, 9), B, name + '_ilium_' + (s > 0 ? 'l' : 'r'), torso);
+    crest.position.set(s * 0.115, 0.075, 0.01);
+    crest.scale.set(0.42, 1.0, 0.88);
+    crest.rotation.z = s * 0.30;
+  }
+  const sacrum = add(new THREE.SphereGeometry(0.085, 10, 8), B, name + '_sacrum', torso);
+  sacrum.position.set(0, 0.05, -0.10); sacrum.scale.set(0.85, 1.15, 0.6);
+  const spineTop = V(0, 0.62, 0);
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6;
+    const v = knob(V(0, 0.06 + t * 0.56, -0.02 + Math.sin(t * 2.2) * 0.03), 0.045, name + '_vert_' + i, B, torso);
+    v.scale.set(1.3, 0.8, 1);
+  }
+  for (let i = 0; i < 5; i++) {
+    const y = 0.20 + i * 0.085, w = 0.20 - Math.abs(i - 1.6) * 0.016;
+    for (const s of [1, -1]) {
+      const sweep = Math.PI * (0.62 + (i % 2) * 0.10 + i * 0.02);
+      const droop = 0.10 + i * 0.045;
+      const rb = add(new THREE.TorusGeometry(w, 0.019, 5, 12, sweep), B, name + '_rib_' + i + (s > 0 ? 'l' : 'r'), torso);
+      rb.position.set(s * 0.012, y, 0.015 - i * 0.012);
+      rb.rotation.set(Math.PI / 2 - droop, s * 0.06, s > 0 ? Math.PI * (0.58 + i * 0.01) : Math.PI * (1.42 - i * 0.01));
+      rb.scale.z = 0.58 + i * 0.03;
+    }
+  }
+  bar(V(0, 0.22, 0.08), V(0, 0.50, 0.07), 0.028, 0.022, name + '_sternum', B, torso, 6);
+  const clav = V(0, 0.56, 0.02);
+  for (const s of [1, -1]) bar(clav, V(s * 0.19, 0.58, 0.02), 0.022, 0.022, name + '_clavicle_' + (s > 0 ? 'l' : 'r'), B, torso, 6);
+
+  /* skull — aimers lay the cheek toward the stock and sight along it;
+     spanners look down at the stirrup */
+  const head = new THREE.Group(); head.name = name + '_head';
+  head.position.copy(spineTop).add(V(0, 0.10, 0.02));
+  if (aiming) head.rotation.set(0.12 - lean - elev * 0.6, 0.22, -0.16);
+  else if (pose === 'span') head.rotation.set(0.38 - lean * 0.5, R(-0.15, 0.15), R(-0.08, 0.08));
+  else head.rotation.set(R(-0.1, 0.22) - lean, R(-0.3, 0.3), R(-0.08, 0.08));
+  torso.add(head);
+  const skull = add(new THREE.SphereGeometry(0.135, 14, 11), B, name + '_skull', head);
+  skull.scale.set(0.94, 1.0, 1.06);
+  add(new THREE.BoxGeometry(0.17, 0.11, 0.10), B, name + '_maxilla', head).position.set(0, -0.07, 0.10);
+  for (const s of [1, -1]) {
+    const sock = add(new THREE.SphereGeometry(0.048, 10, 8), M.socket, name + '_socket_' + (s > 0 ? 'l' : 'r'), head);
+    sock.position.set(s * 0.058, 0.005, 0.10); sock.scale.set(1, 0.95, 0.8);
+    add(new THREE.SphereGeometry(0.024, 8, 7), lit ? M.eye : M.socket, name + '_eye_' + (s > 0 ? 'l' : 'r'), head)
+      .position.set(s * 0.058, 0.005, 0.125);
+    add(new THREE.BoxGeometry(0.03, 0.06, 0.05), B, name + '_cheek_' + (s > 0 ? 'l' : 'r'), head).position.set(s * 0.105, -0.025, 0.06);
+  }
+  const nasal = add(new THREE.SphereGeometry(0.022, 7, 6), M.socket, name + '_nasal', head);
+  nasal.position.set(0, -0.035, 0.14); nasal.scale.set(0.8, 1.4, 0.6);
+  const jaw = add(new THREE.BoxGeometry(0.155, 0.055, 0.14), B, name + '_jaw', head);
+  jaw.position.set(0, -0.155 - jawOpen * 0.05, 0.055 + jawOpen * 0.02);
+  jaw.rotation.x = -jawOpen * 0.55;
+  for (let i = 0; i < 6; i++)
+    add(new THREE.BoxGeometry(0.018, 0.03, 0.018), M.bone, name + '_tooth_' + i, head).position.set((i - 2.5) * 0.026, -0.115, 0.125);
+
+  function arm(side, target) {
+    const sd = side > 0 ? 'l' : 'r';
+    const sh = V(side * 0.21, 0.55, 0.01);
+    let el, wr;
+    if (target) {
+      wr = target.clone();
+      el = sh.clone().add(wr).multiplyScalar(0.5).add(V(side * 0.14, -0.10, -0.04));
+    } else { el = V(side * 0.26, 0.28, -0.02); wr = V(side * 0.27, 0.02, 0.06); }
+    knob(sh, 0.055, name + '_shoulder_' + sd, B, torso);
+    longBone(sh, el, 0.032, name + '_humerus_' + sd, B, torso);
+    longBone(el, wr, 0.026, name + '_forearm_' + sd, B, torso);
+    const hand = new THREE.Group(); hand.name = name + '_hand_' + sd;
+    hand.position.copy(wr);
+    hand.quaternion.setFromUnitVectors(V(0, 1, 0), wr.clone().sub(el).normalize());
+    torso.add(hand);
+    knob(V(0, 0.03, 0), 0.042, name + '_palm_' + sd, B, hand);
+    for (let i = 0; i < 3; i++)
+      bar(V((i - 1) * 0.026, 0.05, 0.01), V((i - 1) * 0.03, 0.07, 0.07), 0.013, 0.010, name + '_finger_' + sd + '_' + i, B, hand, 5);
+    return hand;
+  }
+
+  /* ---- the crossbow, placed in torso space; grip points are read off the
+     stock itself so both hands close on the wood at any angle ---- */
+  let butt, dir, up;
+  if (aiming) {
+    /* butt bedded just inside the right shoulder; elevation authored above
+       the lean so the world elevation is `elev` */
+    butt = V(0.13, 0.54, 0.14);
+    const el = elev + lean;
+    dir = V(-0.02, Math.sin(el), Math.cos(el)).normalize();
+    up = V(0, 1, 0);
+  } else if (pose === 'port') {
+    butt = V(0.22, 0.02, 0.28);
+    dir = V(-0.40, 0.85, 0.34).normalize();
+    up = V(0, -0.2, 1);
+  } else {
+    /* span: stirrup's bottom solved backwards from the world ground, the
+       way the spearmen's braced ferrules are */
+    const nx = 0, nz = 0.56;
+    const zt = -nx * Math.sin(twist) + nz * Math.cos(twist);
+    const ny = (0.115 - 0.92 + zt * Math.sin(lean)) / Math.cos(lean);
+    dir = V(0, -1, 0.30).normalize();
+    butt = V(nx, ny, nz).sub(dir.clone().multiplyScalar(XB.L));
+    up = V(0, 0, -1);
+  }
+  const xb = crossbow(torso, name + '_crossbow', { drawn: pose !== 'span', loaded: pose !== 'span', lit });
+  xb.position.copy(butt);
+  const ax = orient(xb, dir, up);
+  const cp = (d, lx = 0, lz = 0) => butt.clone()
+    .add(ax.y.clone().multiplyScalar(d)).add(ax.x.clone().multiplyScalar(lx)).add(ax.z.clone().multiplyScalar(lz));
+
+  if (aiming) {
+    arm(-1, cp(0.36, 0, -0.06));                       // fore hand cradles the stock
+    arm(1, cp(0.16, 0, -0.03).add(V(0.045, 0, 0)));    // trigger hand on the lever
+  } else if (pose === 'port') {
+    arm(1, cp(0.14, 0, -0.03).add(V(0.04, 0, 0)));
+    arm(-1, cp(0.46, 0, -0.04).add(V(-0.04, 0, 0)));
+  } else {
+    for (const s of [1, -1]) arm(s, cp(0.06, 0, 0).add(V(s * 0.055, 0, 0.02)));
+    /* the string runs from both nocks back up to the belt hook */
+    const hook = V(0, 0.05, 0.165);
+    add(new THREE.BoxGeometry(0.035, 0.05, 0.03), M.rust, name + '_belt_hook', torso).position.copy(hook);
+    for (const s of [1, -1])
+      bar(cp(XB.TIP_Y, s * XB.TIP_X, 0.02), hook.clone().add(V(s * 0.01, -0.01, 0.01)), 0.0055, 0.0055,
+          name + '_span_string_' + (s > 0 ? 'a' : 'b'), M.string, torso, 4);
+  }
+
+  /* legs — contact heights solved in world terms (see spearmen) */
+  const worldY = (x, y, z) => 0.92 + (y * Math.cos(lean) - (-x * Math.sin(twist) + z * Math.cos(twist)) * Math.sin(lean));
+  for (const s of [1, -1]) {
+    const sd = s > 0 ? 'l' : 'r';
+    /* aimers take a braced stance: left foot forward, right foot back */
+    const fwd = aiming ? (s < 0 ? stride : -stride * 0.7) : (s > 0 ? stride : -stride);
+    const hip = V(s * 0.13, 0.0, 0);
+    const knee = V(s * 0.15, -0.44, fwd * 0.75 + 0.02);
+    const ankle = V(s * (aiming ? 0.18 : 0.15), -0.84, fwd);
+    const CONTACTS = [[0, -0.043, -0.02], [0, -0.016, 0.15]];
+    ankle.y += Math.min(...CONTACTS.map(([cx, cy, cz]) =>
+      -worldY(ankle.x + cx, ankle.y + cy, ankle.z + cz) / Math.cos(lean)));
+    if (missing === 'leg' && s < 0 && !aiming) {
+      longBone(hip, knee, 0.038, name + '_femur_' + sd, B, torso);
+      bar(knee, knee.clone().add(V(0, -0.16, fwd * 0.3)), 0.03, 0.018, name + '_tibia_broken_' + sd, B, torso);
+      continue;
+    }
+    knob(hip, 0.055, name + '_hip_' + sd, B, torso);
+    longBone(hip, knee, 0.04, name + '_femur_' + sd, B, torso);
+    longBone(knee, ankle, 0.032, name + '_tibia_' + sd, B, torso);
+    bar(knee.clone().add(V(s * 0.04, 0.02, 0.03)), ankle.clone().add(V(s * 0.04, 0, 0.01)), 0.016, 0.014, name + '_fibula_' + sd, B, torso, 6);
+    const ft = new THREE.Group(); ft.name = name + '_foot_' + sd;
+    ft.position.copy(ankle).add(V(0, -0.045, 0));
+    torso.add(ft);
+    knob(V(0, 0.02, -0.02), 0.045, name + '_heel_' + sd, B, ft);
+    for (let i = 0; i < 4; i++)
+      bar(V((i - 1.5) * 0.025, 0.02, 0.01), V((i - 1.5) * 0.034, 0.012, 0.15), 0.013, 0.010, name + '_toe_' + sd + '_' + i, B, ft, 5);
+  }
+
+  /* bolt quiver on the left hip, clear of the trigger hand */
+  {
+    const q = new THREE.Group(); q.name = name + '_quiver';
+    q.position.set(-0.275, 0.02, -0.06); q.rotation.set(-0.12, 0, 0.16);
+    torso.add(q);
+    add(new THREE.CylinderGeometry(0.056, 0.046, 0.30, 9), M.leather, name + '_quiver_case', q);
+    const rim = add(new THREE.TorusGeometry(0.056, 0.010, 5, 12), M.rust, name + '_quiver_rim', q);
+    rim.rotation.x = Math.PI / 2; rim.position.y = 0.15;
+    const count = 3 + Math.floor(rnd() * 4);
+    for (let i = 0; i < count; i++) {
+      const a = i * 2.4 + R(-0.3, 0.3), r = R(0.012, 0.030);
+      const b = bolt(q, name + '_quiver_bolt_' + i, 0.34);
+      /* bolts stand head-down in the case, fletching up */
+      b.rotation.set(Math.PI + R(-0.08, 0.08), 0, R(-0.08, 0.08));
+      b.position.set(Math.cos(a) * r, 0.32 + R(0, 0.03), Math.sin(a) * r);
+    }
+    bar(V(-0.16, 0.055, 0.10), V(-0.25, 0.13, -0.02), 0.012, 0.012, name + '_quiver_strap', M.leather, torso, 5);
+  }
+
+  if (tattered) {
+    [1, -1].forEach((face) => {
+      const strips = 3 + Math.floor(rnd() * 2);
+      const pitch = 0.072, w = 0.105;
+      const base = face > 0 ? R(0.34, 0.46) : R(0.26, 0.40);
+      for (let i = 0; i < strips; i++) {
+        const drop = Math.max(0.14, base * (1 - Math.abs(i - R(0, strips - 1)) * 0.22) + R(-0.07, 0.05));
+        const x = (i - (strips - 1) / 2) * pitch + R(-0.012, 0.012);
+        const strip = add(new THREE.BoxGeometry(w, drop, 0.014), M.cloth,
+          name + '_tabard_' + (face > 0 ? 'front' : 'back') + '_' + i, torso);
+        strip.position.set(x, 0.01 - drop * 0.5, face * (0.16 + Math.abs(x) * 0.12));
+        strip.rotation.set(face * R(0.02, 0.14), R(-0.10, 0.10) + x * 0.5, R(-0.08, 0.08));
+      }
+    });
+    const hang = add(new THREE.BoxGeometry(R(0.07, 0.10), R(0.26, 0.40), 0.014), M.cloth, name + '_hip_rag', torso);
+    hang.position.set(R(0.18, 0.22), -0.30, R(-0.05, 0.03));
+    hang.rotation.set(R(-0.12, 0.12), R(-0.25, 0.25), R(-0.10, 0.02));
+    const pauldron = add(new THREE.SphereGeometry(0.11, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.rust, name + '_pauldron', torso);
+    pauldron.position.set(-0.21, 0.58, 0.01); pauldron.scale.set(1, 0.7, 1.1);
+    const belt = add(new THREE.BoxGeometry(0.30, 0.055, 0.045), M.leather, name + '_belt', torso);
+    belt.position.set(0, 0.055, 0.115); belt.rotation.x = R(-0.06, 0.06);
+    add(new THREE.BoxGeometry(0.06, 0.06, 0.02), M.rust, name + '_buckle', torso).position.set(pose === 'span' ? 0.07 : R(-0.04, 0.04), 0.055, 0.145);
+    /* crossbowmen wear kettle hats — a brim to shade the sight line */
+    if (rnd() < 0.6) {
+      const helm = add(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), M.rust, name + '_kettle_hat', head);
+      helm.position.y = 0.035; helm.scale.set(1, 0.9, 1.04);
+      const brim = add(new THREE.CylinderGeometry(0.235, 0.24, 0.018, 16), M.rust, name + '_kettle_brim', head);
+      brim.position.y = 0.035; brim.rotation.x = R(-0.08, 0.08);
+    }
+  }
+  return g;
+}
+
+/* ============================ THE COMPANY ============================
+   A line of pavises with the front rank shooting over them, a second rank
+   lofting bolts over their heads, and a rear rank spanning and waiting. */
+const unit = new THREE.Group(); unit.name = 'crossbowmen'; rig.add(unit);
+const RANKS = [
+  { z:  1.35, xs: [-2.10, -1.05, 0.00, 1.05, 2.10], pose: 'aim' },
+  { z:  0.05, xs: [-1.58, -0.53, 0.53, 1.58], pose: 'volley' },
+  { z: -1.25, xs: [-2.10, -1.05, 0.00, 1.05, 2.10], pose: 'rear' },
+];
+let n = 0;
+RANKS.forEach((rank) => {
+  rank.xs.forEach((x, i) => {
+    const pose = rank.pose === 'rear' ? (i % 2 ? 'span' : 'port') : rank.pose;
+    const S = R(0.95, 1.06), rot = rank.pose === 'aim' ? R(-0.08, 0.08) : R(-0.12, 0.12);
+    const lit = rnd() < 0.85;
+    const sk = skeleton({
+      name: 'crossbowman_' + (n++), scale: S, rot,
+      lean: pose === 'span' ? R(0.16, 0.26) : R(0.02, 0.08),
+      twist: pose === 'aim' ? R(-0.06, 0.06) : R(-0.10, 0.10),
+      pose, elev: pose === 'volley' ? R(0.34, 0.44) : R(-0.02, 0.03),
+      missing: rnd() < 0.12 ? 'leg' : null, lit,
+    });
+    const px = x + R(-0.08, 0.08), pz = rank.z + R(-0.08, 0.08);
+    sk.position.set(px, 0, pz);
+    unit.add(sk);
+    if (rank.pose === 'aim') {
+      /* each front man's pavise, set square to his aim and leaning back
+         toward him on a prop */
+      const off = V(0.13 * S, 0, 1.15 * S).applyAxisAngle(V(0, 1, 0), rot);
+      const pv = pavise(unit, 'pavise_' + i, lit);
+      pv.position.set(px + off.x, 0.005, pz + off.z);
+      pv.rotation.set(-0.2, rot + R(-0.05, 0.05), 0, 'YXZ');
+      pv.updateMatrixWorld(true);
+      const top = pv.localToWorld(V(0, 0.55, -0.03));
+      const foot = pv.localToWorld(V(0, 0, -0.34)); foot.y = 0.015;
+      bar(top, foot, 0.022, 0.018, 'pavise_' + i + '_prop', M.wood, unit, 6);
+    }
+  });
+});
+
+/* flank guards, turned outward to cover the line's edges */
+[[-3.25, 0.55, -1.2], [3.25, 0.55, 1.2]].forEach(([x, z, face], i) => {
+  const sk = skeleton({
+    name: 'crossbowman_flank_' + i, scale: R(0.94, 1.04), rot: face + R(-0.15, 0.15),
+    lean: R(0.02, 0.08), twist: R(-0.06, 0.06), pose: 'aim', elev: R(0.0, 0.08), lit: rnd() < 0.8,
+  });
+  sk.position.set(x, 0, z);
+  unit.add(sk);
+});
+
+/* the fallen */
+for (let i = 0; i < 12; i++) {
+  const a = R(0, 6.283), d = R(1.0, 3.4);
+  const r = R(0.022, 0.032);
+  const p = V(Math.cos(a) * d, r * 1.5, Math.sin(a) * d - 1.6);
+  const q = p.clone().add(V(R(-0.34, 0.34), R(0, 0.03), R(-0.34, 0.34)));
+  longBone(p, q, r, 'fallen_bone_' + i, M.boneDk, rig);
+}
+{
+  /* a dropped crossbow lying top-up behind the line */
+  const holder = new THREE.Group(); holder.name = 'dropped_crossbow';
+  holder.position.set(R(-1.8, 1.8), 0.085, R(-3.1, -2.4)); holder.rotation.y = R(0, 6.283);
+  rig.add(holder);
+  crossbow(holder, 'dropped_crossbow_body', { drawn: false, loaded: false, lit: false }).rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 4; i++) {
+    const b = bolt(rig, 'spilled_bolt_' + i, 0.40);
+    b.position.set(holder.position.x + R(-0.5, 0.5), 0.017, holder.position.z + R(-0.5, 0.5));
+    b.rotation.set(0, R(0, 6.283), 0); b.rotateX(Math.PI / 2);
+  }
+  const sk = add(new THREE.SphereGeometry(0.135, 12, 10), M.boneDk, 'fallen_skull', rig);
+  sk.position.set(R(-1.8, 1.8), 0.175, R(-3.2, -2.3)); sk.rotation.set(1.2, R(0, 3), 0.3);
+}
+
+rig.updateMatrixWorld(true);
+const box = new THREE.Box3().setFromObject(rig);
+const c = box.getCenter(V());
+const wrap = new THREE.Group(); wrap.name = 'skeleton_crossbowmen';
+rig.position.set(-c.x, -box.min.y, -c.z);
+wrap.add(rig);
+stage.setObject(wrap);
+</script>
+</body>
+</html>
