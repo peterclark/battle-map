@@ -84,7 +84,23 @@ const FOOT = {
     spacing: 0.88,
     grips: ["braced", "levelled"],
   },
-  "undead.bow": { weapon: "bow", palette: "undead", build: "skeleton" },
+  // The Bowmen carry crossbows, because the reference built for them does:
+  // a crossbow levelled is a cross from above, where a bow is a thin arc. A
+  // front rank aims flat over a row of pavises, a second lofts over their
+  // heads and the rear carries its bows across the chest — all three within
+  // 30° of level, so every bow shows its cross. Seven by three rather than
+  // five by three, which measured 2.1:1 and was fitted to its own depth.
+  "undead.bow": {
+    weapon: "crossbow",
+    palette: "undead",
+    build: "skeleton",
+    files: 7,
+    ranks: 3,
+    spacing: 0.88,
+    grips: ["aim", "volley", "port"],
+    quiver: true,
+    pavises: true,
+  },
   // Zombies and ghouls do not dress ranks. They come in a wide shambling
   // crowd, which is the read — and now that the skeletons are bone rather
   // than narrow men, this is the read that has to carry the difference twice

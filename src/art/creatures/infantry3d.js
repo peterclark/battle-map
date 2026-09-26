@@ -225,6 +225,25 @@ const GRIPS = {
   // is tall, which steepens anything leaning fore-and-aft, and at -0.72 this
   // came out 36° off the vertical on the board rather than the 41° written.
   levelled: { rest: -0.85, swing: 0.2, splay: 0.06, planted: false },
+
+  // The crossbow ranks, from `docs/reference/skeleton-bowmen.html`: a front
+  // rank aiming flat over its pavises, a second lofting over their heads, and
+  // a rear rank waiting with the bow carried across the chest. A crossbow's
+  // read from above is its cross, which only exists while the stock and the
+  // prod both lie near flat, so every rank keeps its bow within about 30° of
+  // level. The reference's spanning men, stirrup down and stock on end, are
+  // not taken: that is a dot.
+  //
+  // `dip` is how far the fight lowers the weapon; a spear dips its point for
+  // the charge and a crossbow does not. `steady` men stand their ground like
+  // braced ones. `shoots` puts the strike on the slow loosing clock, and a
+  // negative `swing` is the kick of the stock as the bolt goes.
+  aim: { rest: -1.5, swing: -0.1, splay: 0.04, dip: 0, steady: true, shoots: true },
+  volley: { rest: -1.12, swing: -0.1, splay: 0.02, dip: 0, steady: true, shoots: true },
+  // Levelled and then swung round in the horizontal plane, so the stock runs
+  // from the right hip across to the left hand and the prod lies flat beside
+  // it — the "across the body" the direction for this unit asked for.
+  port: { rest: -1.45, swing: 0, splay: 1.15, dip: 0 },
 };
 
 // How far in front of the hand a braced spear runs. Shorter than a carried
@@ -1132,6 +1151,153 @@ const spearParts = (p, butt = 0.18, reach = 1.74) => [
   ),
 ];
 
+// A crossbow built along its own length, ported from the reference: a stock
+// with a butt deepened to bed into a shoulder, a nut and trigger lever, a
+// steel prod whose limbs sweep back toward the shooter, the lashing that
+// holds it, a foot stirrup at the nose, the string drawn to the nut and a
+// bolt in the groove. The hand is at the origin with the stock running up +Y
+// and its top toward +Z, as a spear's is, so a grip can level it. The
+// reference's own numbers, from its butt along the stock, scaled to this rig
+// and a little over, because the prod's span is the whole read from above.
+const XB = { K: 0.8, L: 0.78, NUT: 0.42, TIP_Y: 0.633, TIP_X: 0.2727, HAND: 0.16 };
+const crossbowParts = (p) => {
+  const { K, L, NUT, TIP_Y, TIP_X, HAND } = XB;
+  // Reference coordinates to this buffer: along the stock from the hand, and
+  // up from the axis the hand sits under
+  const v = (x, y, z) => [x * K, (y - HAND) * K, (z + 0.03) * K];
+  const bolt = NUT + 0.015;
+  return [
+    part(new THREE.BoxGeometry(0.045 * K, L * K, 0.06 * K), p.haft, {
+      pos: v(0, L / 2, 0),
+      ...WOOD,
+    }),
+    part(new THREE.BoxGeometry(0.06 * K, 0.26 * K, 0.1 * K), p.haft, {
+      pos: v(0, 0.13, -0.015),
+      ...WOOD,
+    }),
+    part(new THREE.CylinderGeometry(0.018 * K, 0.018 * K, 0.052 * K, 8), p.metal, {
+      pos: v(0, NUT, 0.034),
+      rot: [0, 0, Math.PI / 2],
+      ...STEEL,
+    }),
+    part(
+      spanning(v(0, NUT, -0.03), v(0, NUT - 0.24, -0.075), 0.009 * K, 0.007 * K, 5),
+      p.metalDark,
+      RUST
+    ),
+    // The prod: an arc about the stock, apex forward, limbs swept back
+    part(new THREE.TorusGeometry(0.4 * K, 0.024 * K, 6, 16, 1.5), p.metal, {
+      pos: v(0, L - 0.44, 0.02),
+      rot: [0, 0, Math.PI / 2 - 0.75],
+      ...IRON,
+    }),
+    part(new THREE.BoxGeometry(0.075 * K, 0.07 * K, 0.085 * K), p.haft, {
+      pos: v(0, L - 0.05, 0.005),
+      ...HIDE,
+    }),
+    ...[1, -1].map((s) =>
+      part(new THREE.SphereGeometry(0.022 * K, 8, 6), p.metal, {
+        pos: v(s * TIP_X, TIP_Y, 0.02),
+        ...IRON,
+      })
+    ),
+    // Lying in the stock's plane, so from above it is a ring at the nose
+    part(new THREE.TorusGeometry(0.068 * K, 0.012 * K, 5, 12), p.metalDark, {
+      pos: v(0, L + 0.05, 0),
+      ...IRON,
+    }),
+    // Drawn back to the nut. Pale, so the V it makes survives the portrait.
+    ...[1, -1].map((s) =>
+      part(
+        spanning(v(s * TIP_X, TIP_Y, 0.02), v(s * 0.012, NUT, 0.034), 0.007 * K, 0.007 * K, 4),
+        p.shieldTrim,
+        CLOTH
+      )
+    ),
+    part(new THREE.CylinderGeometry(0.008 * K, 0.008 * K, 0.4 * K, 5), p.haft, {
+      pos: v(0, bolt + 0.2, 0.045),
+      ...WOOD,
+    }),
+    part(new THREE.ConeGeometry(0.016 * K, 0.07 * K, 4), p.metalDark, {
+      pos: v(0, bolt + 0.43, 0.045),
+      ...RUST,
+    }),
+    ...[0, Math.PI / 2].map((turn) =>
+      part(new THREE.BoxGeometry(0.004 * K, 0.07 * K, 0.026 * K), p.haft, {
+        pos: v(0, bolt + 0.05, 0.045),
+        rot: [0, turn, 0],
+        ...CLOTH,
+      })
+    ),
+  ];
+};
+
+// A pavise: the tall standing shield crossbowmen shoot over. Board, raised
+// ridge, rusted bands and edges, a boss, and a grave-cloth hung over the top
+// where the painted field used to be. Built face toward -Z, foot on y = 0,
+// and leaned back toward the man behind it so the face turns up to the
+// camera — upright, a pavise is a line from above.
+const PAVISE = { width: 0.5, height: 0.62, lean: 0.42, ahead: 0.62, aside: 0.08 };
+const paviseParts = (p, [x, y, z], yaw, n) => {
+  const { width: w, height: h, lean } = PAVISE;
+  const place = (geometry, colour, pos, finish, rot = [0, 0, 0]) =>
+    part(at(geometry, { pos, rot }), colour, {
+      rot: [lean, yaw, 0],
+      pos: [x, y, z],
+      ...finish,
+    });
+  // A point in the board's own frame, where it ends up on the ground.
+  // `flat` points are carried round by the yaw alone, not leaned with it.
+  const onBoard = (point, flat = false) =>
+    new THREE.Vector3(...point)
+      .applyEuler(new THREE.Euler(flat ? 0 : lean, yaw, 0, "YXZ"))
+      .add(new THREE.Vector3(x, y, z))
+      .toArray();
+  const rag = 0.1 + noise(n + 17) * 0.06;
+  return [
+    place(
+      bevelled(
+        [
+          [-w / 2, 0],
+          [w / 2, 0],
+          [w / 2, h * 0.92],
+          [w * 0.38, h],
+          [-w * 0.38, h],
+          [-w / 2, h * 0.92],
+        ],
+        0.03,
+        0.008
+      ),
+      p.shield,
+      [0, 0, 0],
+      WOOD
+    ),
+    place(new THREE.BoxGeometry(0.08, h * 0.94, 0.02), p.haft, [0, h * 0.48, -0.02], WOOD),
+    ...[0.19, 0.8].map((up) =>
+      place(new THREE.BoxGeometry(w + 0.01, 0.028, 0.036), p.metalDark, [0, h * up, 0], RUST)
+    ),
+    ...[1, -1].map((s) =>
+      place(new THREE.BoxGeometry(0.02, h * 0.92, 0.036), p.metalDark, [(s * w) / 2, h * 0.46, 0], RUST)
+    ),
+    place(
+      new THREE.SphereGeometry(0.045, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      p.metal,
+      [0, h * 0.54, -0.02],
+      STEEL,
+      [-Math.PI / 2, 0, 0]
+    ),
+    place(
+      new THREE.BoxGeometry(rag, rag * 2.2, 0.008),
+      p.cloth,
+      [(noise(n + 23) - 0.5) * w * 0.5, h - rag * 1.05, -0.024],
+      CLOTH,
+      [0, 0, (noise(n + 29) - 0.5) * 0.16]
+    ),
+    // The prop, from the back of the board to the ground behind it
+    part(spanning(onBoard([0, h * 0.5, 0.02]), onBoard([0, 0, 0.3], true), 0.014, 0.012, 6), p.haft, WOOD),
+  ];
+};
+
 // How each weapon is built, how the block carrying it forms up, and how it is
 // posed. Keeping the three together means a new weapon is one entry rather
 // than edits scattered through the file.
@@ -1349,6 +1515,10 @@ const WEAPONS = {
         ...WOOD,
       }),
     ],
+    // The reference's crossbow, built along its length so a grip can level
+    // it. Only a block that holds its bows by rank uses it; every other
+    // crossbow block keeps the one above and the pose below.
+    gripped: (p) => crossbowParts(p),
     // Levelled, because that is both how a crossbow is carried ready and how
     // it turns its cross toward the camera
     rest: 1.35,
@@ -1546,7 +1716,7 @@ const withHand = (geometry, p, body) =>
 // than one head: half the skeletons kept the helm they were buried in and
 // half did not, and alternating between two buffers gives twenty figures that
 // variety for the cost of one extra buffer and no extra meshes at all.
-const buildBuffers = (weapon, spec, p, body, grips) => ({
+const buildBuffers = (weapon, spec, p, body, grips, quiver) => ({
   body: merge(bodyParts(p, body)),
   heads: (body.bone ? [false, true] : [false]).map((helmed) =>
     merge(headParts(p, body, helmed))
@@ -1555,7 +1725,7 @@ const buildBuffers = (weapon, spec, p, body, grips) => ({
   shin: merge(shinParts(p, body)),
   shield: spec.shield
     ? withHand(merge(shieldParts(p)), p, body)
-    : weapon === "bow"
+    : weapon === "bow" || quiver
       ? // No shield, so a quiver takes the slot and gives the figure a second
         // shape at its back
         merge([
@@ -1583,7 +1753,11 @@ const buildBuffers = (weapon, spec, p, body, grips) => ({
           ),
         ])
     : null,
-  weapon: withHand(merge(spec.parts(p)), p, body),
+  weapon: withHand(
+    merge((grips.length && spec.gripped ? spec.gripped : spec.parts)(p)),
+    p,
+    body
+  ),
   // Only built when a rank actually braces, so every other block pays nothing
   braced:
     spec.braced && grips.some((g) => g.planted)
@@ -1708,6 +1882,8 @@ export const buildInfantry = ({
   banner = false,
   dressing = "ranked",
   grips,
+  quiver = false,
+  pavises = false,
 } = {}) => {
   const spec = WEAPONS[weapon] ?? WEAPONS.axe;
   const p = PALETTES[palette] ?? PALETTES.orc;
@@ -1717,7 +1893,7 @@ export const buildInfantry = ({
   // One grip per rank, front first; the last is held by every rank behind it
   const held = (grips ?? []).map((g) => GRIPS[g]).filter(Boolean);
   const gripOf = (rank) => held[Math.min(rank, held.length - 1)];
-  const buffers = buildBuffers(weapon, spec, p, body, held);
+  const buffers = buildBuffers(weapon, spec, p, body, held, quiver);
 
   const root = new THREE.Group();
   const figures = [];
@@ -1791,6 +1967,26 @@ export const buildInfantry = ({
     if (litter) root.add(litter);
   }
 
+  // A pavise planted in front of every man in the front rank, all of them one
+  // mesh: they are set in the ground and do not move.
+  if (pavises) {
+    const ground = new THREE.Box3().setFromObject(root).min.y;
+    const front = figures.slice(0, across).filter((f) => !f.carriesBanner);
+    const wall = meshOf(
+      front.flatMap((figure, i) => {
+        const { x, z } = figure.group.position;
+        const yaw = figure.group.rotation.y;
+        const ahead = new THREE.Vector3(PAVISE.aside, 0, -PAVISE.ahead).applyAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          yaw
+        );
+        return paviseParts(p, [x + ahead.x, ground, z + ahead.z], yaw, i * 7);
+      }),
+      material
+    );
+    if (wall) root.add(wall);
+  }
+
   return { root, figures, spec, weapon, build: body, count: figures.length };
 };
 
@@ -1814,13 +2010,14 @@ const GAITS = {
 export const poseInfantry = (rig, time, state = "idle") => {
   const gait = GAITS[state] ?? GAITS.idle;
   const spec = rig.spec;
-  const shooting = rig.weapon === "bow";
 
   rig.figures.forEach((figure) => {
     const t = time * gait.rate + figure.phase;
+    const shooting = rig.weapon === "bow" || Boolean(figure.grip?.shoots);
     // A man bracing a spear against the ground stands his ground: he does not
-    // step or bob until the block moves off
-    const braced = figure.grip?.planted && state !== "march";
+    // step or bob until the block moves off. Nor does a man taking aim.
+    const braced =
+      (figure.grip?.planted || figure.grip?.steady) && state !== "march";
     const stride = gait.stride * (braced ? 0.25 : 1);
     const bob = gait.bob * (braced ? 0.25 : 1);
 
@@ -1870,7 +2067,7 @@ export const poseInfantry = (rig, time, state = "idle") => {
       // jab rather than a swing, because the shaft passes over a man's head
       figure.weapon.rotation.x =
         figure.grip.rest -
-        gait.ready * 0.4 -
+        gait.ready * (figure.grip.dip ?? 0.4) -
         strike * figure.grip.swing +
         Math.sin(t) * 0.04 * gait.stride;
       figure.weapon.rotation.z = figure.grip.splay;

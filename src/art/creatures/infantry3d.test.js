@@ -191,3 +191,95 @@ describe("the Skeleton Spearmen", () => {
     });
   });
 });
+
+describe("the Skeleton Bowmen", () => {
+  const company = () =>
+    buildInfantry({
+      weapon: "crossbow",
+      palette: "undead",
+      build: "skeleton",
+      files: 7,
+      ranks: 3,
+      spacing: 0.88,
+      grips: ["aim", "volley", "port"],
+      quiver: true,
+      pavises: true,
+    });
+
+  it("is wide and shallow enough to fill its stand across the front", () => {
+    // A levelled crossbow and a pavise in front of it both run forward, and
+    // every unit of that is depth. Five by three with bows measured 2.1:1.
+    const rig = company();
+    const rest = boxOf(rig.root).getSize(new THREE.Vector3());
+    expect(rest.x / rest.z).toBeGreaterThan(2.4);
+
+    const swept = new THREE.Box3();
+    ["idle", "march", "attack"].forEach((state) => {
+      for (let i = 0; i < 12; i += 1) {
+        poseInfantry(rig, i * 0.41, state);
+        swept.union(boxOf(rig.root));
+      }
+    });
+    const size = swept.getSize(new THREE.Vector3());
+    expect(size.x / size.z).toBeGreaterThan(2.4);
+  });
+
+  it("holds every crossbow near flat, so it shows its cross from above", () => {
+    // The stock and the prod only make a cross while both lie near level. The
+    // reference's spanning men hold theirs on end, which is a dot.
+    const rig = company();
+    const along = new THREE.Vector3();
+    const top = new THREE.Vector3();
+    ["idle", "march", "attack"].forEach((state) => {
+      for (let i = 0; i < 20; i += 1) {
+        poseInfantry(rig, i * 0.37, state);
+        rig.root.updateMatrixWorld(true);
+        rig.figures.forEach((figure) => {
+          along.set(0, 1, 0).transformDirection(figure.weapon.matrixWorld);
+          top.set(0, 0, 1).transformDirection(figure.weapon.matrixWorld);
+          // The stock at least ~55° off the vertical, pointing forward
+          expect(Math.acos(along.y)).toBeGreaterThan(0.96);
+          expect(along.z).toBeLessThan(0);
+          // and the prod's face turned up to the camera
+          expect(top.y).toBeGreaterThan(0.8);
+        });
+      }
+    });
+  });
+
+  it("never drops through the turf in any gait", () => {
+    const rig = company();
+    const rest = boxOf(rig.root).min.y;
+    ["idle", "march", "attack"].forEach((state) => {
+      for (let i = 0; i < 40; i += 1) {
+        poseInfantry(rig, i * 0.37, state);
+        expect(boxOf(rig.root).min.y).toBeGreaterThanOrEqual(rest - 0.02);
+      }
+    });
+  });
+
+  it("stays inside the mesh budget a block of foot is allowed", () => {
+    // Eight meshes a figure; the pavises, like the litter, are one mesh for
+    // the whole stand because they are planted and do not move
+    const rig = company();
+    let meshes = 0;
+    rig.root.traverse((o) => {
+      if (o.isMesh) meshes += 1;
+    });
+    expect(meshes).toBe(rig.count * 8 + 2);
+  });
+
+  it("leaves every other crossbow block holding its crossbow as it did", () => {
+    const rig = buildInfantry({ weapon: "crossbow", palette: "dwarf", build: "dwarf" });
+    let meshes = 0;
+    rig.root.traverse((o) => {
+      if (o.isMesh) meshes += 1;
+    });
+    // No pavises, no quiver in the shield slot
+    expect(meshes).toBe(rig.count * 7);
+    rig.figures.forEach((figure) => {
+      expect(figure.grip).toBeUndefined();
+      expect(figure.weapon.rotation.x).toBe(0);
+    });
+  });
+});

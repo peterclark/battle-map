@@ -11,6 +11,7 @@ the Vite build never sees them, and they are excluded from lint.
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
 | `skeleton-horde.html` | The Skeleton Horde: a pelvis, a spine, five pairs of ribs and long bones with a knuckle at each end, in loose ranks |
 | `skeleton-spearmen.html` | The Skeleton Spearmen: the same skeletons as a phalanx — a braced front rank, a levelled second, raised spears behind, and flankers turned outward |
+| `skeleton-bowmen.html` | The Skeleton Bowmen, built as crossbowmen: a front rank aiming over pavises, a second lofting over them, a rear rank carrying and spanning, and flankers |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -183,6 +184,58 @@ adds is how a spear block holds its spears, rank by rank.
 - **Not taken: the dropped shields and the broken spear.** For the same reason
   as the Horde's: flat on the turf, they read as holes in the ground. The
   fallen bones stay, from the skeleton build.
+
+### The Skeleton Bowmen
+
+The `aim`, `volley` and `port` grips, the `pavises` option and the gripped
+crossbow in `infantry3d.js` are a port of `skeleton-bowmen.html`. The page is
+titled *crossbowmen* and arms them that way, so the Bowmen carry crossbows: a
+levelled crossbow is a cross from above, which is a stronger read than a bow's
+thin arc. The skeleton is the Horde's again.
+
+- **Taken.** The crossbow, rebuilt from the reference's own numbers: stock and
+  deepened butt, nut and trigger lever, a steel prod whose limbs sweep back,
+  lashing, a foot stirrup, the string drawn to the nut and a bolt in the
+  groove. Built along its length from the hand, like the spear, so a grip can
+  level it. Scaled a little over the rig's proportions, because the prod's
+  span is what the camera sees. Crossbow blocks with no grips keep the old
+  crossbow, so the dwarves and orcs are unchanged.
+- **Taken.** The three ranks: the front aiming flat over its pavises, the
+  second lofting at about 30° over their heads, and the rear carrying its
+  bows. All three are steady rather than stepping in place, and loose on the
+  slow archer's clock, with the stock kicking up rather than a swing.
+- **Taken.** The pavises: a board with a ridge, rusted bands and edges, a
+  boss, a grave-cloth hung over the top and a prop behind. One is planted in
+  front of every man in the front rank, and all of them are one mesh because
+  none of them moves. They lean back further than the reference's, 0.42 rad
+  against 0.2, so the face turns up to the camera. Upright, a pavise is a line.
+- **Taken.** The bolt case on the left hip. It is the bow block's quiver.
+- **Not taken: the spanning men.** Half the reference's rear rank stands the
+  crossbow on its nose with a foot in the stirrup. From directly above, that
+  is a dot. The whole rear rank carries instead, and carries the bow across
+  the body — levelled, then swung round in the horizontal plane from the right
+  hip to the left hand — which is also what the issue's direction for this
+  unit asked for.
+- **Not taken: the port angle.** The reference carries the bow steeply up
+  across the chest, about 30° off the vertical. Here it lies flat.
+- **Not taken: the depth.** Five, four and five with flankers wide of the
+  line. Seven files by three ranks measures 2.6:1 at rest and across its
+  gaits, and uses the whole width of the stand. The old five by three was
+  2.1:1 and was fitted to its depth.
+- **Not taken: the flankers turned outward**, the missing legs, the dropped
+  crossbow, the spilled bolts and the fallen skull. The first read as
+  stragglers from above, and the rest are the same holes in the ground the
+  Horde and the Spearmen left out. The fallen bones stay, from the skeleton
+  build.
+- **Not taken: the kettle hats.** Half the skeletons keep the helm every
+  skeleton block already shares, which costs no buffer. A brim was not worth
+  a third head.
+- **Not taken: the head laid to the stock.** The skull already rakes back so
+  its face reads from above, and a cheek turned to a stock is under a pixel.
+- **Not taken: the butt at the shoulder.** This rig's arms are merged into
+  the body and end at the weapon anchor by the hip, so the bow is held there.
+  Moving the anchor would leave the hand floating off the forearm. From above
+  this makes no difference.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.
