@@ -10,6 +10,8 @@ the Vite build never sees them, and they are excluded from lint.
 | `ballista.html` | A dwarven field ballista: carriage, trail, turntable, recurved bow, windlass |
 | `abomination.html` | The Abomination: a heap of noise-displaced lumps with heads half swallowed in it, five limbs planted and twelve reaching |
 | `rat-swarm.html` | The Swarm of Rats: forty-three rats in three tiers, four coats, some of them rotted down to the ribs |
+| `skeleton-horde.html` | The Skeleton Horde: a pelvis, a spine, five pairs of ribs and long bones with a knuckle at each end, in loose ranks |
+| `skeleton-spearmen.html` | The Skeleton Spearmen: the same skeletons as a phalanx — a braced front rank, a levelled second, raised spears behind, and flankers turned outward |
 | `three-d-stage.js` | The turntable viewer the pages use — orbit, zoom, and OBJ/GLB export |
 
 ## Viewing them
@@ -150,6 +152,88 @@ disagreements are the interesting part:
   bright even pasture, so the mat read as vermin on a lawn. One bevelled,
   raggedly-outlined patch of churned mud under them, at a cost of one mesh,
   turns every gap into the swarm's own wake.
+
+### The Skeleton Horde
+
+The `skeleton` build in `infantry3d.js` is a port of `skeleton-horde.html`. It
+is a parameter rather than a file of its own, because a skeleton carries the
+same four weapons off the same eight groups as every other block of foot, and
+a second copy of that rig would drift from the first the day someone fixed a
+bug in one of them.
+
+- **Taken.** The anatomy: the flattened pelvis, seven vertebrae, five pairs of
+  ribs, the sternum and clavicles, long bones with a knuckle at each end, the
+  fibula alongside the tibia, heel and toe bones, and the skull with its
+  sockets, witchlight, slack jaw and cheekbones. Coordinates are the
+  reference's own, scaled by about 0.64 — it stands its figures 1.6 units tall
+  with the hips at 0.92, and this rig hangs its figures off hips at 0.52 — and
+  with z negated, because the reference presses forward along +z.
+- **Taken.** The tattered kit: a grave-cloth tabard, a belt, one rusted
+  pauldron on the arm that swings, and a helm on half of them. Half is two
+  head buffers alternating, which costs one buffer and no meshes at all.
+- **Taken.** The fallen, trampled into the ground behind the ranks.
+- **Not taken: a ribcage of equal hoops.** From an orbit camera a cage of five
+  even rings is unmistakable. From directly overhead the top ring hides the
+  four under it. The cage here **widens downward**, so the five ribs read as
+  nested arcs rather than as one hoop, and a dark core is built inside it —
+  the same thing the Abomination needed, for the same reason: a pale part
+  reads because something dark is behind it.
+- **Not taken: the face pointing forward.** A skull looking where it is going
+  is a pale dome and nothing else. It is tipped back so the face plane rakes
+  upward, which puts both sockets and the witchlight where they can be seen.
+- **Not taken: the crowd.** The reference is a round press of four ragged
+  ranks with flankers dragging in from the sides and no rank ever straight.
+  That is the read this unit must **not** have, because it is the read the
+  Zombies and the Ghoul Pack have: the confirmed brief is that the Horde is
+  the one Undead foot that dresses its lines. Seven files, three ranks, closed
+  up, and the flankers are gone.
+- **Not taken: iron.** The reference's helm is `pitted_steel` at 0.85
+  metalness. With no environment to reflect, that renders as a black ball
+  bigger than the skull inside it. The helm and the pauldron are rust here:
+  0.12 metalness, 0.84 roughness.
+- **Not taken: the dropped shields.** They were built, rendered and taken out
+  again. A dark disc lying flat on the turf at stand scale does not read as a
+  shield; it reads as a hole in the ground.
+- **Not taken: the nicks hacked out of the blade.** Detail below about four
+  pixels is wasted work, and a nick in a sword edge is well under one.
+
+### The Skeleton Spearmen
+
+The `grips` option on `buildInfantry` is a port of `skeleton-spearmen.html`.
+The skeleton itself is the Horde's and was not rebuilt; what this reference
+adds is how a spear block holds its spears, rank by rank.
+
+- **Taken.** The phalanx: a braced front rank with its butts planted in the
+  earth behind the heel and the shafts levelled low, and the rank behind it
+  levelling over the heads in front. The braced spear is the same weapon
+  gripped a third of the way up — a second buffer from the same function, not
+  a second mesh — and the length of shaft behind the hand is solved from the
+  grip's angle, so the butt meets the ground whatever the angle is set to.
+- **Taken.** Files staggered half a spacing rank to rank, so a levelled shaft
+  passes through the gap between the two men ahead of it. The rig already
+  dressed its ranks this way.
+- **Not taken: the rear ranks' spears held upright.** The reference raises
+  them into "a thicket of points above the formation". From an orbit camera
+  that is the most striking thing on the page; from directly above, a spear on
+  end is a dot, which is the mistake this project has paid for twice. Every
+  rank behind the first levels its spear forward instead, at about 44° off the
+  vertical on the board, and the block reads as a hedge.
+- **Not taken: the depth.** Five, five, five and four in four ranks, plus
+  flankers, is a square block, and square blocks fit their own depth and leave
+  the stand's width empty — the old five-by-five used half of it. Eight files
+  by three ranks measures 2.8:1 at rest and 2.6:1 across its gaits.
+- **Not taken: the flank file-closers** turned outward. From above they read
+  as stragglers, and their spears point off the sides of the block, widening
+  it past the ranks for nothing the camera can use.
+- **Not taken: the two-handed grip without a shield.** The reference's front
+  two ranks hold the shaft in both hands and carry no shield. A shield is the
+  broadest thing an infantryman has for a camera above him, and this rig's
+  arms are merged into the body, so they keep it.
+- **Not taken: the missing arms and legs.** A stump is well under four pixels
+  at stand scale, and a figure without its spear is a gap in the hedge.
+- **Not taken: the dropped shields and the broken spear.** For the same reason
+  as the Horde's: flat on the turf, they read as holes in the ground. The
+  fallen bones stay, from the skeleton build.
 
 `.claude/skills/army-animation/SKILL.md` carries the general form of all of the
 above; this folder is the primary source behind it.

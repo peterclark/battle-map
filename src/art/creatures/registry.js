@@ -58,18 +58,46 @@ const FOOT = {
 
   // The undead foot. Bone against dark turf is the one palette that gets its
   // contrast for nothing.
-  "undead.sword": { weapon: "sword", palette: "undead", build: "skeleton" },
-  "undead.spear": { weapon: "spear", palette: "undead", build: "skeleton" },
-  "undead.bow": { weapon: "bow", palette: "undead", build: "skeleton" },
-  // Zombies, ghouls and rats do not dress ranks. They come in a wide
-  // shambling crowd, which is the read.
-  "undead.shamble": {
+  //
+  // The Horde forms seven across and three deep rather than five by four,
+  // which is not a taste decision: five by four measured 1.6:1 against a band
+  // that is nearer 2.4:1, so it was scaled to fit its own depth and left a
+  // third of the width of the stand empty.
+  "undead.sword": {
     weapon: "sword",
     palette: "undead",
     build: "skeleton",
     files: 7,
     ranks: 3,
+    spacing: 0.88,
+  },
+  // The Spearmen are a phalanx: a braced front rank with its butts in the
+  // earth and two ranks levelling over it. Eight across and three deep,
+  // because five by five measured 1.2:1 and used half its stand's width, and
+  // because a braced spear runs forward and every unit of that is depth.
+  "undead.spear": {
+    weapon: "spear",
+    palette: "undead",
+    build: "skeleton",
+    files: 8,
+    ranks: 3,
+    spacing: 0.88,
+    grips: ["braced", "levelled"],
+  },
+  "undead.bow": { weapon: "bow", palette: "undead", build: "skeleton" },
+  // Zombies and ghouls do not dress ranks. They come in a wide shambling
+  // crowd, which is the read — and now that the skeletons are bone rather
+  // than narrow men, this is the read that has to carry the difference twice
+  // over: these still have their meat on. Neither is the rebuild they are
+  // owed; see the Zombie and Ghoul Pack issues.
+  "undead.shamble": {
+    weapon: "sword",
+    palette: "undead",
+    build: "man",
+    files: 7,
+    ranks: 3,
     spacing: 1.2,
+    dressing: "ragged",
   },
 
   // Mercenaries, half-orcs and wildmen: furs, no livery

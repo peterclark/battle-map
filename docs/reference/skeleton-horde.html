@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<title>Skeleton horde — 3D object</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "/node_modules/three/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "/node_modules/three/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "/node_modules/three/examples/jsm/exporters/GLTFExporter.js"
+  }
+}
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#efe9df}
+  three-d-stage:not(:defined){visibility:hidden}
+  three-d-stage{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<three-d-stage name="skeleton-horde" autorotate></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+const M = {
+  bone:   new THREE.MeshStandardMaterial({ name:'old_bone',     color:0xd2c5a6, roughness:0.66, metalness:0.0 }),
+  boneDk: new THREE.MeshStandardMaterial({ name:'stained_bone', color:0xb0a184, roughness:0.72, metalness:0.0 }),
+  socket: new THREE.MeshStandardMaterial({ name:'socket_dark',  color:0x1f1a1a, roughness:0.96, metalness:0.0 }),
+  eye:    new THREE.MeshStandardMaterial({ name:'witchlight',   color:0xbcd9a8, roughness:0.3, metalness:0.0, emissive:0x4d6b3a, emissiveIntensity:0.7 }),
+  steel:  new THREE.MeshStandardMaterial({ name:'pitted_steel', color:0x8c9096, roughness:0.48, metalness:0.85 }),
+  rust:   new THREE.MeshStandardMaterial({ name:'rust',         color:0x6d4530, roughness:0.85, metalness:0.25 }),
+  wood:   new THREE.MeshStandardMaterial({ name:'split_wood',   color:0x5c4632, roughness:0.88, metalness:0.0 }),
+  leather:new THREE.MeshStandardMaterial({ name:'rotted_leather',color:0x453427, roughness:0.90, metalness:0.0 }),
+  cloth:  new THREE.MeshStandardMaterial({ name:'grave_cloth',  color:0x6a6258, roughness:0.95, metalness:0.0 }),
+};
+const BONES = [M.bone, M.boneDk];
+
+const rig = new THREE.Group(); rig.name = 'skeleton_horde';
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const add = (geo, mat, name, parent) => { const m = new THREE.Mesh(geo, mat); m.name = name; parent.add(m); return m; };
+
+let seed = 51103307;
+const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+const R = (a, b) => a + rnd() * (b - a);
+const pick = (a) => a[Math.floor(rnd() * a.length) % a.length];
+
+function bar(a, b, r0, r1, name, mat, parent, seg = 8) {
+  const m = add(new THREE.CylinderGeometry(r1, r0, a.distanceTo(b), seg, 1), mat, name, parent);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+function knob(p, r, name, mat, parent) {
+  const m = add(new THREE.SphereGeometry(r, 8, 7), mat, name, parent);
+  m.position.copy(p); return m;
+}
+/* a long bone: shaft with a knuckle at each end, the way a real limb bone reads */
+function longBone(a, b, r, name, mat, parent) {
+  bar(a, b, r, r * 0.88, name, mat, parent);
+  knob(a, r * 1.45, name + '_head', mat, parent);
+  knob(b, r * 1.35, name + '_end', mat, parent);
+}
+
+/* ============================ GEAR ============================ */
+function sword(parent, name, len, lit) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  const steel = lit ? M.steel : M.rust;
+  const blade = add(new THREE.BoxGeometry(0.085, len, 0.022), steel, name + '_blade', g);
+  blade.position.y = len * 0.5 + 0.12;
+  const tip = add(new THREE.ConeGeometry(0.06, 0.18, 4), steel, name + '_tip', g);
+  tip.position.y = len + 0.16; tip.rotation.y = Math.PI / 4; tip.scale.z = 0.3;
+  const guard = add(new THREE.BoxGeometry(0.30, 0.035, 0.05), M.rust, name + '_guard', g);
+  guard.position.y = 0.10;
+  add(new THREE.CylinderGeometry(0.028, 0.028, 0.20, 8), M.leather, name + '_grip', g).position.y = -0.01;
+  knob(V(0, -0.12, 0), 0.04, name + '_pommel', M.rust, g);
+  /* a few nicks hacked out of the edge */
+  for (let i = 0; i < 2; i++) {
+    const n = add(new THREE.BoxGeometry(0.03, 0.05, 0.03), M.rust, name + '_nick_' + i, g);
+    n.position.set(0.045, len * R(0.35, 0.85), 0); n.rotation.z = R(0, 1);
+  }
+  return g;
+}
+function shield(parent, name, r) {
+  const g = new THREE.Group(); g.name = name; parent.add(g);
+  const face = add(new THREE.CylinderGeometry(r, r * 0.96, 0.05, 16), M.wood, name + '_face', g);
+  face.rotation.x = Math.PI / 2;
+  const rim = add(new THREE.TorusGeometry(r, 0.03, 6, 20), M.rust, name + '_rim', g);
+  const boss = add(new THREE.SphereGeometry(r * 0.26, 12, 8), M.steel, name + '_boss', g);
+  boss.position.z = -0.05; boss.scale.z = 0.7;
+  /* planks and a split across the face */
+  for (let i = -1; i <= 1; i++) {
+    const p = add(new THREE.BoxGeometry(0.022, r * 1.8, 0.02), M.rust, name + '_band_' + (i + 1), g);
+    p.position.set(i * r * 0.5, 0, -0.04);
+  }
+  const split = add(new THREE.BoxGeometry(0.018, r * 1.1, 0.07), M.socket, name + '_split', g);
+  split.position.set(r * 0.42, r * 0.3, -0.02); split.rotation.z = 0.2;
+  add(new THREE.CylinderGeometry(0.02, 0.02, r * 1.2, 6), M.leather, name + '_strap', g).position.z = 0.06;
+  return g;
+}
+
+/* ============================ ONE SKELETON ============================
+   Hips at local y = 0.92 and both heels at y = 0, so every trooper stands on
+   its own feet wherever it is dropped. */
+function skeleton(o) {
+  const { name = 'skel', scale: S = 1, rot = 0, lean = 0, twist = 0,
+          swordArm = 'raised', shieldUp = 0.5, missing = null, tattered = true,
+          jawOpen = R(0.1, 0.5), lit = true } = o;
+  const g = new THREE.Group(); g.name = name;
+  g.rotation.set(0, rot, 0); g.scale.setScalar(S);
+  const B = pick(BONES);
+
+  const stride = R(0.14, 0.34);           // mid-step, ranks never in lockstep
+  const torso = new THREE.Group(); torso.name = name + '_torso';
+  torso.position.y = 0.92; torso.rotation.set(lean, twist, 0);
+  g.add(torso);
+
+  /* pelvis + spine + ribcage */
+  const pelvis = add(new THREE.TorusGeometry(0.15, 0.06, 6, 12), B, name + '_pelvis', torso);
+  pelvis.rotation.x = Math.PI / 2; pelvis.scale.set(1, 1, 0.55);
+  const spineTop = V(0, 0.62, 0);
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6;
+    const v = knob(V(0, 0.06 + t * 0.56, -0.02 + Math.sin(t * 2.2) * 0.03), 0.045, name + '_vert_' + i, B, torso);
+    v.scale.set(1.3, 0.8, 1);
+  }
+  const sternum = V(0, 0.44, 0.09);
+  for (let i = 0; i < 5; i++) {
+    const y = 0.20 + i * 0.085, w = 0.20 - Math.abs(i - 1.6) * 0.016;
+    for (const s of [1, -1]) {
+      const rb = add(new THREE.TorusGeometry(w, 0.019, 5, 12, Math.PI * 0.95), B, name + '_rib_' + i + (s > 0 ? 'l' : 'r'), torso);
+      rb.position.set(0, y, 0.01);
+      rb.rotation.set(Math.PI / 2 - 0.12, 0, s > 0 ? Math.PI * 0.52 : Math.PI * 1.48);
+      rb.scale.z = 0.62;
+    }
+  }
+  bar(V(0, 0.22, 0.08), V(0, 0.50, 0.07), 0.028, 0.022, name + '_sternum', B, torso, 6);
+  const clav = V(0, 0.56, 0.02);
+  for (const s of [1, -1]) bar(clav, V(s * 0.19, 0.58, 0.02), 0.022, 0.022, name + '_clavicle_' + (s > 0 ? 'l' : 'r'), B, torso, 6);
+
+  /* skull, hung forward on the neck, jaw slack */
+  const head = new THREE.Group(); head.name = name + '_head';
+  head.position.copy(spineTop).add(V(0, 0.10, 0.02));
+  head.rotation.set(R(-0.1, 0.22) - lean, R(-0.3, 0.3), R(-0.08, 0.08));
+  torso.add(head);
+  const skull = add(new THREE.SphereGeometry(0.135, 14, 11), B, name + '_skull', head);
+  skull.scale.set(0.94, 1.0, 1.06);
+  const face = add(new THREE.BoxGeometry(0.17, 0.11, 0.10), B, name + '_maxilla', head);
+  face.position.set(0, -0.07, 0.10);
+  for (const s of [1, -1]) {
+    const sock = add(new THREE.SphereGeometry(0.048, 10, 8), M.socket, name + '_socket_' + (s > 0 ? 'l' : 'r'), head);
+    sock.position.set(s * 0.058, 0.005, 0.10); sock.scale.set(1, 0.95, 0.8);
+    add(new THREE.SphereGeometry(0.024, 8, 7), lit ? M.eye : M.socket, name + '_eye_' + (s > 0 ? 'l' : 'r'), head)
+      .position.set(s * 0.058, 0.005, 0.125);
+    const cheek = add(new THREE.BoxGeometry(0.03, 0.06, 0.05), B, name + '_cheek_' + (s > 0 ? 'l' : 'r'), head);
+    cheek.position.set(s * 0.105, -0.025, 0.06);
+  }
+  const nasal = add(new THREE.SphereGeometry(0.022, 7, 6), M.socket, name + '_nasal', head);
+  nasal.position.set(0, -0.035, 0.14); nasal.scale.set(0.8, 1.4, 0.6);
+  const jaw = add(new THREE.BoxGeometry(0.155, 0.055, 0.14), B, name + '_jaw', head);
+  jaw.position.set(0, -0.155 - jawOpen * 0.05, 0.055 + jawOpen * 0.02);
+  jaw.rotation.x = -jawOpen * 0.55;
+  for (let i = 0; i < 6; i++) {
+    const t = add(new THREE.BoxGeometry(0.018, 0.03, 0.018), M.bone, name + '_tooth_' + i, head);
+    t.position.set((i - 2.5) * 0.026, -0.115, 0.125);
+  }
+
+  /* arms — shoulder → elbow → wrist, posed by role */
+  function arm(side, pose) {
+    const sd = side > 0 ? 'l' : 'r';
+    const sh = V(side * 0.21, 0.55, 0.01);
+    let el, wr;
+    if (pose === 'raised') {            // sword up, ready to hack down
+      el = V(side * 0.34, 0.46, -0.06); wr = V(side * 0.42, 0.74, 0.04);
+    } else if (pose === 'forward') {    // thrusting low
+      el = V(side * 0.30, 0.34, 0.14);  wr = V(side * 0.30, 0.30, 0.48);
+    } else if (pose === 'shield') {     // braced across the body
+      el = V(side * 0.30, 0.30, 0.10);  wr = V(side * 0.16, 0.34, 0.30);
+    } else {                            // hanging
+      el = V(side * 0.26, 0.28, -0.02); wr = V(side * 0.27, 0.02, 0.06);
+    }
+    knob(sh, 0.055, name + '_shoulder_' + sd, B, torso);
+    longBone(sh, el, 0.032, name + '_humerus_' + sd, B, torso);
+    longBone(el, wr, 0.026, name + '_forearm_' + sd, B, torso);
+    /* hand: palm plus three stub fingers curled around whatever it holds */
+    const hand = new THREE.Group(); hand.name = name + '_hand_' + sd;
+    hand.position.copy(wr);
+    hand.quaternion.setFromUnitVectors(V(0, 1, 0), wr.clone().sub(el).normalize());
+    torso.add(hand);
+    knob(V(0, 0.03, 0), 0.042, name + '_palm_' + sd, B, hand);
+    for (let i = 0; i < 3; i++) {
+      const f = bar(V((i - 1) * 0.026, 0.05, 0.01), V((i - 1) * 0.03, 0.07, 0.07), 0.013, 0.010, name + '_finger_' + sd + '_' + i, B, hand, 5);
+    }
+    return hand;
+  }
+
+  const swordSide = 1, shieldSide = -1;
+  const hasSword = missing !== 'sword_arm';
+  const hasShield = missing !== 'shield_arm';
+  if (hasSword) {
+    const h = arm(swordSide, swordArm);
+    const s = sword(h, name + '_sword', R(0.62, 0.86), lit);
+    s.rotation.set(swordArm === 'forward' ? 1.15 : R(-0.35, 0.15), R(-0.3, 0.3), R(-0.2, 0.2));
+    s.position.y = 0.05;
+  } else {
+    /* shoulder stump only — the arm is long gone */
+    knob(V(swordSide * 0.21, 0.55, 0.01), 0.055, name + '_stump', B, torso);
+    bar(V(swordSide * 0.21, 0.55, 0.01), V(swordSide * 0.30, 0.44, -0.02), 0.032, 0.02, name + '_humerus_broken', B, torso);
+  }
+  if (hasShield) {
+    const h = arm(shieldSide, 'shield');
+    const sh = shield(h, name + '_shield', R(0.30, 0.38));
+    sh.position.set(shieldSide * 0.02, 0.10, 0.06);
+    sh.rotation.set(R(-0.2, 0.2), shieldSide * (0.9 - shieldUp * 0.5), R(-0.15, 0.15));
+  } else {
+    arm(shieldSide, 'hang');
+  }
+
+  /* legs — one forward, one trailing; both heels reach y = 0 */
+  for (const s of [1, -1]) {
+    const sd = s > 0 ? 'l' : 'r';
+    const fwd = s > 0 ? stride : -stride;
+    const hip = V(s * 0.13, 0.0, 0);
+    const knee = V(s * 0.15, -0.44, fwd * 0.75 + 0.02);
+    const ankle = V(s * 0.15, -0.84, fwd);
+    if (missing === 'leg' && s < 0) {
+      longBone(hip, knee, 0.038, name + '_femur_' + sd, B, torso);
+      bar(knee, knee.clone().add(V(0, -0.16, fwd * 0.3)), 0.03, 0.018, name + '_tibia_broken_' + sd, B, torso);
+      continue;
+    }
+    knob(hip, 0.055, name + '_hip_' + sd, B, torso);
+    longBone(hip, knee, 0.04, name + '_femur_' + sd, B, torso);
+    longBone(knee, ankle, 0.032, name + '_tibia_' + sd, B, torso);
+    bar(knee.clone().add(V(s * 0.04, 0.02, 0.03)), ankle.clone().add(V(s * 0.04, 0, 0.01)), 0.016, 0.014, name + '_fibula_' + sd, B, torso, 6);
+    /* foot: tarsals plus toe bones, flat on the ground */
+    const ft = new THREE.Group(); ft.name = name + '_foot_' + sd;
+    ft.position.copy(ankle).add(V(0, -0.045, 0));
+    torso.add(ft);
+    knob(V(0, 0.02, -0.02), 0.045, name + '_heel_' + sd, B, ft);
+    for (let i = 0; i < 4; i++) {
+      bar(V((i - 1.5) * 0.025, 0.02, 0.01), V((i - 1.5) * 0.034, 0.012, 0.15), 0.013, 0.010, name + '_toe_' + sd + '_' + i, B, ft, 5);
+    }
+  }
+
+  /* what's left of the armour they were buried in */
+  if (tattered) {
+    const skirt = add(new THREE.CylinderGeometry(0.19, 0.27, 0.34, 12, 1, true), M.cloth, name + '_tabard', torso);
+    skirt.position.y = -0.14;
+    const pauldron = add(new THREE.SphereGeometry(0.11, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.rust, name + '_pauldron', torso);
+    pauldron.position.set(swordSide * 0.21, 0.58, 0.01); pauldron.scale.set(1, 0.7, 1.1);
+    const belt = add(new THREE.TorusGeometry(0.17, 0.022, 5, 14), M.leather, name + '_belt', torso);
+    belt.rotation.x = Math.PI / 2; belt.position.y = 0.04; belt.scale.z = 0.6;
+    if (rnd() < 0.5) {
+      const helm = add(new THREE.SphereGeometry(0.155, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.62), M.rust, name + '_helm', head);
+      helm.position.y = 0.01; helm.scale.set(1, 1.05, 1.02);
+      const nasalGuard = add(new THREE.BoxGeometry(0.03, 0.14, 0.03), M.rust, name + '_helm_nasal', head);
+      nasalGuard.position.set(0, -0.03, 0.14);
+    }
+  }
+  return g;
+}
+
+/* ============================ THE HORDE ============================
+   Loose ranks pressing forward (+z): a ragged front line, a denser second and
+   third rank behind it, and a few stumbling in from the flanks. */
+const horde = new THREE.Group(); horde.name = 'skeletons'; rig.add(horde);
+
+const RANKS = [
+  { z:  1.45, xs: [-1.65, -0.80,  0.05,  0.92,  1.78], pose: 'forward' },
+  { z:  0.35, xs: [-2.05, -1.22, -0.35,  0.50,  1.35,  2.15], pose: 'raised' },
+  { z: -0.80, xs: [-1.55, -0.65,  0.25,  1.12,  1.95], pose: 'raised' },
+  { z: -1.95, xs: [-1.05, -0.18,  0.72,  1.55], pose: 'forward' },
+];
+let n = 0;
+RANKS.forEach((rank, ri) => {
+  rank.xs.forEach((x, i) => {
+    const jag = R(-0.22, 0.22);                    // no rank is ever straight
+    const damage = rnd();
+    const sk = skeleton({
+      name: 'skeleton_' + (n++),
+      scale: R(0.94, 1.08),
+      rot: R(-0.30, 0.30) + (ri === 0 ? Math.atan2(-x, 6) : 0),
+      lean: R(0.02, 0.16) + (rank.pose === 'forward' ? 0.06 : 0),
+      twist: R(-0.22, 0.22),
+      swordArm: rnd() < (rank.pose === 'forward' ? 0.55 : 0.25) ? 'forward' : 'raised',
+      shieldUp: R(0.2, 1.0),
+      missing: damage < 0.10 ? 'sword_arm' : (damage < 0.18 ? 'leg' : null),
+      lit: rnd() < 0.85,
+    });
+    sk.position.set(x + jag, 0, rank.z + R(-0.18, 0.18));
+    horde.add(sk);
+  });
+});
+
+/* flankers — a few dragging in from the sides, turned inward */
+[[-2.95, 0.95, 1.2], [3.05, -0.35, -1.1], [-2.70, -1.75, 0.9], [2.60, 1.85, -1.3]].forEach(([x, z, face], i) => {
+  const sk = skeleton({
+    name: 'skeleton_flanker_' + i, scale: R(0.90, 1.04), rot: face + R(-0.3, 0.3),
+    lean: R(0.05, 0.22), twist: R(-0.3, 0.3), swordArm: 'raised',
+    missing: rnd() < 0.3 ? 'sword_arm' : null, lit: rnd() < 0.8,
+  });
+  sk.position.set(x, 0, z);
+  horde.add(sk);
+});
+
+/* the fallen: bones and a dropped shield trampled into the ground behind them */
+for (let i = 0; i < 12; i++) {
+  const a = R(0, 6.283), d = R(1.0, 3.4);
+  const p = V(Math.cos(a) * d, 0.04, Math.sin(a) * d - 1.0);
+  const q = p.clone().add(V(R(-0.34, 0.34), R(0, 0.04), R(-0.34, 0.34)));
+  longBone(p, q, R(0.022, 0.032), 'fallen_bone_' + i, M.boneDk, rig);
+}
+for (let i = 0; i < 2; i++) {
+  const s = shield(rig, 'dropped_shield_' + i, R(0.30, 0.36));
+  s.position.set(R(-2.2, 2.2), 0.06, R(-3.0, -1.6));
+  /* lay it flat first, then spin it in its own plane — an XYZ Y-term here would
+     tip the disc back out of plane and put its rim below the ground */
+  s.rotation.set(Math.PI / 2 + R(-0.12, 0.12), 0, R(0, 6.283));
+}
+{
+  const sk = add(new THREE.SphereGeometry(0.135, 12, 10), M.boneDk, 'fallen_skull', rig);
+  sk.position.set(R(-1.8, 1.8), 0.13, R(-2.8, -1.8)); sk.rotation.set(1.2, R(0, 3), 0.3);
+  const j = add(new THREE.BoxGeometry(0.15, 0.05, 0.13), M.boneDk, 'fallen_jaw', rig);
+  j.position.copy(sk.position).add(V(0.14, -0.08, 0.06)); j.rotation.y = R(0, 3);
+}
+
+rig.updateMatrixWorld(true);
+const box = new THREE.Box3().setFromObject(rig);
+const c = box.getCenter(V());
+const wrap = new THREE.Group(); wrap.name = 'skeleton_horde';
+rig.position.set(-c.x, -box.min.y, -c.z);
+wrap.add(rig);
+stage.setObject(wrap);
+</script>
+</body>
+</html>

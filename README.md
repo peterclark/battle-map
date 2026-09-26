@@ -199,7 +199,9 @@ src/
       lizardfolk3d.js the Lizardmen: three peoples and their beasts
       saurians3d.js   the Lizardmen's Large saurians
       infantry3d.js   foot, by weapon, palette and build -- five weapons,
-                      eight palettes, four body plans
+                      eight palettes, five body plans, one of which is bone
+                      rather than meat, how a block dresses its ranks, and
+                      how each rank holds its spear
       cavalry3d.js    horse and wolf, by mount, rider and what they carry
       warMachine3d.js ballistae, scorpions and chariots, with their crews
       catapult3d.js   the throwing engines, modelled rather than blocked out:
