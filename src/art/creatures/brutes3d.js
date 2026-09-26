@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { at, bevelled, merge, part, surfaceMaterial, swept, turned } from "./kit.js";
+import { at, bevelled, merge, part, spanning, surfaceMaterial, swept, turned } from "./kit.js";
 
 // The big ones that are not beasts: Trolls, Ogres, the Hill Giant, the Earth
 // Elemental, and the undead versions of all of them. The Abomination used to
@@ -72,8 +72,32 @@ const KINDS = {
     club: true,
     mantle: "hide",
   },
+  zombieTroll: {
+    // Zombie Trolls, ported from `docs/reference/zombie-trolls.html`. Still
+    // meat, so it cannot lean on bone for contrast the way the Skeleton
+    // Trolls do: grey-green grave hide (1.7:1 against the turf), bruising
+    // that goes *darker* than the field rather than matching it, and the pale
+    // thing across the shoulders is its own ribcage, showing through a back
+    // torn open to the bone.
+    hide: 0x7f8672,
+    hideDark: 0x62675a,
+    // Bruising and the torn lip of the wound. Kept off the shoulder masses,
+    // where two dark lumps read as pauldrons rather than as rot.
+    bruise: 0x4f4347,
+    back: 0x5e2a27,
+    detail: 0xd6c9ae,
+    wood: 0x6b5540,
+    eyes: 0xbcd9a8,
+    scale: 1,
+    count: 3,
+    hunch: 0.72,
+    club: true,
+    spiked: true,
+    shackled: true,
+    mantle: "wound",
+  },
   boneBrute: {
-    // Skeleton and Zombie Trolls. Bone against dark turf carries itself.
+    // Skeleton Trolls. Bone against dark turf carries itself.
     hide: 0xb8b09a,
     hideDark: 0x847d6b,
     back: 0xd8d0b8,
@@ -101,12 +125,181 @@ const KINDS = {
 
 const MEAT = { roughness: 0.9, mottle: 0.18, mottleScale: 5 };
 const HORN = { metalness: 0.2, roughness: 0.5 };
+const IRON = { metalness: 0.55, roughness: 0.55 };
 const STONE = { roughness: 0.95 };
 
 // A lopsided lump — the unit of construction for anything made of meat.
 // Scaled unevenly and rotated off-axis so no two read as the same sphere.
 const lump = (radius, seed) =>
   new THREE.SphereGeometry(radius, 10 + (seed % 3) * 2, 8 + (seed % 2) * 2);
+
+// A point on the torso capsule's surface, stated by where it is rather than by
+// a guess at the number: `s` along the capsule's axis, `a` round it from the
+// crown of the back (the side the overhead camera sees once the spine is
+// hunched), `r` out from the axis. The capsule is the first part in
+// `spineParts` — radius 0.42, half-length 0.25, tipped PI/2.4 about X and
+// widened 1.08 across — and detail placed with this follows it exactly.
+const TORSO_AXIS = [0, Math.cos(Math.PI / 2.4), Math.sin(Math.PI / 2.4)];
+const onBack = (s, a, r) => [
+  r * 1.08 * Math.sin(a),
+  0.1 + s * TORSO_AXIS[1] + r * Math.cos(a) * TORSO_AXIS[2],
+  s * TORSO_AXIS[2] - r * Math.cos(a) * TORSO_AXIS[1],
+];
+const backNormal = (a) => [
+  Math.sin(a),
+  Math.cos(a) * TORSO_AXIS[2],
+  -Math.cos(a) * TORSO_AXIS[1],
+];
+
+// How far round the back the wound is torn at a point along it. Ragged, and
+// hashed from `s` so it is the same shape every time.
+const WOUND = { from: -0.22, to: 0.3 };
+const tornTo = (s) => 1.05 + 0.16 * Math.sin(s * 23) + 0.08 * Math.sin(s * 57 + 1);
+
+// A sheet laid on the back between two arcs, as a grid remapped through
+// `onBack` — so it conforms to the torso rather than sitting on it as a plate.
+const backSheet = (r, span) => {
+  const geometry = new THREE.PlaneGeometry(1, 1, 16, 10);
+  const p = geometry.attributes.position;
+  for (let i = 0; i < p.count; i += 1) {
+    const s = span.from + (p.getX(i) + 0.5) * (span.to - span.from);
+    const a = p.getY(i) * 2 * tornTo(s);
+    p.setXYZ(i, ...onBack(s, a, r));
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+};
+
+// The zombie troll's back: torn open across the shoulders, dark with clotted
+// gore, and the ribs arching pale across it on either side of the spine.
+// From directly above that is a fishbone laid over the widest part of the
+// figure — the pale element the brief asks for, found in the body rather than
+// worn on it, and the thing no skeleton troll can show because it has no
+// meat for the bone to show *through*.
+const woundParts = (spec) => {
+  const parts = [
+    part(backSheet(0.428, WOUND), spec.back, { roughness: 0.6, mottle: 0.2, mottleScale: 14 }),
+  ];
+
+  // A torn lip of flesh round the edge, so the wound reads as a hole rather
+  // than a painted patch
+  [1, -1].forEach((side) => {
+    const edge = [];
+    for (let k = 0; k <= 8; k += 1) {
+      const s = WOUND.from + (k / 8) * (WOUND.to - WOUND.from);
+      edge.push(onBack(s, side * tornTo(s), 0.43));
+    }
+    parts.push(part(swept(edge, 0.028, { segments: 20, sides: 5 }), spec.bruise, MEAT));
+  });
+
+  // Ribs. Arcs across the width rather than hoops round it, because from
+  // above an arc across is what a ribcage is.
+  [-0.16, -0.05, 0.06, 0.17, 0.27].forEach((s, i) => {
+    const reach = tornTo(s) * (0.92 - Math.abs(i - 2) * 0.04);
+    const arc = [];
+    for (let k = -4; k <= 4; k += 1) {
+      const a = (k / 4) * reach;
+      arc.push(onBack(s - Math.abs(k) * 0.012, a, 0.455 - Math.abs(k / 4) ** 2 * 0.02));
+    }
+    parts.push(part(swept(arc, 0.03, { segments: 20, sides: 6 }), spec.detail, HORN));
+  });
+  // and the spine they hang off, knuckled
+  for (let s = WOUND.from; s <= WOUND.to + 0.01; s += 0.065) {
+    parts.push(
+      part(new THREE.SphereGeometry(0.042, 8, 6), spec.detail, {
+        pos: onBack(s, 0, 0.47),
+        scale: [1, 0.8, 1.2],
+        ...HORN,
+      })
+    );
+  }
+
+  // Boils and bruising over the rest of the hide
+  [
+    [-0.34, 1.35, 0.03],
+    [-0.1, -1.5, 0.035],
+    [0.12, 1.55, 0.028],
+    [0.36, -1.2, 0.04],
+    [0.4, 0.7, 0.03],
+    [-0.3, -0.9, 0.032],
+    [0.22, -1.7, 0.026],
+  ].forEach(([s, a, r]) =>
+    parts.push(
+      part(new THREE.SphereGeometry(r, 8, 6), 0xb3a493, { pos: onBack(s, a, 0.42), ...MEAT })
+    )
+  );
+  [
+    [-0.36, -1.1, 0.1],
+    [0.34, 1.25, 0.12],
+    [0.05, 1.75, 0.09],
+  ].forEach(([s, a, r], i) =>
+    parts.push(
+      part(lump(r, i), spec.bruise, {
+        pos: onBack(s, a, 0.39),
+        scale: [1.2, 0.6, 1.1],
+        ...MEAT,
+      })
+    )
+  );
+
+  // What it has already walked through, still stuck in it: broken spears and
+  // crossbow bolts, leaning *out* of the flanks. A stuck shaft standing
+  // straight up would be a dot from this camera; laid out sideways it is a
+  // line, and a spray of lines off the flanks widens the silhouette.
+  [
+    [0.02, 1.5, 0.52, 0.35],
+    [0.24, -1.4, 0.46, 0.25],
+    [-0.12, -1.65, 0.4, -0.1],
+    [0.3, 1.2, 0.2, 0.3],
+    [-0.08, 1.3, 0.2, 0.05],
+    [0.12, -1.15, 0.18, 0.2],
+    [0.36, -0.5, 0.18, 0.5],
+    [-0.2, 0.9, 0.17, -0.2],
+  ].forEach(([s, a, length, back]) => {
+    const spear = length > 0.3;
+    const n = backNormal(a);
+    const dir = new THREE.Vector3(n[0], n[1] * 0.7, n[2])
+      .addScaledVector(new THREE.Vector3(...TORSO_AXIS), back)
+      .normalize();
+    const base = new THREE.Vector3(...onBack(s, a, 0.36));
+    const tip = base.clone().addScaledVector(dir, length + 0.06);
+    const r = spear ? 0.018 : 0.009;
+    parts.push(
+      part(spanning(base.toArray(), tip.toArray(), r, r * 0.9, 6), spec.wood, { roughness: 0.88 })
+    );
+    if (spear) {
+      // snapped off, splintered
+      parts.push(
+        part(
+          spanning(tip.toArray(), tip.clone().addScaledVector(dir, 0.05).toArray(), 0.016, 0.003, 5),
+          spec.wood,
+          { roughness: 0.88 }
+        )
+      );
+    } else {
+      // two dark fletches, crossed
+      const side = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
+      const f = tip.clone().addScaledVector(dir, -0.03);
+      [side, side.clone().cross(dir)].forEach((v) =>
+        parts.push(
+          part(
+            spanning(
+              f.clone().addScaledVector(v, -0.022).toArray(),
+              f.clone().addScaledVector(v, 0.022).toArray(),
+              0.012,
+              0.012,
+              4
+            ),
+            0x26231f,
+            { roughness: 0.92 }
+          )
+        )
+      );
+    }
+  });
+
+  return parts;
+};
 
 const spineParts = (spec) => {
   const parts = [
@@ -153,6 +346,8 @@ const spineParts = (spec) => {
         )
       );
     });
+  } else if (spec.mantle === "wound") {
+    parts.push(...woundParts(spec));
   } else {
     // A hide, a bone plate or a mat of moss, cut with a ragged edge. A
     // rectangle across the shoulders reads as a plank; a torn hem reads as
@@ -223,7 +418,9 @@ const spineParts = (spec) => {
 
   // Scars across the shoulders, and the rope that holds whatever it is
   // wearing. Both are swept lines, which is the cheapest way to put something
-  // on a curved surface that follows it.
+  // on a curved surface that follows it. A wound has neither: nothing is worn
+  // over it, and a scar is what it would be if it had healed.
+  if (spec.mantle === "wound") return parts;
   [
     [[-0.5, 0.4, 0.1], [-0.1, 0.56, -0.02], [0.34, 0.46, -0.16]],
     [[0.2, 0.5, 0.36], [0.38, 0.52, 0.1], [0.3, 0.4, -0.2]],
@@ -333,11 +530,29 @@ const headParts = (spec) => [
     )
   ),
   ...[0.11, -0.11].map((x) =>
-    part(new THREE.SphereGeometry(0.05, 10, 8), 0xc8a83a, {
+    part(new THREE.SphereGeometry(0.05, 10, 8), spec.eyes ?? 0xc8a83a, {
       pos: [x, 0.02, -0.2],
       ...HORN,
     })
   ),
+  // Lank grave-hair, raked back off the crown
+  ...(spec.mantle === "wound"
+    ? [-0.12, -0.05, 0.02, 0.09, 0.15].map((x, i) =>
+        part(
+          swept(
+            [
+              [x, 0.2, -0.04],
+              [x * 1.3, 0.2, 0.12],
+              [x * 1.5, 0.08 - (i % 2) * 0.04, 0.26],
+            ],
+            0.014,
+            { segments: 8, sides: 4 }
+          ),
+          0x2b2622,
+          { roughness: 0.95 }
+        )
+      )
+    : []),
 ];
 
 const upperArmParts = (spec) => [
@@ -370,6 +585,25 @@ const foreArmParts = (spec) => [
       ...MEAT,
     })
   ),
+  // An iron shackle it has never been let out of, with the broken chain
+  // still hanging off the back of the wrist
+  ...(spec.shackled
+    ? [
+        part(new THREE.TorusGeometry(0.15, 0.035, 6, 16), 0x3e3b39, {
+          pos: [0, -0.34, 0],
+          rot: [Math.PI / 2, 0, 0],
+          ...IRON,
+        }),
+        ...[0, 1, 2].map((k) =>
+          part(new THREE.TorusGeometry(0.036, 0.011, 5, 10), 0x3e3b39, {
+            pos: [0, -0.4 - k * 0.058, 0.17],
+            rot: [0, (k % 2) * (Math.PI / 2), 0],
+            scale: [1, 1.3, 1],
+            ...IRON,
+          })
+        ),
+      ]
+    : []),
 ];
 
 // A club is a tree with the branches broken off, not a cylinder
@@ -389,7 +623,7 @@ const clubParts = (spec) => [
       ],
       12
     ),
-    spec.hideDark,
+    spec.wood ?? spec.hideDark,
     { pos: [0, -0.18, 0], ...MEAT }
   ),
   // Stubs where limbs were torn off, and a couple of driven spikes
@@ -398,11 +632,51 @@ const clubParts = (spec) => [
     [-0.08, 0.78, -0.04, -0.8],
     [0.02, 0.44, 0.09, 0.2],
   ].map(([x, y, z, roll], i) =>
-    part(new THREE.ConeGeometry(0.05, 0.16, 8), i === 2 ? spec.detail : spec.hideDark, {
+    part(new THREE.ConeGeometry(0.05, 0.16, 8), i === 2 ? spec.detail : (spec.wood ?? spec.hideDark), {
       pos: [x, y - 0.18, z],
       rot: [0, 0, roll],
       ...(i === 2 ? HORN : MEAT),
     })
+  ),
+  ...(spec.spiked ? spikedParts() : []),
+];
+
+// Iron bands round the trunk, a crown of rusted spikes hammered through the
+// head, and what the last swing left on it. Radii are the club profile's own.
+const spikedParts = () => [
+  ...[
+    [0.52, 0.09],
+    [0.72, 0.11],
+  ].map(([y, r]) =>
+    part(new THREE.TorusGeometry(r + 0.008, 0.016, 6, 16), 0x3e3b39, {
+      pos: [0, y - 0.18, 0],
+      rot: [Math.PI / 2, 0, 0],
+      ...IRON,
+    })
+  ),
+  ...[0.88, 0.97, 1.05].flatMap((y, row) =>
+    [0, 1, 2, 3, 4, 5].map((j) => {
+      const a = (j * Math.PI) / 3 + row * 0.5;
+      const out = [Math.cos(a), 0.12 * row, Math.sin(a)];
+      const r = 0.14;
+      return part(
+        spanning(
+          [out[0] * r, y - 0.18, out[2] * r],
+          [out[0] * (r + 0.1), y - 0.18 + out[1] * 0.1, out[2] * (r + 0.1)],
+          0.02,
+          0.002,
+          5
+        ),
+        0x6d4530,
+        { metalness: 0.25, roughness: 0.85 }
+      );
+    })
+  ),
+  ...[
+    [0.07, 0.98, 0.1],
+    [-0.11, 0.9, -0.05],
+  ].map(([x, y, z], i) =>
+    part(lump(0.06, i), 0x5e2a27, { pos: [x, y - 0.18, z], scale: [1, 0.7, 1], roughness: 0.6 })
   ),
 ];
 
