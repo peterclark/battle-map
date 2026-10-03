@@ -24,41 +24,34 @@ import { bevelled, merge, part, spanning, surfaceMaterial } from "./kit.js";
 
 // --- palette ---------------------------------------------------------------
 
-// Four coats, and the point of having four is that they straddle the turf.
-// Measured against 0x3f6420: matted fur sits at 1.8:1 *darker*, grave fur and
-// mangy fur within a tenth of the turf's own value, bald hide at 1.4
-// *lighter*. A mat whose average is the turf's value still reads, as long as
-// the individuals in it are not.
-//
-// None of these leans blue or pink, and both used to. The board tone-maps with
-// ACES at 1.25 exposure, which lifts *and* saturates, so a grey with a little
-// blue in it and a tan with a little red in it came out of the first render as
-// a mat of lavender. Vermin are olive, umber and dust.
-const MATTED = 0x3b342f;
-const MANGY = 0x655b4e;
-const GRAVE = 0x5b5a52;
-const HIDE = 0x8a7a64;
+// Charcoal and grey-green fur separate from warm mud. Bone is the brightest
+// material; muted diseased hide and rose-grey tails add smaller colour changes.
+// Keep dark coats dominant so the unit reads as one press of vermin.
+const MATTED = 0x292c29;
+const MANGY = 0x4b5047;
+const GRAVE = 0x66675e;
+const HIDE = 0x898570;
 // Weighted, not picked evenly. Four coats in equal measure gave a mat that was
 // half pale, and a pale rat on dark turf is a rat you can point at — which is
 // the one thing this unit is not allowed to be. Dark is the mass and pale is
 // the fleck in it, so the dark coats get two thirds of the draw.
 const COATS = [MATTED, MATTED, MATTED, MANGY, MANGY, GRAVE, GRAVE, HIDE];
 
-// The tail is the one part that must carry on its own. 1.95:1 against the
-// turf, and there are eighty of them pointing in eighty directions.
-const TAIL = 0xa39682;
+// Tails thread through the mass; skulls and exposed ribs carry the undead read.
+const TAIL = 0x9d8983;
+const EAR = 0x776662;
 const BONE = 0xd6c9ae;
 const TOOTH = 0xe2d9c2;
 const SOCKET = 0x231d1d;
 // The ground a swarm has already been over. The reference declares this and
 // never uses it — it is standing on a studio floor — and it turns out to be
 // the part this board needed most. See `trampledParts` below.
-const EARTH = 0x4a3f34;
+const EARTH = 0x302b27;
 // The reference lights its eyes with an emissive. There is no emissive channel
 // in the merged surface attribute, so this is the colour that emissive landed
 // on, painted flat — two sub-pixel points of witchlight per rat, which at this
 // size is speckle rather than a face, and speckle is the brief.
-const WITCH = 0xbcd9a8;
+const WITCH = 0xd3dfa5;
 
 const PELT = { roughness: 0.92, mottle: 0.16, mottleScale: 26 };
 const SCALY = { roughness: 0.62, mottle: 0.12, mottleScale: 40 };
@@ -125,14 +118,14 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
   parts.push(
     part(new THREE.SphereGeometry(u(0.34), 9, 7), coat, {
       pos: hips(0, HIP_Y, z(0.3)),
-      scale: [0.82, 0.86, 1.55],
+      scale: skeletal ? [0.64, 0.64, 1.3] : [0.82, 0.86, 1.55],
       ...PELT,
     })
   );
   parts.push(
     part(new THREE.SphereGeometry(u(0.3), 9, 7), coat, {
       pos: [0, HIP_Y, 0],
-      scale: [0.9, 0.92, 1.0],
+      scale: skeletal ? [0.52, 0.5, 0.9] : [0.9, 0.92, 1.0],
       ...PELT,
     })
   );
@@ -140,12 +133,13 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
   parts.push(
     part(new THREE.SphereGeometry(u(0.26), 9, 7), coat, {
       pos: shoulder,
-      scale: [0.92, 0.9, 1.0],
+      scale: skeletal ? [0.6, 0.6, 0.9] : [0.92, 0.9, 1.0],
       ...PELT,
     })
   );
 
-  // Ribs laid bare where the hide has rotted off the flank. Four pale arcs and
+  // Shrink the remaining flesh and place the ribs outside it. The original
+  // rib arcs were buried inside the full-sized torso. Four pale arcs and
   // a spine: a dotted bright line down a dark body, which is the same trick
   // the lizardfolk get from osteoderms and costs as little here.
   //
@@ -157,19 +151,30 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
   if (skeletal) {
     for (let i = 0; i < 4; i += 1) {
       const rib = new THREE.TorusGeometry(
-        u(0.19 - i * 0.012),
-        u(0.018),
+        u(0.29 - i * 0.018),
+        u(0.027),
         4,
         8,
         Math.PI * 1.15
       );
       rib.rotateZ(Math.PI / 2 - Math.PI * 0.575);
       rib.rotateX(rear);
-      parts.push(part(rib, BONE, { pos: hips(0, HIP_Y, z(0.16 + i * 0.13)), ...DRY }));
+      parts.push(part(rib, BONE, { pos: hips(0, u(0.39), z(0.16 + i * 0.13)), ...DRY }));
     }
     parts.push(
-      part(spanning([0, HIP_Y, 0], shoulder, u(0.03), u(0.03), 5), BONE, DRY)
+      part(spanning(hips(0, u(0.69), z(0.08)), hips(0, u(0.63), z(0.66)), u(0.026), u(0.022), 5), BONE, DRY)
     );
+  }
+
+  // Matted tufts break up the smooth pelts, merged into the body buffer.
+  if (!skeletal) {
+    for (let i = 0; i < 4; i += 1) {
+      parts.push(part(new THREE.ConeGeometry(u(0.07), u(0.14), 4), coat, {
+        pos: hips(u((i % 2 ? 1 : -1) * 0.12), u(0.64 - i * 0.015), z(0.12 + i * 0.14)),
+        rot: [-0.7, 0, i % 2 ? 0.35 : -0.35],
+        ...PELT,
+      }));
+    }
   }
 
   // The head. A wedge skull, a long snout, ears held wide, sockets, witchlight
@@ -196,13 +201,13 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
 
   onHead(
     new THREE.SphereGeometry(u(0.21), 9, 7),
-    coat,
+    skeletal ? BONE : coat,
     { pos: [0, 0, z(0.06)], scale: [0.86, 0.84, 1.15] },
     PELT
   );
   onHead(
     new THREE.ConeGeometry(u(0.15), u(0.4), 7),
-    coat,
+    skeletal ? BONE : coat,
     { pos: [0, u(-0.03), z(0.3)], rot: [-Math.PI / 2, 0, 0] },
     PELT
   );
@@ -214,18 +219,10 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
   );
 
   [1, -1].forEach((s) => {
-    // Ears laid back and nearly flat, which is not how the reference holds
-    // them and not how a rat holds them either.
-    //
-    // A rat's ear is a paddle standing upright, and from directly overhead an
-    // upright paddle is a line — the same reason a spear held properly on this
-    // board is a dot. Raked back instead, each one is a pale ellipse two or
-    // three pixels across, in the palest colour on the figure, and there are
-    // two hundred and seventy of them. That is the single cheapest piece of
-    // texture in the unit, and it is the brief.
+    // Flattened, muted ears show from above without competing with the bone.
     onHead(
       new THREE.SphereGeometry(u(0.115), 7, 6),
-      HIDE,
+      skeletal ? GRAVE : EAR,
       {
         pos: [u(s * 0.2), u(0.1), z(-0.06)],
         scale: [0.95, 0.26, 1.0],
@@ -236,13 +233,13 @@ const ratBodyParts = ({ coat, skeletal, rear, headPitch }) => {
     onHead(
       new THREE.SphereGeometry(u(0.06), 6, 5),
       SOCKET,
-      { pos: [u(s * 0.14), u(0.04), z(0.17)] },
+      { pos: [u(s * 0.17), u(0.1), z(0.17)] },
       PELT
     );
     onHead(
       new THREE.SphereGeometry(u(0.042), 6, 5),
       skeletal ? SOCKET : WITCH,
-      { pos: [u(s * 0.145), u(0.04), z(0.2)] },
+      { pos: [u(s * 0.185), u(0.11), z(0.2)] },
       WET
     );
     onHead(
@@ -469,17 +466,10 @@ const trampledParts = (rx, rz, noise) => {
  * about rats: the reference swarm is round, and a round unit fits its depth
  * first and then occupies a third of the width it was given.
  *
- * These two are tuned against what the rig *sweeps*, not what it measures at
- * rest, because that is what `CreatureLayer` places it by. At rest the mat is
- * 2.70:1; scurrying it is 2.42:1, against a stand band of about 2.46:1. So the
- * fit binds on width with depth a hair inside it, which is where it should be.
- *
- * The rig this replaced measured 1.99:1 at rest and 1.91:1 swept, which is to
- * say it bound on depth and rendered narrower than its stand could carry —
- * and nothing about the render said so, because a carpet that is too small is
- * still a carpet.
+ * The default layout sweeps about 2.48:1, close to the card's 2.46:1 art band.
+ * Measure the animated footprint, because tails and scurrying spend depth too.
  */
-export const buildSwarm = ({ spread = 3.1, band = 0.98 } = {}) => {
+export const buildSwarm = ({ spread = 3.3, band = 0.98 } = {}) => {
   const material = surfaceMaterial();
   const buffers = buildBuffers();
   const root = new THREE.Group();
@@ -535,7 +525,7 @@ export const buildSwarm = ({ spread = 3.1, band = 0.98 } = {}) => {
   // Sized just inside the rats rather than just outside them: the fringe has
   // to straddle the edge, or the patch reads as a mat laid down for them to
   // stand on rather than as ground they have been over.
-  hang(root, merge(trampledParts(rx * 0.99, rz * 1.02, 2.1)), material);
+  hang(root, merge(trampledParts(rx * 0.88, rz * 0.90, 2.1)), material);
 
   // Which way a rat points, and this is the one decision in the layout that is
   // about the stand rather than about rats.
@@ -555,14 +545,14 @@ export const buildSwarm = ({ spread = 3.1, band = 0.98 } = {}) => {
   const heading = (i) =>
     (i % 2 ? 1 : -1) * (Math.PI / 2) + between(-1.15, 1.15);
 
-  // Tier one, the floor of the swarm, in two halves that differ only in what
-  // they cost: a third with a tail joint and the rest with the tail baked in.
+  // Tier one: roughly one in five rats keeps a tail joint; the rest bake it
+  // into the body. This pays for more bodies without breaking the mesh budget.
   // They are interleaved rather than grouped, so the sweep is spread through
   // the mat instead of being all down one end of it.
-  for (let i = 0; i < 86; i += 1) {
+  for (let i = 0; i < 100; i += 1) {
     const p = spot(rx, rz, 0.095);
     if (!p) continue;
-    const swings = i % 13 < 5;
+    const swings = i % 9 < 2;
     place(
       p[0],
       0,
@@ -575,7 +565,7 @@ export const buildSwarm = ({ spread = 3.1, band = 0.98 } = {}) => {
   }
 
   // Tier two: climbers riding the backs of the ones below
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < 34; i += 1) {
     const p = spot(rx * 0.82, rz * 0.82, 0.07);
     if (!p) continue;
     place(
@@ -589,12 +579,12 @@ export const buildSwarm = ({ spread = 3.1, band = 0.98 } = {}) => {
     );
   }
 
-  // Tier three: four on the crest, up on their haunches. The whole reason for
+  // Tier three: six candidates on the crest, up on their haunches. The whole reason for
   // the tiers is that a climber shades the rat beneath it, and a mat with
   // shadows inside it reads as a mass rather than as a decal. It is also what
   // stops a rat being picked out: a body with another body lying across it has
   // no outline of its own.
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 6; i += 1) {
     const p = spot(rx * 0.44, rz * 0.44, 0.1);
     if (!p) continue;
     place(

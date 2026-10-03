@@ -62,6 +62,24 @@ describe("the Swarm of Rats", () => {
     });
   });
 
+  it("returns to the same pose after switching gaits and preserves board placement", () => {
+    const rig = buildSwarm();
+    rig.root.position.set(4, 2, -3);
+    rig.root.scale.setScalar(0.7);
+    const snapshot = () => rig.rats.map(({ group, body, tail }) => [
+      ...group.position.toArray(), group.rotation.y, body.position.y,
+      tail?.rotation.y ?? 0,
+    ]);
+    poseSwarm(rig, 1.25, "idle");
+    const expected = snapshot();
+    poseSwarm(rig, 100, "attack");
+    poseSwarm(rig, 15, "march");
+    poseSwarm(rig, 1.25, "idle");
+    expect(snapshot()).toEqual(expected);
+    expect(rig.root.position.toArray()).toEqual([4, 2, -3]);
+    expect(rig.root.scale.toArray()).toEqual([0.7, 0.7, 0.7]);
+  });
+
   it("stays inside the mesh budget a unit this dense can afford", () => {
     // The one brief on this board that invites blowing the budget. Merging is
     // what makes it affordable: a rat in the reference is forty-odd meshes and
