@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm of Rats · design comparison</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#141715;color:#ececdf;font:16px/1.5 system-ui,sans-serif}main{width:1240px;max-width:100%;margin:auto;padding:32px}h1{font-size:32px;line-height:1.15;margin:8px 0 14px;letter-spacing:-.03em}h2{font-size:20px;margin:0 0 6px}p{color:#b2b9ab;margin:0 0 20px}.eyebrow{color:#b7c393;font-size:12px;letter-spacing:.18em;text-transform:uppercase}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{background:#20241f;border:1px solid #3a4135;border-radius:10px;overflow:hidden}.label{padding:18px 20px 4px}.label p{font-size:14px}.shot{position:relative;overflow:hidden;width:100%;height:420px;background:#242119}.shot img{position:absolute;width:1119px;max-width:none;left:calc(50% - 559px);top:-195px;image-rendering:pixelated}.state{padding:8px 20px;color:#c5ceac;font-size:12px;letter-spacing:.13em;text-transform:uppercase}.lab{position:relative;overflow:hidden;height:250px;background:#40681b}.lab img{position:absolute;width:900px;max-width:none;left:calc(50% - 450px);top:-205px}section{margin:0 0 30px}a{color:#c5d899}footer{border-top:1px solid #3a4135;padding-top:16px;color:#b2b9ab;font-size:13px}.native img{width:373px;max-width:100%}.native{padding:14px 0}details{margin:16px 0}summary{cursor:pointer;color:#c5d899}
+@media(max-width:700px){.grid{grid-template-columns:1fr}main{padding:20px}.shot{height:420px}}
+</style>
+<main>
+<div class="eyebrow">Undead Army / Three.js figures</div>
+<h1>Swarm of Rats</h1>
+<p>PR #42 → alternate design. Same game card, renderer, lighting, and camera in each pair.</p>
+<section id="board">
+<div class="grid">
+<article class="panel"><div class="label"><h2>Before · PR #42</h2><p>133 rats · 184 meshes · warm fur and mud</p></div><div class="state">Idle / card crop enlarged 3×</div><div class="shot"><img src="pr42-idle.png" alt="PR 42 swarm on its actual game card, idle"></div><div class="state">March / card crop enlarged 3×</div><div class="shot"><img src="pr42-march.png" alt="PR 42 swarm on its actual game card, marching"></div></article>
+<article class="panel"><div class="label"><h2>After · alternate design</h2><p>150 rats · 189 meshes · exposed bone and charcoal fur</p></div><div class="state">Idle / card crop enlarged 3×</div><div class="shot"><img src="alternative-idle.png" alt="Revised undead swarm on its actual game card, idle"></div><div class="state">March / card crop enlarged 3×</div><div class="shot"><img src="alternative-march.png" alt="Revised undead swarm on its actual game card, marching"></div></article>
+</div>
+<p style="margin-top:12px;font-size:13px">Original captures: 66.7 px/inch; each stand is 167 × 117 px. Enlargements use nearest-neighbour scaling.</p>
+</section>
+<section id="anatomy"><h2>Closer look / tilted creature lab</h2><p>Matched camera and animation time; cropped for detail. Use the board above to judge in-game readability.</p><div class="grid"><div class="panel"><div class="state">Before</div><div class="lab"><img src="pr42-tilted.png" alt="Original rats in the tilted creature lab"></div></div><div class="panel"><div class="state">After</div><div class="lab"><img src="alternative-tilted.png" alt="Revised rats with exposed ribs and skulls in the tilted creature lab"></div></div></div></section>
+<details><summary>View original board captures at native size</summary><div class="grid native"><img src="pr42-idle.png" alt="Before, native capture"><img src="alternative-idle.png" alt="After, native capture"></div></details>
+<footer>Based on <a href="https://github.com/peterclark/battle-map/pull/42">PR #42</a>, snapshot c097cf8. See <a href="README.md">capture notes and measurements</a>.</footer>
+</main>
+</html>
